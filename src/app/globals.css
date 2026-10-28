@@ -1,26 +1,559 @@
 @import "tailwindcss";
 
+/* ─── MicroSplit AI: Global Fintech Design Palette ────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Primary Colors */
+  --primary-navy: #0B1F3A;
+  --secondary-navy: #102C4D;
+  --deep-navy: #07172B;
+  --primary-teal: #0F9D8A;
+  --dark-teal: #087F73;
+  --light-teal: #DDF7F3;
+
+  /* Background Colors */
+  --bg-main: #F8FAFC;
+  --bg-secondary: #EEF4F7;
+  --surface-card: #FFFFFF;
+  --surface-teal-subtle: #F0FBF9;
+
+  /* Typography Colors */
+  --text-primary: #0B1F3A;
+  --text-secondary: #52657D;
+  --text-muted: #7A8BA0;
+  --text-on-dark: #FFFFFF;
+  --text-subtle-on-dark: #CBD5E1;
+
+  /* Borders and Dividers */
+  --border-default: #E2E8F0;
+  --border-strong: #CBD5E1;
+  --border-teal-accent: #A7E8DC;
+
+  /* Semantic Status Colors */
+  --status-success: #059669;
+  --status-success-bg: #D1FAE5;
+  --status-warning: #D97706;
+  --status-warning-bg: #FEF3C7;
+  --status-error: #DC2626;
+  --status-error-bg: #FEE2E2;
+  --status-info: #2563EB;
+  --status-info-bg: #DBEAFE;
+
+  /* Component mappings & aliases */
+  --primary: var(--primary-navy);
+  --background: var(--bg-main);
+  --accent: var(--primary-teal);
+  --text: var(--text-primary);
+
+  --surface: var(--surface-card);
+  --on-primary: #FFFFFF;
+  --muted: var(--text-secondary);
+  --muted-light: var(--text-muted);
+  --border: var(--border-default);
+  --accent-subtle: var(--light-teal);
+  --primary-subtle: var(--surface-teal-subtle);
+
+  --shadow-sm: 0 1px 3px rgba(11, 31, 58, 0.04);
+  --shadow-md: 0 4px 12px rgba(11, 31, 58, 0.05);
+  --shadow-card: 0 8px 24px rgba(11, 31, 58, 0.06);
+  --shadow-lg: 0 12px 32px rgba(11, 31, 58, 0.08);
+  --shadow-xl: 0 20px 48px rgba(11, 31, 58, 0.12);
+
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  --foreground: var(--text-primary);
 }
 
 @theme inline {
+  --color-primary: var(--primary);
   --color-background: var(--background);
+  --color-accent: var(--accent);
+  --color-brand: var(--primary);
+  --color-text: var(--text);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+
+  --color-primary-navy: #0B1F3A;
+  --color-secondary-navy: #102C4D;
+  --color-deep-navy: #07172B;
+  --color-primary-teal: #0F9D8A;
+  --color-dark-teal: #087F73;
+  --color-light-teal: #DDF7F3;
+  --color-bg-main: #F8FAFC;
+  --color-surface-card: #FFFFFF;
+  --color-surface-teal-subtle: #F0FBF9;
+
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ─── Base Reset ──────────────────────────────────────────── */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
   }
+}
+
+html {
+  overflow-x: hidden;
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--text);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  max-width: 100%;
+  width: 100%;
+}
+
+/* Tabular numerals for money */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Primary Buttons (Section 6) ─────────────────────────── */
+.btn-primary,
+.btn-3d {
+  background: var(--accent);
+  color: var(--on-primary);
+  border: none;
+  border-radius: 12px;
+  padding: 12px 24px;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 25%, transparent);
+  transform: translateY(0);
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+  user-select: none;
+}
+
+.btn-primary:hover,
+.btn-3d:hover {
+  background: var(--accent);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active,
+.btn-3d:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.btn-3d-sm {
+  padding: 8px 16px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+
+.btn-3d-mint {
+  background: var(--status-success);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.btn-3d-mint:hover {
+  background: var(--accent);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* ─── Secondary Button (Section 6) ────────────────────────── */
+.btn-secondary {
+  background: var(--surface);
+  color: var(--primary);
+  border: 1.5px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 11px 22px;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+}
+
+.btn-secondary:hover {
+  background: var(--accent-subtle);
+  border-color: var(--border-strong);
+  color: var(--accent);
+}
+
+/* ─── Ghost / Text Button (Section 6) ─────────────────────── */
+.btn-ghost {
+  background: transparent;
+  color: var(--primary);
+  border: none;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-ghost:hover {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+/* ─── Disabled State (Section 6) ──────────────────────────── */
+button:disabled,
+.btn-primary:disabled,
+.btn-3d:disabled,
+.btn-secondary:disabled {
+  background: var(--border) !important;
+  color: var(--muted-light) !important;
+  border-color: var(--border) !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* ─── Cards & Panels (Section 7) ──────────────────────────── */
+.glass-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease;
+}
+
+.glass-card:hover {
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--primary) 8%, transparent);
+  border-color: var(--border-strong);
+}
+
+.glass-card-elevated {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--primary) 8%, transparent);
+}
+
+/* Virtual Card Fintech Gradient (Section 5) */
+.card-virtual {
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  color: var(--on-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--primary) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--background) 12%, transparent);
+}
+
+/* ─── Status Chips & Badges (Section 9) ───────────────────── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.chip-mint,
+.chip-success {
+  background: var(--status-success-bg);
+  color: var(--status-success);
+}
+
+.chip-amber,
+.chip-warning {
+  background: var(--status-warning-bg);
+  color: var(--status-warning);
+}
+
+.chip-rose,
+.chip-error {
+  background: var(--status-error-bg);
+  color: var(--status-error);
+}
+
+.chip-teal,
+.chip-verified {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.chip-info {
+  background: var(--status-info-bg);
+  color: var(--status-info);
+}
+
+.chip-violet {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.chip-muted {
+  background: var(--surface);
+  color: var(--muted);
+}
+
+/* ─── Money Chip ──────────────────────────────────────────── */
+.money-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+}
+
+/* ─── Weight Bar ──────────────────────────────────────────── */
+.weight-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--border);
+  overflow: hidden;
+  position: relative;
+}
+
+.weight-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent), var(--accent));
+  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ─── Pipeline Bar ────────────────────────────────────────── */
+.pipeline {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: 100%;
+}
+
+.pipeline-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.pipeline-connector {
+  flex: 1;
+  height: 2px;
+  background: var(--border);
+  min-width: 24px;
+}
+
+.pipeline-connector-active {
+  background: linear-gradient(90deg, var(--accent), var(--status-success));
+}
+
+/* ─── Confidence Meter ────────────────────────────────────── */
+.confidence-meter {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.confidence-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  transition: background 0.3s ease;
+}
+
+.confidence-dot.active {
+  background: var(--accent);
+}
+
+.confidence-dot.warning {
+  background: var(--status-warning);
+}
+
+.confidence-dot.danger {
+  background: var(--status-error);
+}
+
+/* ─── Gradient Backgrounds ────────────────────────────────── */
+.bg-hero-gradient {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary) 50%, var(--accent) 100%);
+}
+
+.bg-card-gradient {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 4%, transparent) 0%, color-mix(in srgb, var(--primary) 3%, transparent) 100%);
+}
+
+/* ─── Scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--primary) 28%, transparent);
+}
+
+/* ─── Animations ──────────────────────────────────────────── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 var(--accent);
+  }
+  50% {
+    box-shadow: 0 0 20px 4px var(--accent);
+  }
+}
+
+@keyframes count-up {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease forwards;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.5s ease forwards;
+}
+
+/* ─── Reduced Motion (Section 12) ─────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .btn-3d,
+  .btn-primary,
+  .btn-secondary,
+  .btn-ghost,
+  .glass-card,
+  .glass-card-elevated,
+  .weight-bar-fill,
+  .confidence-dot {
+    transition: none !important;
+  }
+
+  .animate-fade-in-up,
+  .animate-slide-in-right {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ─── Selection ───────────────────────────────────────────── */
+::selection {
+  background: var(--accent-subtle);
+  color: var(--primary);
+}
+
+/* ─── Focus Styles (Section 12) ───────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ─── Input Styles (Section 8) ────────────────────────────── */
+input, textarea, select {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.input-field {
+  width: 100%;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  padding-left: 16px;
+  padding-right: 16px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 15px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Guaranteed padding for leading icons and currency indicators */
+.input-with-icon,
+.input-field.input-with-icon,
+.input-field.pl-10,
+.input-field.pl-11 {
+  padding-left: 44px !important;
+}
+
+.input-with-currency,
+.input-field.input-with-currency,
+.input-field.pl-12,
+.input-field.pl-14 {
+  padding-left: 48px !important;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.input-field::placeholder {
+  color: var(--muted-light);
+}
+
+/* Numeric input spinner removal */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
 }

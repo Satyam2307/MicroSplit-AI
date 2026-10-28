@@ -1,0 +1,25 @@
+# MicroSplit AI
+> MicroSplit AI is an intelligent revenue attribution and transparent settlement platform for modern developer squads, freelance consortiums, and distributed teams.
+
+## Core Capabilities
+- **Proof-of-Focus Attribution**: Quantifies actual contributions using objective signals (commits, pull requests, focus sessions, review rigor) instead of arbitrary percent guesses.
+- **Multi-Currency Settlements**: Supports instant batch payouts in INR (₹), USD ($), EUR (€), GBP (£), CAD ($), and AUD ($).
+- **One-Click PayPal Batch Payouts**: Direct integration with PayPal Payouts API v1 for instant member dispatches with idempotent run IDs.
+- **Tamper-Evident Ledger**: Cryptographically verifiable SHA-256 state transitions and double-entry book balancing for every revenue split.
+- **Cross-Timezone Collaboration**: Built-in support for global teams, including Indian Standard Time (IST), UTC, EST, PST, GMT, and JST.
+
+## Canonical URLs & Routes
+- Homepage: https://microsplit.ai/
+- Squads Overview: https://microsplit.ai/squads
+- Create New Squad: https://microsplit.ai/squads/new
+- Trigger Split Run: https://microsplit.ai/splits/new
+- Payouts & Settlement: https://microsplit.ai/payouts
+- Immutable Ledger: https://microsplit.ai/ledger
+- Focus Evidence: https://microsplit.ai/evidence
+- Member Statements: https://microsplit.ai/statements
+- Contact & Support: https://microsplit.ai/contact
+
+## Contact & Security
+- Support Email: support@microsplit.ai
+- Security Disclosures: security@microsplit.ai
+- Domain: https://microsplit.ai

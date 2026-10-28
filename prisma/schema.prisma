@@ -1,0 +1,312 @@
+// MicroSplit AI – Prisma Schema
+// All money amounts are stored as integer minor units (cents)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Users & Auth ────────────────────────────────────────────
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  avatar    String?
+  role      String   @default("contributor") // global role: admin | contributor
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  ownedSquads   Squad[]
+  memberships   Membership[]
+  evidence      Evidence[]
+  contributions Contribution[]
+  approvals     Approval[]
+  freezeGrantsGiven FreezeGrant[]
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+// ─── Squads ──────────────────────────────────────────────────
+model Squad {
+  id        String   @id @default(cuid())
+  name      String
+  ownerId   String   @map("owner_id")
+  currency  String   @default("USD")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  owner         User           @relation(fields: [ownerId], references: [id])
+  memberships   Membership[]
+  revenueEvents RevenueEvent[]
+  splitRules    SplitRule[]
+  evidence      Evidence[]
+
+  @@map("squads")
+}
+
+model Membership {
+  id                  String @id @default(cuid())
+  squadId             String @map("squad_id")
+  userId              String @map("user_id")
+  role                String @default("contributor") // owner | approver | contributor | viewer
+  payoutReceiver      String @map("payout_receiver") // PayPal email or phone
+  payoutReceiverType  String @default("EMAIL") @map("payout_receiver_type") // EMAIL | PHONE
+  timezone            String @default("UTC")
+  focusSessionsOptIn  Boolean @default(false) @map("focus_sessions_opt_in")
+
+  squad         Squad          @relation(fields: [squadId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  freezeGrants  FreezeGrant[]
+  focusSessions FocusSession[]
+
+  @@unique([squadId, userId])
+  @@map("memberships")
+}
+
+// ─── Revenue ─────────────────────────────────────────────────
+model RevenueEvent {
+  id          String   @id @default(cuid())
+  squadId     String   @map("squad_id")
+  amountMinor Int      @map("amount_minor") // cents
+  currency    String   @default("USD")
+  source      String   // "client_payment", "import", etc.
+  description String?
+  status      String   @default("active") // active | voided
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  squad     Squad      @relation(fields: [squadId], references: [id], onDelete: Cascade)
+  splitRuns SplitRun[]
+
+  @@map("revenue_events")
+}
+
+// ─── Split Rules ─────────────────────────────────────────────
+model SplitRule {
+  id         String   @id @default(cuid())
+  squadId    String   @map("squad_id")
+  type       String   // fixed_percentage | weighted_points | tiered | milestone
+  configJson String   @map("config_json") @db.Text // JSON config
+  version    Int      @default(1)
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  squad Squad @relation(fields: [squadId], references: [id], onDelete: Cascade)
+
+  @@map("split_rules")
+}
+
+// ─── Evidence & Contributions ────────────────────────────────
+model Evidence {
+  id         String   @id @default(cuid())
+  squadId    String   @map("squad_id")
+  uploaderId String   @map("uploader_id")
+  kind       String   // text | pdf | image | audio | csv | link
+  fileName   String?  @map("file_name")
+  fileUrl    String   @map("file_url")
+  sha256     String
+  mimeType   String?  @map("mime_type")
+  sizeBytes  Int?     @map("size_bytes")
+  status     String   @default("pending") // pending | extracted | failed | rejected
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  squad         Squad          @relation(fields: [squadId], references: [id], onDelete: Cascade)
+  uploader      User           @relation(fields: [uploaderId], references: [id])
+  contributions Contribution[]
+  aiLogs        AILog[]
+  focusSessions FocusSession[]
+
+  @@map("evidence")
+}
+
+model Contribution {
+  id         String   @id @default(cuid())
+  evidenceId String   @map("evidence_id")
+  memberId   String   @map("member_id")
+  activity   String   // "code_commit", "design", "review", "hours", etc.
+  quantity   Float
+  unit       String   // "commits", "hours", "screens", "tasks"
+  period     String?  // "2024-01" or date range
+  confidence Float    @default(0.0)
+  flagsJson  String?  @map("flags_json") @db.Text // conflict flags
+  status     String   @default("pending") // pending | confirmed | edited | rejected
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  evidence   Evidence    @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  member     User        @relation(fields: [memberId], references: [id])
+  splitLines SplitLine[]
+
+  @@map("contributions")
+}
+
+// ─── Split Engine ────────────────────────────────────────────
+model SplitRun {
+  id             String   @id @default(cuid())
+  revenueEventId String   @map("revenue_event_id")
+  ruleVersion    Int      @map("rule_version")
+  poolMinor      Int      @map("pool_minor")
+  checksum       String   // SHA-256 over the sorted lines
+  status         String   @default("draft") // draft | pending_approval | approved | disputed | paid
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  revenueEvent  RevenueEvent  @relation(fields: [revenueEventId], references: [id])
+  lines         SplitLine[]
+  approvals     Approval[]
+  payoutBatches PayoutBatch[]
+
+  @@map("split_runs")
+}
+
+model SplitLine {
+  id            String @id @default(cuid())
+  runId         String @map("run_id")
+  memberId      String @map("member_id")
+  weight                 Float  // computed weight
+  amountMinor            Int    @map("amount_minor")
+  workAmountMinor        Int    @default(0) @map("work_amount_minor")
+  consistencyAmountMinor Int    @default(0) @map("consistency_amount_minor")
+  streakDays             Int    @default(0) @map("streak_days")
+  freezeDaysUsed         Int    @default(0) @map("freeze_days_used")
+  rationaleJson          String @map("rationale_json") @db.Text
+
+  run          SplitRun      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  contributions Contribution[]
+  payoutItems  PayoutItem[]
+
+  @@map("split_lines")
+}
+
+// ─── Approval Workflow ───────────────────────────────────────
+model Approval {
+  id         String   @id @default(cuid())
+  runId      String   @map("run_id")
+  approverId String   @map("approver_id")
+  decision   String   // approved | disputed | adjusted
+  note       String?  @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  run      SplitRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  approver User     @relation(fields: [approverId], references: [id])
+
+  @@map("approvals")
+}
+
+// ─── Payouts ─────────────────────────────────────────────────
+model PayoutBatch {
+  id            String   @id @default(cuid())
+  runId         String   @map("run_id")
+  senderBatchId String   @unique @map("sender_batch_id")
+  paypalBatchId String?  @map("paypal_batch_id")
+  status        String   @default("created") // created | processing | success | denied | canceled
+  totalMinor    Int      @default(0) @map("total_minor")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  run   SplitRun     @relation(fields: [runId], references: [id])
+  items PayoutItem[]
+
+  @@map("payout_batches")
+}
+
+model PayoutItem {
+  id            String  @id @default(cuid())
+  batchId       String  @map("batch_id")
+  lineId        String  @map("line_id")
+  senderItemId  String  @unique @map("sender_item_id")
+  paypalItemId  String? @map("paypal_item_id")
+  amountMinor   Int     @map("amount_minor")
+  status        String  @default("created") // created | pending | success | failed | unclaimed | returned | blocked
+  failureReason String? @map("failure_reason")
+
+  batch PayoutBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  line  SplitLine   @relation(fields: [lineId], references: [id])
+
+  @@map("payout_items")
+}
+
+// ─── Ledger (append-only with hash chain) ────────────────────
+model LedgerEvent {
+  id          String   @id @default(cuid())
+  type        String   // revenue_recorded | split_created | split_approved | payout_created | payout_item_status | payout_completed
+  refId       String   @map("ref_id")
+  amountMinor Int      @map("amount_minor")
+  payloadJson String   @map("payload_json") @db.Text
+  prevHash    String?  @map("prev_hash")
+  hash        String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("ledger_events")
+}
+
+// ─── AI Extraction Logs ──────────────────────────────────────
+model AILog {
+  id            String   @id @default(cuid())
+  evidenceId    String   @map("evidence_id")
+  modelName     String   @map("model_name")
+  promptVersion String   @map("prompt_version")
+  inputHash     String   @map("input_hash")
+  outputJson    String?  @map("output_json") @db.Text
+  status        String   @default("pending") // pending | success | failed
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  evidence Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  @@map("ai_logs")
+}
+
+// ─── Audit Logs ──────────────────────────────────────────────
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String   @map("actor_id")
+  action     String
+  entity     String
+  entityId   String?  @map("entity_id")
+  beforeJson String?  @map("before_json") @db.Text
+  afterJson  String?  @map("after_json") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// ─── Consistency Streaks & Freeze Grants ─────────────────────
+model FreezeGrant {
+  id         String   @id @default(cuid())
+  squadId    String   @map("squad_id")
+  memberId   String   @map("member_id")
+  approverId String   @map("approver_id")
+  date       DateTime @db.Date
+  reason     String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  membership Membership @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  approver   User       @relation(fields: [approverId], references: [id])
+
+  @@unique([memberId, date])
+  @@map("freeze_grants")
+}
+
+// ─── Focus Sessions (Strict Opt-in, Minimal Metadata) ─────────
+model FocusSession {
+  id           String    @id @default(cuid())
+  memberId     String    @map("member_id")
+  taskId       String    @map("task_id")
+  startedAt    DateTime  @map("started_at")
+  endedAt      DateTime? @map("ended_at")
+  source       String    @default("manual") // manual | linked_evidence
+  evidenceId   String?   @map("evidence_id")
+  status       String    @default("active") // active | completed | disputed | approved
+  conflictFlag String?   @map("conflict_flag")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  membership Membership @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  evidence   Evidence?  @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
+
+  @@index([memberId, startedAt])
+  @@map("focus_sessions")
+}
+
