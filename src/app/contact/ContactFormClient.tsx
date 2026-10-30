@@ -43,6 +43,8 @@ export default function ContactFormClient() {
         process.env.NEXT_PUBLIC_WHATSAPP_PHONE.replace(/[^0-9]/g, '').length >= 8
       ) {
         setActiveWaPhone(process.env.NEXT_PUBLIC_WHATSAPP_PHONE);
+      } else {
+        setActiveWaPhone('919294514754');
       }
     }
   }, []);

@@ -76,17 +76,19 @@ export default function WhatsAppButton() {
   const [waLoading, setWaLoading] = useState(false);
   const [waTicket, setWaTicket] = useState<string | null>(null);
 
-  // Configured WhatsApp number/link
-  const [customWaPhone, setCustomWaPhone] = useState<string>('');
+  // Configured WhatsApp support desk number (default to user's official line)
+  const [customWaPhone, setCustomWaPhone] = useState<string>('919294514754');
   const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('microsplit_custom_whatsapp');
-      if (stored) {
+      if (stored && stored.replace(/[^0-9]/g, '').length >= 8) {
         setCustomWaPhone(stored);
       } else if (process.env.NEXT_PUBLIC_WHATSAPP_PHONE && process.env.NEXT_PUBLIC_WHATSAPP_PHONE !== '15550192834') {
         setCustomWaPhone(process.env.NEXT_PUBLIC_WHATSAPP_PHONE);
+      } else {
+        setCustomWaPhone('919294514754');
       }
     }
   }, []);
@@ -706,42 +708,45 @@ export default function WhatsAppButton() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {/* Direct link if configured */}
-                    {directWhatsAppUrl ? (
-                      <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-200 text-emerald-950">
-                        <div className="flex items-center gap-2 mb-1.5">
+                    {/* Direct WhatsApp button to reach the official support line */}
+                    <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-200 text-emerald-950">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
                           <MessageCircle className="w-4 h-4 text-emerald-600" />
-                          <h4 className="text-xs font-bold text-emerald-900">Official Direct Line Active</h4>
+                          <h4 className="text-xs font-bold text-emerald-900">Official Support WhatsApp Desk</h4>
                         </div>
-                        <p className="text-[11px] text-emerald-800 mb-3 leading-relaxed">
-                          Connect directly to our verified squad attribution WhatsApp line without waiting.
-                        </p>
-                        <a
-                          href={directWhatsAppUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center w-full gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors shadow-sm"
-                        >
-                          <MessageCircle className="w-4 h-4" />
-                          Open Chat in WhatsApp
-                          <ExternalLink className="w-3 h-3 ml-0.5" />
-                        </a>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          🟢 Online Now
+                        </span>
                       </div>
-                    ) : null}
+                      <p className="text-[11px] text-emerald-800 mb-3 leading-relaxed">
+                        Click below to open WhatsApp directly and chat with our fintech engineers about revenue splits, streak disputes, or PayPal payouts.
+                      </p>
+                      <a
+                        href={directWhatsAppUrl || `https://wa.me/919294514754?text=${defaultWhatsAppText}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center w-full gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors shadow-sm"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        <span>Chat on WhatsApp Directly</span>
+                        <ExternalLink className="w-3 h-3 ml-0.5" />
+                      </a>
+                    </div>
 
-                    {/* Callback Form */}
+                    {/* Callback Form for visitors to request a message from support */}
                     <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <PhoneCall className="w-4 h-4 text-teal-600" />
-                          <h4 className="text-xs font-bold text-slate-900">WhatsApp Desk Dispatch</h4>
+                          <h4 className="text-xs font-bold text-slate-900">Or Request a Priority Callback</h4>
                         </div>
                         <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                           SLA &lt; 15m
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-500 mb-3 leading-relaxed">
-                        Enter your number. Our engineer will message you directly on WhatsApp to resolve payout or split discrepancies.
+                        Prefer us to contact you? Enter your WhatsApp number below and a team engineer will message you directly.
                       </p>
 
                       <form onSubmit={handleWhatsAppCallbackSubmit} className="space-y-3">
@@ -807,22 +812,6 @@ export default function WhatsAppButton() {
                           <span>{waLoading ? 'Sending...' : 'Log Callback Request'}</span>
                         </button>
                       </form>
-
-                      {/* Direct WhatsApp launcher if number typed */}
-                      {cleanEnteredPhone.length >= 8 && (
-                        <div className="mt-3 pt-3 border-t border-slate-200">
-                          <a
-                            href={`https://wa.me/${cleanEnteredPhone}?text=${defaultWhatsAppText}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center justify-center w-full gap-2 px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-sm"
-                          >
-                            <MessageCircle className="w-3.5 h-3.5" />
-                            <span>Launch WhatsApp with {waPhone}</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </div>
-                      )}
 
                       <div className="mt-3 flex items-center gap-1.5 text-[10px] text-slate-400">
                         <ShieldCheck className="w-3.5 h-3.5 text-teal-600 flex-shrink-0" />
