@@ -1,993 +1,359 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import Link from 'next/link';
 import {
   MessageCircle,
   X,
   Send,
-  CheckCircle2,
   Sparkles,
   Bot,
   ExternalLink,
-  ShieldCheck,
-  Clock,
-  Settings,
-  HelpCircle,
-  ArrowRight,
-  Phone,
-  PhoneOff,
   Volume2,
   VolumeX,
   Mic,
   MicOff,
   Globe,
-  Mail,
-  FileText,
+  ChevronDown,
+  Check,
+  CheckCheck,
   Users,
-  BookOpen,
-  Zap,
-  AlertCircle,
+  ShieldCheck,
+  Clock,
+  ArrowRight,
   Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Multi-language voice knowledge base
-interface LanguageData {
-  name: string;
-  langCode: string;
-  greeting: string;
-  prompts: string[];
-  answers: Record<string, string>;
+type LanguageType = 'en' | 'hi' | 'hinglish';
+
+interface ChatMessage {
+  id: string;
+  sender: 'user' | 'assistant';
+  text: string;
+  time: string;
 }
 
-const voiceLangs: Record<'en' | 'hi' | 'hinglish', LanguageData> = {
-  en: {
-    name: 'English',
-    langCode: 'en-US',
-    greeting: 'Hello! Welcome to MicroSplit AI voice concierge. How can I assist you with squad attribution, evidence vault, streak bonuses, or PayPal payouts today?',
-    prompts: [
-      'How does the evidence feature work?',
-      'How does the 0-cent split work?',
-      'How is the Consistency Streak Bonus calculated?',
-      'How to inspect the Merkle Ledger?',
-      'How to integrate PayPal Batch payouts?',
-    ],
-    answers: {
-      'How does the evidence feature work?':
-        'MicroSplit AI has a dedicated Evidence Vault at slash evidence. Upload client receipts, GitHub PRs, or invoices. Multi-modal AI Vision extracts timestamps and amounts with tamper-proof SHA-256 conflict detection.',
-      'How does the 0-cent split work?':
-        'MicroSplit AI uses deterministic integer-cent math with largest-remainder rounding. AI only extracts facts, while mathematical code executes the payouts. Exactly zero cents are lost or created.',
-      'How is the Consistency Streak Bonus calculated?':
-        'Squads allocate up to ten percent for consistency. Every verified active day adds to your streak multiplier up to one hundred days, with approved freeze days protecting your streak during time off.',
-      'How to inspect the Merkle Ledger?':
-        'Every allocation calculation and PayPal batch execution is sealed into an append-only SHA-256 Merkle chain at slash ledger, guaranteeing immutable, dispute-free audits.',
-      'How to integrate PayPal Batch payouts?':
-        'Once approved by squad approvers, a single PayPal Batch API transaction disburses funds to up to 15,000 squad members globally with instant webhook confirmation.',
-    },
-  },
-  hi: {
-    name: 'हिंदी (Hindi)',
-    langCode: 'hi-IN',
-    greeting: 'नमस्ते! माइक्रोस्प्लिट एआई वॉइस सपोर्ट में आपका स्वागत है। मैं आपकी टीम के रेवेन्यू स्प्लिट, एविडेंस ओसीआर और पेआउट में कैसे सहायता कर सकता हूँ?',
-    prompts: [
-      'एविडेंस और ओसीआर फीचर कैसे काम करता है?',
-      '0-सेंट स्प्लिट कैसे काम करता है?',
-      'कंसिस्टेंसी स्ट्रीक बोनस क्या है?',
-      'मर्कल लेजर ऑडिट क्या है?',
-      'पेपैल बैच पेआउट कैसे होता है?',
-    ],
-    answers: {
-      'एविडेंस और ओसीआर फीचर कैसे काम करता है?':
-        'माइक्रोस्प्लिट एआई में स्लैश एविडेंस पर पूरा वॉल्ट है। आप रसीद या इनवॉइस अपलोड कर सकते हैं, एआई ओसीआर तुरंत डेटा निकालता है और शहा-२५६ हैश से सुरक्षित करता है।',
-      '0-सेंट स्प्लिट कैसे काम करता है?':
-        'माइक्रोस्प्लिट एआई डिफ़ॉल्ट रूप से डिटर्मिनिस्टिक मैथ का उपयोग करता है। सभी पैसों का हिसाब पैसे के पूर्णांक में होता है, जिससे एक भी पैसे का नुकसान या अंतर नहीं आता।',
-      'कंसिस्टेंसी स्ट्रीक बोनस क्या है?':
-        'आपकी टीम 10 प्रतिशत तक का कंसिस्टेंसी पूल बना सकती है। हर दिन लगातार काम करने से स्ट्रीक बोनस बढ़ता है, और बीमारी या छुट्टी के लिए फ्रीज डेज भी मिलते हैं।',
-      'मर्कल लेजर ऑडिट क्या है?':
-        'स्लैश लेजर पर हर पेआउट और नियम क्रिप्टोग्राफिक ब्लॉकचेन की तरह शहा-२५६ हैश में लॉक होते हैं, जिससे कोई भी रिकॉर्ड बदला नहीं जा सकता।',
-      'पेपैल बैच पेआउट कैसे होता है?':
-        'स्प्लिट अप्रूव होने के बाद, सिर्फ एक क्लिक में पेपैल बैच एपीआई द्वारा पूरी टीम के बैंक या पेपैल में तुरंत पैसे ट्रांसफर हो जाते हैं।',
-    },
-  },
-  hinglish: {
-    name: 'Hinglish',
-    langCode: 'en-IN',
-    greeting: 'Hello! MicroSplit AI voice assistant mein aapka swagat hai. Squad revenue split, evidence OCR aur PayPal payouts ke baare mein aapko kya jaankari chahiye?',
-    prompts: [
-      'Evidence feature kaise kaam karta hai?',
-      '0-cent split kaise kaam karta hai?',
-      'Consistency Streak bonus kya hai?',
-      'Merkle Ledger audit kaise check karein?',
-      'PayPal batch payouts kaise setup karein?',
-    ],
-    answers: {
-      'Evidence feature kaise kaam karta hai?':
-        'Aap slash evidence par jaakar receipts ya invoices upload kar sakte hain. AI OCR automatically timestamps aur amounts extract karta hai with SHA-256 security.',
-      '0-cent split kaise kaam karta hai?':
-        'MicroSplit AI deterministic integer math use karta hai. AI sirf facts nikalta hai, calculations pure code karta hai, jisse ek bhi single cent ka loss nahi hota.',
-      'Consistency Streak bonus kya hai?':
-        'Squad pool ka 5 se 10 percent consistency ke liye set kiya jaata hai. Regular days pe kaam karne se streak banti hai, maximum 100 days tak.',
-      'Merkle Ledger audit kaise check karein?':
-        'Slash ledger par har split aur PayPal payout SHA-256 blocks mein seal hota hai, taaki past records tamper na ho sakein.',
-      'PayPal batch payouts kaise setup karein?':
-        'Split approve hote hi, PayPal batch API v1 ke through pure squad ko single transaction mein payout chala jaata hai.',
-    },
-  },
+const greetings: Record<LanguageType, string> = {
+  en: '👋 Hello! I am your MicroSplit AI Concierge. How can I assist you with evidence verification, 0-cent splits, consistency streaks, or PayPal batch payouts today?',
+  hi: '👋 नमस्ते! मैं MicroSplit AI असिस्टेंट हूँ। मैं आपकी टीम के एविडेंस अपलोड, 0-सेंट स्प्लिट, कंसिस्टेंसी स्ट्रीक, या पेपैल पेआउट में कैसे सहायता कर सकता हूँ?',
+  hinglish: '👋 Hello! Main MicroSplit AI Assistant hoon. Squad revenue splits, evidence vault, 0-cent math ya PayPal batch payouts ke baare mein aapko kya jaankari chahiye?',
 };
 
-interface AiResponseResult {
-  reply: string;
-  link?: { label: string; href: string };
-  suggestions: string[];
-}
+const placeholders: Record<LanguageType, string> = {
+  en: 'Ask a question or tap mic to speak...',
+  hi: 'अपना सवाल लिखें या माइक दबाकर बोलें...',
+  hinglish: 'Sawaal likhein ya mic daba kar bolein...',
+};
 
-// Comprehensive intent and semantic query matching engine
-function resolveAiResponse(userInput: string): AiResponseResult {
-  const query = userInput.toLowerCase().trim();
-
-  // 1. Evidence Feature & Proofs & OCR
-  if (
-    query.includes('evidence') ||
-    query.includes('proof') ||
-    query.includes('upload') ||
-    query.includes('receipt') ||
-    query.includes('screenshot') ||
-    query.includes('ocr') ||
-    query.includes('invoice') ||
-    query.includes('deliverable') ||
-    query.includes('document') ||
-    query.includes('conflict')
-  ) {
-    return {
-      reply:
-        "MicroSplit AI features a dedicated **Evidence Vault** accessible at **`/evidence`** (or by clicking 'Evidence' in the top navbar).\n\n" +
-        "**How to see and use the Evidence feature:**\n" +
-        "1. 📄 **Upload Work Proof:** Drag and drop client receipts, GitHub commits, design milestones, or invoice PDFs.\n" +
-        "2. 👁️ **AI Vision OCR:** Multi-modal AI reads text automatically to extract timestamps, deliverables, and dollar values.\n" +
-        "3. 🔒 **SHA-256 Cryptographic Hash:** Every submission receives an immutable cryptographic hash so it cannot be altered.\n" +
-        "4. ⚠️ **Automated Conflict Adjudication:** Flags overlapping hours or duplicate invoices before payouts are approved.\n\n" +
-        "Click the button below to navigate to the Evidence Vault right now!",
-      link: { label: 'Open Evidence Vault (/evidence) →', href: '/evidence' },
-      suggestions: [
-        'How does 0-cent split work?',
-        'How to inspect Merkle Ledger?',
-        'Send WhatsApp Inquiry to +91 9294514754',
-      ],
-    };
-  }
-
-  // 2. Squads & Creation & Roles
-  if (
-    query.includes('squad') ||
-    query.includes('team') ||
-    query.includes('create squad') ||
-    query.includes('add member') ||
-    query.includes('join') ||
-    query.includes('role') ||
-    query.includes('approver') ||
-    query.includes('contributor')
-  ) {
-    return {
-      reply:
-        "Squad creation and team governance are hosted at **`/squads`** (or create a new squad at **`/squads/new`**).\n\n" +
-        "**Squad Capabilities:**\n" +
-        "• **Define Revenue Pools:** Set pool amounts in USD with deterministic integer-cent allocation.\n" +
-        "• **Role-Based Governance:** Assign Owner, Approver, and Contributor roles with customizable voting thresholds.\n" +
-        "• **Split Models:** Allocate based on logged hours, completed milestones, or equal shares with Streak multipliers.\n" +
-        "• **Batch Disbursal:** Connect PayPal handles for 1-click team payouts.",
-      link: { label: 'Explore Squads (/squads) →', href: '/squads' },
-      suggestions: [
-        'How can we see the evidence feature?',
-        'What is Merkle Ledger?',
-        'How does 0-cent math work?',
-      ],
-    };
-  }
-
-  // 3. Merkle Ledger & Cryptographic Auditing
-  if (
-    query.includes('ledger') ||
-    query.includes('merkle') ||
-    query.includes('audit') ||
-    query.includes('sha-256') ||
-    query.includes('sha256') ||
-    query.includes('immutable') ||
-    query.includes('block') ||
-    query.includes('tamper') ||
-    query.includes('chain')
-  ) {
-    return {
-      reply:
-        "The **Merkle Ledger** is viewable at **`/ledger`**.\n\n" +
-        "• **Cryptographic Block Chaining:** Every split calculation, evidence approval, and PayPal payout is chained using SHA-256 hashes.\n" +
-        "• **Tamper-Proof Integrity:** Any alteration to past records breaks the cryptographic hash, instantly flagging an alert.\n" +
-        "• **Dispute-Free Settlements:** Approvers and contributors can verify the Merkle root before and after PayPal disbursement.",
-      link: { label: 'Inspect Merkle Ledger (/ledger) →', href: '/ledger' },
-      suggestions: [
-        'How does 0-cent split work?',
-        'How can we see the evidence feature?',
-        'View Statements (/statements)',
-      ],
-    };
-  }
-
-  // 4. Statements & History
-  if (
-    query.includes('statement') ||
-    query.includes('history') ||
-    query.includes('earning') ||
-    query.includes('my payout') ||
-    query.includes('tax') ||
-    query.includes('breakdown')
-  ) {
-    return {
-      reply:
-        "Individual earnings and historical settlement statements are located at **`/statements`**.\n\n" +
-        "• **Itemized Breakdown:** Detailed view of base revenue share, consistency streak bonus credits, and verified task hours.\n" +
-        "• **Audit-Ready Exports:** Export PDF/CSV settlement statements with corresponding PayPal Batch transaction IDs.\n" +
-        "• **Cryptographic Verification:** Each statement links directly to its block hash in the Merkle Ledger.",
-      link: { label: 'View Statements (/statements) →', href: '/statements' },
-      suggestions: [
-        'How does consistency streak work?',
-        'How does 0-cent split work?',
-        'Inspect Merkle Ledger',
-      ],
-    };
-  }
-
-  // 5. 0-Cent Math Guarantee
-  if (
-    query.includes('0-cent') ||
-    query.includes('zero cent') ||
-    query.includes('cent') ||
-    query.includes('math') ||
-    query.includes('algorithm') ||
-    query.includes('rounding') ||
-    query.includes('remainder') ||
-    query.includes('hare-niemeyer')
-  ) {
-    return {
-      reply:
-        "MicroSplit AI enforces a strict **Zero-Cent Loss Guarantee**:\n\n" +
-        "• **Pure Integer-Cent Arithmetic:** We calculate money strictly in integer cents (e.g., $100.00 = 10,000 cents), eliminating floating-point rounding bugs.\n" +
-        "• **Largest-Remainder Algorithm (Hare-Niemeyer):** Fractional cents are distributed deterministically to members with the largest remainders.\n" +
-        "• **AI Role:** AI only extracts structured facts from evidence; pure deterministic TypeScript code executes the payouts.\n\n" +
-        "`Sum(Member Payouts) === Total Pool` holds true 100% of the time down to the exact cent.",
-      link: { label: 'Try 0-Cent Slider on Home Page →', href: '/#showcase' },
-      suggestions: [
-        'How is Consistency Streak calculated?',
-        'How to integrate PayPal Batch payouts?',
-        'How can we see the evidence feature?',
-      ],
-    };
-  }
-
-  // 6. Consistency Streak & Freeze Days
-  if (
-    query.includes('streak') ||
-    query.includes('consistency') ||
-    query.includes('freeze') ||
-    query.includes('daily') ||
-    query.includes('bonus') ||
-    query.includes('100 day') ||
-    query.includes('vacation')
-  ) {
-    return {
-      reply:
-        "The **Consistency Streak Bonus** rewards daily contribution discipline:\n\n" +
-        "• **Dedicated Pool:** Squads allocate 5% to 10% of their total revenue pool specifically for consistency.\n" +
-        "• **Progressive Multiplier:** Consecutive verified active days build a streak multiplier up to 100 days.\n" +
-        "• **Freeze Day Protection:** Contributors receive approved freeze tokens (e.g. for sickness, travel, or exams) so planned breaks never reset your streak.",
-      link: { label: 'Explore Squads (/squads) →', href: '/squads' },
-      suggestions: [
-        'How does 0-cent split work?',
-        'How can we see the evidence feature?',
-        'What is Merkle Ledger?',
-      ],
-    };
-  }
-
-  // 7. PayPal Batch Payouts & Disbursal
-  if (
-    query.includes('paypal') ||
-    query.includes('batch') ||
-    query.includes('payout') ||
-    query.includes('disburse') ||
-    query.includes('mass pay') ||
-    query.includes('run') ||
-    query.includes('execute')
-  ) {
-    return {
-      reply:
-        "MicroSplit AI integrates directly with **PayPal Payouts API v1**:\n\n" +
-        "• **Single-Transaction Disbursal:** Pay up to 15,000 squad members across 180+ countries in one batch transaction.\n" +
-        "• **Low Processing Overhead:** Avoid high individual wire and transfer fees.\n" +
-        "• **Instant Webhooks:** PayPal webhooks instantly confirm delivery and trigger automatic cryptographic block sealing in `/ledger`.",
-      link: { label: 'View Payout Runs (/runs) →', href: '/runs' },
-      suggestions: [
-        'How does 0-cent split work?',
-        'What is Merkle Ledger?',
-        'Send WhatsApp Inquiry to +91 9294514754',
-      ],
-    };
-  }
-
-  // 8. Privacy & Focus Sessions
-  if (
-    query.includes('privacy') ||
-    query.includes('focus') ||
-    query.includes('track') ||
-    query.includes('spy') ||
-    query.includes('screen') ||
-    query.includes('keystroke') ||
-    query.includes('camera')
-  ) {
-    return {
-      reply:
-        "Privacy is built into MicroSplit AI's architecture:\n\n" +
-        "• **100% Opt-In:** Focus sessions only track self-reported task intervals.\n" +
-        "• **Zero Invasive Surveillance:** We NEVER record screens, capture webcam footage, or log keystrokes.\n" +
-        "• **Self-Custody of Data:** You can view, export, or permanently delete your focus logs at any time.",
-      link: { label: 'View Focus Sessions (/evidence) →', href: '/evidence' },
-      suggestions: [
-        'How can we see the evidence feature?',
-        'How does consistency streak work?',
-        'What is Merkle Ledger?',
-      ],
-    };
-  }
-
-  // 9. Pricing & Plans
-  if (
-    query.includes('price') ||
-    query.includes('pricing') ||
-    query.includes('cost') ||
-    query.includes('free') ||
-    query.includes('charge') ||
-    query.includes('subscription')
-  ) {
-    return {
-      reply:
-        "MicroSplit AI is currently **100% free to use** during our public beta for open-source squads and freelance collectives!\n\n" +
-        "There are zero platform subscriptions. When executing batch payouts, you only pay PayPal's standard transaction fee.",
-      link: { label: 'Create Free Squad (/squads/new) →', href: '/squads/new' },
-      suggestions: [
-        'How does 0-cent split work?',
-        'How to integrate PayPal Batch payouts?',
-        'Send WhatsApp Inquiry to +91 9294514754',
-      ],
-    };
-  }
-
-  // 10. Contact, WhatsApp, Call, Human Support
-  if (
-    query.includes('contact') ||
-    query.includes('support') ||
-    query.includes('whatsapp') ||
-    query.includes('call') ||
-    query.includes('phone') ||
-    query.includes('number') ||
-    query.includes('email') ||
-    query.includes('gmail') ||
-    query.includes('help') ||
-    query.includes('human') ||
-    query.includes('founder')
-  ) {
-    return {
-      reply:
-        "You can connect directly with our founder & engineering desk:\n\n" +
-        "📱 **WhatsApp Support:** +91 9294514754 (or switch to the **WhatsApp** tab right above to send your inquiry directly!)\n" +
-        "📞 **Live Voice Call:** Switch to the **Voice Call** tab for free instant AI voice assistance in English, Hindi, or Hinglish!\n" +
-        "📧 **Email:** akshatsinghai6682@gmail.com\n\n" +
-        "We typically reply within 5 to 15 minutes.",
-      suggestions: [
-        'Switch to WhatsApp Tab',
-        'Start Voice Call',
-        'How can we see the evidence feature?',
-      ],
-    };
-  }
-
-  // 11. Hindi / Hinglish queries
-  if (
-    query.includes('kaise') ||
-    query.includes('kya') ||
-    query.includes('batao') ||
-    query.includes('paisa') ||
-    query.includes('madad') ||
-    query.includes('suno') ||
-    query.includes('namaste') ||
-    query.includes('karein') ||
-    query.includes('karna')
-  ) {
-    return {
-      reply:
-        "नमस्ते! MicroSplit AI में आपका स्वागत है:\n\n" +
-        "• **Evidence Feature कैसे देखें:** ऊपर नेवबार में **Evidence** (`/evidence`) लिंक पर क्लिक करें। वहां आप अपने बिल्स और वर्क प्रूफ का AI OCR स्कैन देख सकते हैं।\n" +
-        "• **Squads:** `/squads` पर जाकर अपनी टीम का रेवेन्यू पूल बना सकते हैं।\n" +
-        "• **Merkle Ledger:** `/ledger` पर बिना किसी गड़बड़ी के SHA-256 लेजर देख सकते हैं।\n" +
-        "• **WhatsApp Inquiry:** अगर आप हमसे सीधे बात करना चाहते हैं, तो ऊपर **WhatsApp** टैब पर क्लिक करके +91 9294514754 पर सीधा मैसेज भेज सकते हैं!\n\n" +
-        "आपको किस फीचर के बारे में विस्तार से जानना है?",
-      link: { label: 'Open Evidence Vault (/evidence) →', href: '/evidence' },
-      suggestions: [
-        '0-सेंट स्प्लिट कैसे काम करता है?',
-        'कंसिस्टेंसी स्ट्रीक बोनस क्या है?',
-        'पेपैल बैच पेआउट कैसे होता है?',
-      ],
-    };
-  }
-
-  // 12. Greetings
-  if (
-    query === 'hi' ||
-    query === 'hello' ||
-    query === 'hey' ||
-    query === 'sup' ||
-    query === 'good morning' ||
-    query === 'good afternoon' ||
-    query === 'good evening' ||
-    query === 'hola'
-  ) {
-    return {
-      reply:
-        "👋 Hello! Welcome to MicroSplit AI. I am your concierge for squad revenue splits, verifiable evidence, and instant PayPal payouts.\n\n" +
-        "Here are some popular topics you can ask me about:\n" +
-        "• 📄 **Evidence Vault & OCR Extraction** (`/evidence`)\n" +
-        "• 👥 **Squad Creation & Roles** (`/squads`)\n" +
-        "• 🔐 **SHA-256 Merkle Ledger** (`/ledger`)\n" +
-        "• ⚡ **0-Cent Loss Guarantee & Math**\n" +
-        "• 🔥 **Consistency Streak Bonuses**\n\n" +
-        "What can I help you with today?",
-      suggestions: [
-        'How can we see the evidence feature?',
-        'How does 0-cent split work?',
-        'What is Merkle Ledger?',
-      ],
-    };
-  }
-
-  // 13. Dynamic Contextual Fallback (Never repeats identically!)
-  let hashVal = 0;
-  for (let i = 0; i < query.length; i++) {
-    hashVal = (hashVal << 5) - hashVal + query.charCodeAt(i);
-  }
-  const intros = [
-    `Regarding "${userInput.trim()}": MicroSplit AI is architected to make squad revenue attribution mathematically precise and verifiable.`,
-    `Great question about "${userInput.trim()}". In MicroSplit AI, all attribution is backed by cryptographic evidence and deterministic rules.`,
-    `Here is how that fits into MicroSplit AI ("${userInput.trim()}"):`,
-  ];
-  const chosenIntro = intros[Math.abs(hashVal) % intros.length];
-
-  return {
-    reply:
-      `${chosenIntro}\n\n` +
-      `Our platform is built on three core pillars:\n` +
-      `1. **Evidence Vault (/evidence):** Upload receipts, PRs, and invoices scanned with AI OCR.\n` +
-      `2. **Deterministic Attribution:** Pure integer-cent math ensures zero cents lost across squad splits.\n` +
-      `3. **Cryptographic Merkle Ledger (/ledger):** Immutable SHA-256 audit logs before executing PayPal Batch payouts.\n\n` +
-      `Would you like to explore the Evidence feature, review Squad settings, or send an inquiry directly to our team?`,
-    suggestions: [
-      'How can we see the evidence feature?',
-      'How to create a squad?',
-      'Send WhatsApp Inquiry to +91 9294514754',
-    ],
-  };
-}
+const quickPills: Record<LanguageType, string[]> = {
+  en: [
+    'How does 0-cent split work?',
+    'How can we see the evidence feature?',
+    'How is Consistency Streak calculated?',
+    'How to integrate PayPal Batch payouts?',
+  ],
+  hi: [
+    '0-सेंट स्प्लिट कैसे काम करता है?',
+    'एविडेंस फीचर कैसे देखें?',
+    'कंसिस्टेंसी स्ट्रीक बोनस क्या है?',
+    'पेपैल बैच पेआउट कैसे सेटअप करें?',
+  ],
+  hinglish: [
+    '0-cent split kaise kaam karta hai?',
+    'Evidence feature kaise dekhe?',
+    'Streak bonus kaise calculate hota hai?',
+    'PayPal batch payouts kaise setup karein?',
+  ],
+};
 
 export default function WhatsAppButton() {
   const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'ai' | 'voice' | 'whatsapp' | 'faq'>('ai');
   const [showTooltip, setShowTooltip] = useState(true);
 
-  // Selected Language for Voice Call
-  const [selectedLang, setSelectedLang] = useState<'en' | 'hi' | 'hinglish'>('en');
+  // Settings
+  const [language, setLanguage] = useState<LanguageType>('hinglish');
+  const [isSpeechEnabled, setIsSpeechEnabled] = useState(true);
+  const [isListening, setIsListening] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [langDropdownOpen, setLangDropdownOpen] = useState(false);
 
-  // Chat state
-  const [chatMessages, setChatMessages] = useState<
-    Array<{
-      sender: 'ai' | 'user';
-      text: string;
-      time: string;
-      link?: { label: string; href: string };
-      suggestions?: string[];
-    }>
-  >([
+  // Chat State
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
-      sender: 'ai',
-      text: '👋 Hi there! I am the MicroSplit AI Concierge. How can I help you with squad revenue attribution, the Evidence Vault, streak bonuses, or PayPal payouts today?',
+      id: 'welcome',
+      sender: 'assistant',
+      text: greetings.hinglish,
       time: 'Just now',
-      suggestions: [
-        'How can we see the evidence feature?',
-        'How does the 0-cent split work?',
-        'How to inspect the Merkle Ledger?',
-      ],
     },
   ]);
-  const [chatInput, setChatInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+  const [inputText, setInputText] = useState('');
 
-  // Live Voice Call State
-  const [callStatus, setCallStatus] = useState<'idle' | 'calling' | 'connected' | 'ended'>('idle');
-  const [callDuration, setCallDuration] = useState(0);
-  const [isMuted, setIsMuted] = useState(false);
-  const [voiceTranscript, setVoiceTranscript] = useState<string>('');
-  const [isAiSpeaking, setIsAiSpeaking] = useState(false);
-  const [isListeningMic, setIsListeningMic] = useState(false);
-  const callTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Team se baat karein Modal State
+  const [showTeamModal, setShowTeamModal] = useState(false);
+  const [teamName, setTeamName] = useState('');
+  const [teamQuestion, setTeamQuestion] = useState('');
 
-  // WhatsApp form state (Direct Inquiry to Owner)
-  const [waName, setWaName] = useState('');
-  const [waPhone, setWaPhone] = useState('');
-  const [waEmail, setWaEmail] = useState('');
-  const [waTopic, setWaTopic] = useState('Evidence Feature Inquiry');
-  const [waNotes, setWaNotes] = useState('');
-  const [waSubmitted, setWaSubmitted] = useState(false);
-  const [waLoading, setWaLoading] = useState(false);
-  const [waError, setWaError] = useState<string | null>(null);
-  const [waTicket, setWaTicket] = useState<string | null>(null);
-  const [aiResolution, setAiResolution] = useState<AiResponseResult | null>(null);
-  const [waDispatch, setWaDispatch] = useState<{
-    whatsappAlertUrl?: string;
-    gmailComposeUrl?: string;
-  } | null>(null);
+  // WhatsApp Phone Number from Environment
+  const defaultSupportNumber =
+    process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ||
+    process.env.NEXT_PUBLIC_WHATSAPP_PHONE ||
+    '919294514754';
+  const cleanSupportNumber = defaultSupportNumber.replace(/[^0-9]/g, '') || '919294514754';
 
-  // Official Support WhatsApp number (Always routes to Akshat's line)
-  const supportPhone = '919294514754';
-  const supportEmail = 'akshatsinghai6682@gmail.com';
-  const [customWaPhone, setCustomWaPhone] = useState<string>('919294514754');
-  const [showSettings, setShowSettings] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const recognitionRef = useRef<any>(null);
+
+  // Auto-scroll chat to bottom
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('microsplit_custom_whatsapp');
-      if (stored && stored.replace(/[^0-9]/g, '').length >= 8) {
-        setCustomWaPhone(stored);
-      } else {
-        setCustomWaPhone('919294514754');
-      }
+    if (isOpen) {
+      scrollToBottom();
+    }
+  }, [chatMessages, isTyping, isOpen]);
 
-      // Preload available voices on browser load
-      if ('speechSynthesis' in window) {
+  // Preload speech synthesis voices
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => {
         window.speechSynthesis.getVoices();
-        window.speechSynthesis.onvoiceschanged = () => {
-          window.speechSynthesis.getVoices();
-        };
-      }
+      };
     }
   }, []);
 
-  // Voice call timer
-  useEffect(() => {
-    if (callStatus === 'connected') {
-      callTimerRef.current = setInterval(() => {
-        setCallDuration((prev) => prev + 1);
-      }, 1000);
-    } else {
-      if (callTimerRef.current) clearInterval(callTimerRef.current);
-      if (callStatus === 'idle') setCallDuration(0);
-    }
-    return () => {
-      if (callTimerRef.current) clearInterval(callTimerRef.current);
-    };
-  }, [callStatus]);
+  // Language switch handler
+  const handleLanguageChange = (newLang: LanguageType) => {
+    setLanguage(newLang);
+    setLangDropdownOpen(false);
 
-  // High-Quality Voice Selection Logic
-  const getBestNaturalVoice = (lang: 'en' | 'hi' | 'hinglish') => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return null;
+    // Stop speaking if switching languages
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    // Add a polite system transition notice if chat is underway
+    setChatMessages((prev) => [
+      ...prev,
+      {
+        id: `lang-${Date.now()}`,
+        sender: 'assistant',
+        text: greetings[newLang],
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
+    ]);
+  };
+
+  // Speaks aloud using browser Web Speech Synthesis
+  const speakText = (text: string, lang: LanguageType) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window) || !isSpeechEnabled) return;
+
+    window.speechSynthesis.cancel();
+
+    // Clean markdown characters for smooth speech
+    const speechClean = text.replace(/[*#`_•]/g, '').slice(0, 450);
+    const utterance = new SpeechSynthesisUtterance(speechClean);
     const voices = window.speechSynthesis.getVoices();
-    if (!voices || voices.length === 0) return null;
 
     if (lang === 'hi') {
+      utterance.lang = 'hi-IN';
       const hiVoice = voices.find(
         (v) =>
           v.lang.toLowerCase().includes('hi') ||
           v.name.toLowerCase().includes('hindi') ||
           v.name.includes('Lekha') ||
-          v.name.includes('Kalpana') ||
-          v.name.includes('Veena')
+          v.name.includes('Kalpana')
       );
-      if (hiVoice) return hiVoice;
-    }
-
-    // Best English/Natural voices
-    const naturalEn = voices.find(
-      (v) =>
-        v.lang.startsWith('en') &&
-        (v.name.includes('Google') ||
-          v.name.includes('Samantha') ||
-          v.name.includes('Daniel') ||
-          v.name.includes('Karen') ||
-          v.name.includes('Natural') ||
-          v.name.includes('Premium') ||
-          v.name.includes('Siri'))
-    );
-    if (naturalEn) return naturalEn;
-
-    return voices.find((v) => v.lang.startsWith('en')) || voices[0] || null;
-  };
-
-  // Speaks aloud with optimized human cadence
-  const speakVoice = (text: string, lang = selectedLang) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window) || isMuted) return;
-
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    const chosenVoice = getBestNaturalVoice(lang);
-
-    if (chosenVoice) {
-      utterance.voice = chosenVoice;
-    }
-
-    // Tune tone for smooth, natural delivery
-    if (lang === 'hi') {
-      utterance.lang = 'hi-IN';
+      if (hiVoice) utterance.voice = hiVoice;
       utterance.rate = 0.92;
-      utterance.pitch = 1.0;
     } else {
-      utterance.lang = 'en-US';
+      utterance.lang = lang === 'hinglish' ? 'en-IN' : 'en-US';
+      const naturalEn = voices.find(
+        (v) =>
+          v.lang.startsWith('en') &&
+          (v.name.includes('Google') ||
+            v.name.includes('Samantha') ||
+            v.name.includes('Daniel') ||
+            v.name.includes('Natural'))
+      );
+      if (naturalEn) utterance.voice = naturalEn;
       utterance.rate = 0.95;
-      utterance.pitch = 1.02;
     }
-
-    utterance.onstart = () => setIsAiSpeaking(true);
-    utterance.onend = () => setIsAiSpeaking(false);
-    utterance.onerror = () => setIsAiSpeaking(false);
 
     window.speechSynthesis.speak(utterance);
   };
 
-  // Start Voice Call
-  const handleStartCall = (langToUse = selectedLang) => {
-    setCallStatus('calling');
-    setCallDuration(0);
-    setVoiceTranscript('Connecting audio to MicroSplit AI Engine...');
-
-    try {
-      const audioCtx = new (window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(440, audioCtx.currentTime);
-      gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      setTimeout(() => {
-        osc.stop();
-        audioCtx.close();
-      }, 1000);
-    } catch {
-      // AudioContext fallback
-    }
-
-    setTimeout(() => {
-      setCallStatus('connected');
-      const intro = voiceLangs[langToUse].greeting;
-      setVoiceTranscript(intro);
-      speakVoice(intro, langToUse);
-    }, 1500);
-  };
-
-  const handleEndCall = () => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    setCallStatus('ended');
-    setIsAiSpeaking(false);
-    setIsListeningMic(false);
-    setVoiceTranscript('Call ended.');
-    setTimeout(() => {
-      setCallStatus('idle');
-      setCallDuration(0);
-    }, 1200);
-  };
-
-  const handleVoiceQuery = (query: string) => {
-    setVoiceTranscript(`You: "${query}"`);
-    const langData = voiceLangs[selectedLang];
-    const reply = langData.answers[query] || resolveAiResponse(query).reply;
-    setTimeout(() => {
-      setVoiceTranscript(`AI: "${reply}"`);
-      speakVoice(reply, selectedLang);
-    }, 500);
-  };
-
-  // Switch voice language on the fly
-  const handleSwitchLanguage = (lang: 'en' | 'hi' | 'hinglish') => {
-    setSelectedLang(lang);
-    if (callStatus === 'connected') {
-      const intro = voiceLangs[lang].greeting;
-      setVoiceTranscript(intro);
-      speakVoice(intro, lang);
-    }
-  };
-
-  // Microphone Recognition (Two-Way Voice Chat)
+  // Toggle Microphone (Speech-To-Text via Web Speech API)
   const handleToggleMic = () => {
     if (typeof window === 'undefined') return;
 
     const SpeechRecognition =
-      (window as unknown as { SpeechRecognition: unknown }).SpeechRecognition ||
-      (window as unknown as { webkitSpeechRecognition: unknown }).webkitSpeechRecognition;
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      alert('Your browser does not support speech recognition. Please tap any prompt pill below!');
+      alert('Speech Recognition is not supported in this browser. Please use Google Chrome, Microsoft Edge, or Safari.');
       return;
     }
 
-    if (isListeningMic) {
-      setIsListeningMic(false);
+    if (isListening) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      setIsListening(false);
       return;
     }
 
     try {
-      const recognition = new (SpeechRecognition as any)();
-      recognition.lang = selectedLang === 'hi' ? 'hi-IN' : 'en-US';
+      const recognition = new SpeechRecognition();
+      recognition.lang = language === 'hi' ? 'hi-IN' : language === 'hinglish' ? 'en-IN' : 'en-US';
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
 
-      setIsListeningMic(true);
-      setVoiceTranscript('🎙️ Listening... Speak into your microphone now...');
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
 
       recognition.onresult = (event: any) => {
-        const spokenText = event.results[0][0].transcript;
-        setIsListeningMic(false);
-        setVoiceTranscript(`You said: "${spokenText}"`);
-
-        const aiRes = resolveAiResponse(spokenText);
-        let spokenReply = aiRes.reply.replace(/[*#`_]/g, '');
-
-        if (selectedLang === 'hi') {
-          spokenReply =
-            'माइक्रोस्प्लिट एआई में आपका स्वागत है। आप ऊपर स्लैश एविडेंस पर जाकर एविडेंस देख सकते हैं, और स्लैश लेजर पर बिना किसी नुकसान के पेआउट चेक कर सकते हैं।';
+        const transcript = event.results[0][0].transcript;
+        setIsListening(false);
+        if (transcript && transcript.trim()) {
+          setInputText(transcript);
+          // Automatically send the voice query
+          handleSendMessage(transcript);
         }
-
-        setTimeout(() => {
-          setVoiceTranscript(`AI: "${spokenReply}"`);
-          speakVoice(spokenReply, selectedLang);
-        }, 500);
       };
 
       recognition.onerror = () => {
-        setIsListeningMic(false);
-        setVoiceTranscript('Could not detect speech. Please tap any question pill below!');
+        setIsListening(false);
       };
 
       recognition.onend = () => {
-        setIsListeningMic(false);
+        setIsListening(false);
       };
 
+      recognitionRef.current = recognition;
       recognition.start();
     } catch {
-      setIsListeningMic(false);
+      setIsListening(false);
     }
   };
 
-  // Send AI Chat Message with intent resolution and suggestions
-  const handleSendChatMessage = (textToSend?: string) => {
-    const text = textToSend || chatInput;
-    if (!text.trim()) return;
+  // Send message to Claude AI Backend (/api/chat)
+  const handleSendMessage = async (textToSend?: string) => {
+    const text = (textToSend || inputText).trim();
+    if (!text) return;
 
-    // Check if the suggestion is to jump to WhatsApp
-    if (text.toLowerCase().includes('whatsapp') && text.toLowerCase().includes('inquiry')) {
-      setActiveTab('whatsapp');
-      setChatInput('');
-      return;
-    }
-
-    const userMsg = {
-      sender: 'user' as const,
-      text: text.trim(),
+    const userMessage: ChatMessage = {
+      id: `u-${Date.now()}`,
+      sender: 'user',
+      text,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    setChatMessages((prev) => [...prev, userMsg]);
-    if (!textToSend) setChatInput('');
+    setChatMessages((prev) => [...prev, userMessage]);
+    if (!textToSend) setInputText('');
     setIsTyping(true);
 
-    setTimeout(() => {
-      const res = resolveAiResponse(text.trim());
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          history: chatMessages.slice(-6).map((m) => ({
+            role: m.sender === 'user' ? 'user' : 'assistant',
+            content: m.text,
+          })),
+          language,
+        }),
+      });
+
+      const data = await response.json();
+      const reply =
+        data.reply ||
+        'MicroSplit AI orchestrates verifiable revenue splits using deterministic math and PayPal batch disbursements. Team se baat karne ke liye upar diye gaye button par click karein.';
+
+      const assistantMessage: ChatMessage = {
+        id: `a-${Date.now()}`,
+        sender: 'assistant',
+        text: reply,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+
+      setChatMessages((prev) => [...prev, assistantMessage]);
+      setIsTyping(false);
+
+      if (isSpeechEnabled) {
+        speakText(reply, language);
+      }
+    } catch {
+      setIsTyping(false);
+      const fallbackReply =
+        'Network error. Please tap "Team se baat karein" to connect directly with our engineering team on WhatsApp.';
       setChatMessages((prev) => [
         ...prev,
         {
-          sender: 'ai',
-          text: res.reply,
-          link: res.link,
-          suggestions: res.suggestions,
+          id: `a-${Date.now()}`,
+          sender: 'assistant',
+          text: fallbackReply,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
-      setIsTyping(false);
-    }, 550);
+    }
   };
 
-  // Send Inquiry directly to owner's WhatsApp (+91 9294514754)
-  const handleSendWhatsAppInquiry = async (e: React.FormEvent) => {
+  // Submit "Team se baat karein" WhatsApp action
+  const handleTeamWhatsAppSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!waPhone.trim()) {
-      setWaError('Please enter your WhatsApp or mobile number.');
-      return;
+    if (!teamQuestion.trim()) return;
+
+    // Gather last 3 chat messages for context
+    const recentChatContext = chatMessages
+      .slice(-4)
+      .map((m) => `${m.sender === 'user' ? 'User' : 'AI'}: ${m.text.slice(0, 100)}`)
+      .join('\n');
+
+    const messageText =
+      `👋 *New Inquiry for MicroSplit Team*\n\n` +
+      `👤 *Name:* ${teamName.trim() || 'Visitor'}\n` +
+      `💬 *Question / Sawaal:*\n"${teamQuestion.trim()}"\n\n` +
+      `📜 *Recent Chat History:*\n${recentChatContext}\n\n` +
+      `---\n*Sent via MicroSplit AI Assistant*`;
+
+    const waUrl = `https://wa.me/${cleanSupportNumber}?text=${encodeURIComponent(messageText)}`;
+
+    if (typeof window !== 'undefined') {
+      window.open(waUrl, '_blank');
     }
 
-    const finalInquiry = waNotes.trim() || `Inquiry regarding ${waTopic}`;
-    setWaError(null);
-    setWaLoading(true);
+    setShowTeamModal(false);
+    setTeamQuestion('');
 
-    const targetRecipient = customWaPhone.replace(/[^0-9]/g, '') || supportPhone;
-    const visitorName = waName.trim() || 'Visitor';
-    const cleanVisitorPhone = waPhone.trim();
-    const visitorEmail = waEmail.trim() || `${cleanVisitorPhone.replace(/[^0-9]/g, '')}@inquiry.microsplit.ai`;
-
-    // Compute immediate AI Resolution for the follow-up screen
-    const resolution = resolveAiResponse(finalInquiry);
-    setAiResolution(resolution);
-
-    // Also populate chatMessages so the user can continue in AI Chat seamlessly
+    // Add a confirmation bubble in chat
     setChatMessages((prev) => [
       ...prev,
       {
-        sender: 'user',
-        text: `[Inquiry: ${waTopic}] ${finalInquiry}`,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      },
-      {
-        sender: 'ai',
-        text: resolution.reply,
-        link: resolution.link,
-        suggestions: resolution.suggestions,
+        id: `team-sent-${Date.now()}`,
+        sender: 'assistant',
+        text: `✅ Aapka sawaal WhatsApp par (+${cleanSupportNumber}) dispatch kar diya gaya hai! Hamari team jald hi aapko WhatsApp par reply karegi.`,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       },
     ]);
-
-    // Formatted WhatsApp message for direct dispatch to owner (+91 9294514754)
-    const waText =
-      `🔔 *New Inquiry for MicroSplit AI:*\n\n` +
-      `👤 *Name:* ${visitorName}\n` +
-      `📱 *Visitor Phone:* ${cleanVisitorPhone}\n` +
-      `📧 *Email:* ${waEmail.trim() || 'Not provided'}\n` +
-      `🏷️ *Topic:* ${waTopic}\n\n` +
-      `💬 *Inquiry Message:*\n"${finalInquiry}"\n\n` +
-      `---\n*Sent via MicroSplit AI Support Desk*`;
-
-    const directWhatsAppUrl = `https://wa.me/${targetRecipient}?text=${encodeURIComponent(waText)}`;
-
-    // Immediately launch WhatsApp targeting +91 9294514754
-    if (typeof window !== 'undefined') {
-      window.open(directWhatsAppUrl, '_blank');
-    }
-
-    // Simultaneously register ticket via backend API
-    try {
-      const res = await fetch('/api/contact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: visitorName,
-          email: visitorEmail,
-          whatsapp: cleanVisitorPhone,
-          topic: `Inquiry: ${waTopic}`,
-          message: finalInquiry,
-        }),
-      });
-
-      const data = await res.json();
-      const generatedTicket = data.ticketId || `MS-${Date.now().toString(36).toUpperCase()}`;
-      setWaTicket(generatedTicket);
-      setWaDispatch({
-        whatsappAlertUrl: directWhatsAppUrl,
-        gmailComposeUrl:
-          data.dispatch?.gmailComposeUrl ||
-          `https://mail.google.com/mail/?view=cm&fs=1&to=${supportEmail}&su=${encodeURIComponent(
-            `[MicroSplit Ticket ${generatedTicket}] ${waTopic} from ${visitorName}`
-          )}&body=${encodeURIComponent(waText)}`,
-      });
-    } catch {
-      const fallbackTicket = `MS-${Date.now().toString(36).toUpperCase()}`;
-      setWaTicket(fallbackTicket);
-      setWaDispatch({
-        whatsappAlertUrl: directWhatsAppUrl,
-        gmailComposeUrl: `https://mail.google.com/mail/?view=cm&fs=1&to=${supportEmail}&su=${encodeURIComponent(
-          `[MicroSplit Ticket ${fallbackTicket}] ${waTopic} from ${visitorName}`
-        )}&body=${encodeURIComponent(waText)}`,
-      });
-    } finally {
-      setWaLoading(false);
-      setWaSubmitted(true);
-    }
   };
-
-  // Send Inquiry directly via Gmail to akshatsinghai6682@gmail.com
-  const handleSendGmailInquiry = async () => {
-    if (!waPhone.trim()) {
-      setWaError('Please enter your WhatsApp or phone number first.');
-      return;
-    }
-
-    const finalInquiry = waNotes.trim() || `Inquiry regarding ${waTopic}`;
-    setWaError(null);
-    setWaLoading(true);
-
-    const visitorName = waName.trim() || 'Visitor';
-    const cleanVisitorPhone = waPhone.trim();
-    const visitorEmail = waEmail.trim() || `${cleanVisitorPhone.replace(/[^0-9]/g, '')}@inquiry.microsplit.ai`;
-
-    // Compute immediate AI Resolution
-    const resolution = resolveAiResponse(finalInquiry);
-    setAiResolution(resolution);
-
-    // Also populate chatMessages so AI Chat tab has this conversation already
-    setChatMessages((prev) => [
-      ...prev,
-      {
-        sender: 'user',
-        text: `[Inquiry: ${waTopic}] ${finalInquiry}`,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      },
-      {
-        sender: 'ai',
-        text: resolution.reply,
-        link: resolution.link,
-        suggestions: resolution.suggestions,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      },
-    ]);
-
-    const generatedTicket = `MS-${Date.now().toString(36).toUpperCase()}`;
-    setWaTicket(generatedTicket);
-
-    const emailSubject = encodeURIComponent(`[MicroSplit Ticket ${generatedTicket}] ${waTopic} from ${visitorName}`);
-    const emailBody = encodeURIComponent(
-      `Hello MicroSplit Team,\n\nA new inquiry has been submitted:\n\n` +
-      `Name: ${visitorName}\n` +
-      `Phone/WhatsApp: ${cleanVisitorPhone}\n` +
-      `Email: ${visitorEmail}\n` +
-      `Topic: ${waTopic}\n` +
-      `Ticket ID: ${generatedTicket}\n\n` +
-      `Inquiry:\n"${finalInquiry}"\n\n` +
-      `---\nMicroSplit AI Automation`
-    );
-
-    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${supportEmail}&su=${emailSubject}&body=${emailBody}`;
-
-    if (typeof window !== 'undefined') {
-      window.open(gmailUrl, '_blank');
-    }
-
-    try {
-      await fetch('/api/contact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: visitorName,
-          email: visitorEmail,
-          whatsapp: cleanVisitorPhone,
-          topic: `Inquiry: ${waTopic}`,
-          message: finalInquiry,
-        }),
-      });
-    } catch {
-      // offline fallback
-    } finally {
-      setWaLoading(false);
-      setWaSubmitted(true);
-    }
-  };
-
-  // Direct fast WhatsApp link
-  const defaultWhatsAppText = encodeURIComponent(
-    'Hi MicroSplit AI Team, I have an inquiry about squad revenue attribution & PayPal payouts.'
-  );
-  const fastWhatsAppUrl = `https://wa.me/${supportPhone}?text=${defaultWhatsAppText}`;
 
   return (
     <>
-      <aside aria-label="Support chat" className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 group">
+      {/* ─── Floating Launcher Button ─── */}
+      <aside
+        aria-label="MicroSplit Assistant"
+        className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2.5"
+      >
         {!isOpen && showTooltip && (
-          <div className="hidden sm:flex items-center gap-2 px-3.5 py-2 bg-[#0B1F3A] text-white rounded-xl shadow-xl border border-teal-500/30 text-xs font-semibold animate-in fade-in slide-in-from-right-2">
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#0B1F3A] text-white rounded-xl shadow-xl border border-teal-500/30 text-xs font-semibold animate-in fade-in slide-in-from-right-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>AI Voice & WhatsApp Support</span>
+            <span>MicroSplit AI Assistant</span>
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -1006,7 +372,7 @@ export default function WhatsAppButton() {
             setIsOpen(!isOpen);
             if (!isOpen) setShowTooltip(false);
           }}
-          aria-label="Toggle MicroSplit AI & WhatsApp Support"
+          aria-label="Toggle MicroSplit AI Chat Assistant"
           className="relative flex items-center justify-center w-14 h-14 rounded-full text-white shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-teal-400/40"
           style={{
             background: isOpen
@@ -1016,7 +382,7 @@ export default function WhatsAppButton() {
           }}
         >
           {isOpen ? (
-            <X className="w-6 h-6 text-white transition-transform duration-200 rotate-90" />
+            <X className="w-6 h-6 text-white transition-transform duration-200" />
           ) : (
             <>
               <MessageCircle className="w-7 h-7 fill-current" />
@@ -1029,780 +395,384 @@ export default function WhatsAppButton() {
         </button>
       </aside>
 
-      {/* ─── Interactive Concierge Drawer / Modal ─── */}
+      {/* ─── WhatsApp-Style Chat Box ─── */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            initial={{ opacity: 0, y: 25, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className="fixed bottom-24 right-4 sm:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[460px] max-h-[660px] h-[630px] bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
+            exit={{ opacity: 0, y: 25, scale: 0.95 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="fixed bottom-24 right-4 sm:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[420px] max-h-[640px] h-[600px] bg-[#ECE5DD] rounded-3xl shadow-2xl border border-slate-300 overflow-hidden flex flex-col"
             style={{
-              boxShadow: '0 20px 50px rgba(11, 31, 58, 0.25), 0 0 0 1px rgba(15, 157, 138, 0.2)',
+              boxShadow: '0 25px 60px rgba(11, 31, 58, 0.3), 0 0 0 1px rgba(15, 157, 138, 0.25)',
             }}
           >
-            {/* Header */}
-            <div className="bg-[#0B1F3A] text-white p-4 sm:p-5 flex items-center justify-between relative overflow-hidden flex-shrink-0">
+            {/* Header (Navy #0B1F3A with Teal accents) */}
+            <div className="bg-[#0B1F3A] text-white px-4 py-3 sm:px-4 sm:py-3.5 flex items-center justify-between relative overflow-hidden flex-shrink-0 border-b border-teal-500/20">
               <div
-                className="absolute top-0 right-0 w-48 h-48 rounded-full pointer-events-none"
+                className="absolute top-0 right-0 w-36 h-36 rounded-full pointer-events-none"
                 style={{ background: 'radial-gradient(circle, rgba(15, 157, 138, 0.25), transparent 70%)' }}
               />
 
-              <div className="flex items-center gap-3 relative z-10">
-                <div className="w-10 h-10 rounded-2xl bg-teal-500/20 border border-teal-400/40 flex items-center justify-center text-teal-400 shadow-inner">
+              {/* Bot Info */}
+              <div className="flex items-center gap-2.5 relative z-10">
+                <div className="w-9 h-9 rounded-2xl bg-teal-500/20 border border-teal-400/40 flex items-center justify-center text-teal-300 shadow-inner">
                   <Bot className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-sm tracking-tight text-white">MicroSplit Concierge</h3>
-                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/20 text-teal-300 border border-teal-400/30">
-                      v2.0
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-bold text-sm tracking-tight text-white leading-tight">MicroSplit AI</h3>
+                    <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-teal-500/25 text-teal-300 border border-teal-400/30">
+                      Claude
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-[11px] text-slate-300 font-medium">Fintech Support • Online Now</span>
+                    <span className="text-[11px] text-slate-300 font-medium">Online • Fintech Assistant</span>
                   </div>
                 </div>
               </div>
 
+              {/* Header Controls: Language Selector, Speaker Toggle, Close */}
               <div className="flex items-center gap-1 relative z-10">
+                {/* Language Dropdown */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setLangDropdownOpen(!langDropdownOpen)}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] font-bold text-slate-200 transition-colors"
+                    title="Change Assistant Language"
+                  >
+                    <Globe className="w-3.5 h-3.5 text-teal-400" />
+                    <span className="uppercase">{language}</span>
+                    <ChevronDown className="w-3 h-3 text-slate-400" />
+                  </button>
+
+                  {langDropdownOpen && (
+                    <div className="absolute right-0 mt-1 w-36 bg-white text-slate-900 rounded-xl shadow-2xl border border-slate-200 py-1 text-xs font-semibold z-30 animate-in fade-in zoom-in-95">
+                      <button
+                        type="button"
+                        onClick={() => handleLanguageChange('en')}
+                        className={`w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-teal-50 transition-colors ${
+                          language === 'en' ? 'text-teal-700 font-bold bg-teal-50/50' : 'text-slate-700'
+                        }`}
+                      >
+                        <span>English</span>
+                        {language === 'en' && <Check className="w-3.5 h-3.5 text-teal-600" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleLanguageChange('hi')}
+                        className={`w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-teal-50 transition-colors ${
+                          language === 'hi' ? 'text-teal-700 font-bold bg-teal-50/50' : 'text-slate-700'
+                        }`}
+                      >
+                        <span>हिंदी (Hindi)</span>
+                        {language === 'hi' && <Check className="w-3.5 h-3.5 text-teal-600" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleLanguageChange('hinglish')}
+                        className={`w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-teal-50 transition-colors ${
+                          language === 'hinglish' ? 'text-teal-700 font-bold bg-teal-50/50' : 'text-slate-700'
+                        }`}
+                      >
+                        <span>Hinglish</span>
+                        {language === 'hinglish' && <Check className="w-3.5 h-3.5 text-teal-600" />}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Speaker Audio Output Toggle */}
                 <button
                   type="button"
-                  onClick={() => setShowSettings(!showSettings)}
-                  title="Configure Support WhatsApp Number"
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                  onClick={() => {
+                    const next = !isSpeechEnabled;
+                    setIsSpeechEnabled(next);
+                    if (!next && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                      window.speechSynthesis.cancel();
+                    }
+                  }}
+                  className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+                  title={isSpeechEnabled ? 'Voice Voice Output ON (Click to Mute)' : 'Voice Voice Output MUTED (Click to Unmute)'}
                 >
-                  <Settings className="w-4 h-4" />
+                  {isSpeechEnabled ? (
+                    <Volume2 className="w-4 h-4 text-teal-300" />
+                  ) : (
+                    <VolumeX className="w-4 h-4 text-slate-400" />
+                  )}
                 </button>
+
+                {/* Close Button */}
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
                   className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                  aria-label="Close Chat"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            {/* Optional Settings Panel */}
-            {showSettings && (
-              <div className="p-3 bg-slate-50 border-b border-slate-200 text-xs">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (typeof window !== 'undefined') {
-                      localStorage.setItem('microsplit_custom_whatsapp', customWaPhone.trim());
-                      setShowSettings(false);
-                    }
-                  }}
-                  className="space-y-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800">Support Desk WhatsApp Line</span>
-                    <span className="text-[10px] text-slate-500">Stored locally</span>
-                  </div>
-                  <p className="text-[11px] text-slate-600">
-                    Set the WhatsApp number that receives visitor inquiries:
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="e.g. 919294514754"
-                      value={customWaPhone}
-                      onChange={(e) => setCustomWaPhone(e.target.value)}
-                      className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-800 bg-white"
-                    />
-                    <button
-                      type="submit"
-                      className="px-3 py-1.5 rounded-lg bg-teal-600 text-white font-bold text-xs hover:bg-teal-700"
-                    >
-                      Save
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
+            {/* Sub-bar: Team se baat karein (WhatsApp Direct Trigger) */}
+            <div className="bg-[#102C4D] text-white px-3.5 py-1.5 flex items-center justify-between text-xs border-b border-teal-500/20 flex-shrink-0">
+              <span className="text-[11px] text-teal-200/90 flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-teal-400" />
+                <span>Instant Verified Support</span>
+              </span>
 
-            {/* Tab Navigation */}
-            <div className="flex border-b border-slate-200 bg-slate-50 flex-shrink-0">
               <button
                 type="button"
-                onClick={() => setActiveTab('ai')}
-                className={`flex-1 py-2.5 text-[11px] font-bold flex items-center justify-center gap-1 border-b-2 transition-colors ${
-                  activeTab === 'ai'
-                    ? 'border-teal-600 text-teal-700 bg-white'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
+                onClick={() => {
+                  setTeamQuestion(inputText || '');
+                  setShowTeamModal(true);
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition-colors shadow-xs"
               >
-                <Sparkles className="w-3 h-3" />
-                <span>AI Chat</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('voice')}
-                className={`flex-1 py-2.5 text-[11px] font-bold flex items-center justify-center gap-1 border-b-2 transition-colors ${
-                  activeTab === 'voice'
-                    ? 'border-teal-600 text-teal-700 bg-white'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <Phone className="w-3 h-3 text-emerald-600" />
-                <span>Voice Call</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('whatsapp')}
-                className={`flex-1 py-2.5 text-[11px] font-bold flex items-center justify-center gap-1 border-b-2 transition-colors ${
-                  activeTab === 'whatsapp'
-                    ? 'border-emerald-600 text-emerald-700 bg-white'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <MessageCircle className="w-3 h-3 text-emerald-600" />
-                <span>WhatsApp</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('faq')}
-                className={`flex-1 py-2.5 text-[11px] font-bold flex items-center justify-center gap-1 border-b-2 transition-colors ${
-                  activeTab === 'faq'
-                    ? 'border-teal-600 text-teal-700 bg-white'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <HelpCircle className="w-3 h-3" />
-                <span>FAQ</span>
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span>Team se baat karein</span>
               </button>
             </div>
 
-            {/* TAB 1: AI Live Chat */}
-            {activeTab === 'ai' && (
-              <div className="flex-1 flex flex-col min-h-0 bg-slate-50">
-                <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                  {chatMessages.map((msg, idx) => (
-                    <div
-                      key={idx}
-                      className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
-                    >
-                      <div
-                        className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed whitespace-pre-line ${
-                          msg.sender === 'user'
-                            ? 'bg-[#0B1F3A] text-white rounded-br-none shadow-sm'
-                            : 'bg-white text-slate-800 border border-slate-200/80 rounded-bl-none shadow-sm'
-                        }`}
-                      >
-                        {msg.text}
-
-                        {/* Clickable Feature Deep-Link */}
-                        {msg.link && (
-                          <div className="mt-2.5 pt-2 border-t border-slate-100">
-                            <a
-                              href={msg.link.href}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-600 text-white text-[11px] font-bold hover:bg-teal-700 transition-colors shadow-sm"
-                            >
-                              <span>{msg.link.label}</span>
-                              <ArrowRight className="w-3 h-3" />
-                            </a>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Interactive suggestion pills */}
-                      {msg.sender === 'ai' && msg.suggestions && msg.suggestions.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1.5 max-w-[90%]">
-                          {msg.suggestions.map((sug, sIdx) => (
-                            <button
-                              key={sIdx}
-                              type="button"
-                              onClick={() => handleSendChatMessage(sug)}
-                              className="px-2.5 py-1 rounded-full bg-white border border-teal-200 text-[10px] font-semibold text-teal-700 hover:bg-teal-50 hover:border-teal-400 transition-colors shadow-2xs text-left"
-                            >
-                              💡 {sug}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      <span className="text-[10px] text-slate-400 mt-1 px-1">{msg.time}</span>
-                    </div>
-                  ))}
-
-                  {isTyping && (
-                    <div className="flex items-center gap-1.5 text-slate-400 text-xs px-2 py-1">
-                      <span className="w-1.5 h-1.5 bg-teal-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-1.5 h-1.5 bg-teal-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-1.5 h-1.5 bg-teal-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                      <span className="text-[11px] text-slate-500 ml-1">AI Assistant is thinking...</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-3 bg-white border-t border-slate-200 flex-shrink-0">
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleSendChatMessage();
-                    }}
-                    className="flex items-center gap-2"
-                  >
-                    <input
-                      type="text"
-                      placeholder="Ask: 'how can we see evidence', 'squads', '0-cent math'..."
-                      value={chatInput}
-                      onChange={(e) => setChatInput(e.target.value)}
-                      className="flex-1 px-3.5 py-2 rounded-full border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!chatInput.trim()}
-                      className="p-2 rounded-full bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-40 transition-colors shadow-sm"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                    </button>
-                  </form>
-                </div>
+            {/* Chat Body (WhatsApp Wallpaper aesthetic) */}
+            <div
+              className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 relative"
+              style={{
+                backgroundImage:
+                  'radial-gradient(circle at 10% 20%, rgba(15, 157, 138, 0.04) 0%, transparent 40%), radial-gradient(circle at 90% 80%, rgba(11, 31, 58, 0.04) 0%, transparent 40%)',
+              }}
+            >
+              {/* Date pill */}
+              <div className="flex justify-center my-1">
+                <span className="px-2.5 py-0.5 rounded-full bg-white/70 backdrop-blur-xs text-[10px] font-bold text-slate-500 shadow-2xs border border-slate-200/60 uppercase tracking-wider">
+                  Today
+                </span>
               </div>
-            )}
 
-            {/* TAB 2: LIVE NATURAL VOICE CALL (Multi-lingual & Mic Talk) */}
-            {activeTab === 'voice' && (
-              <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-slate-50 flex flex-col justify-between">
-                <div className="space-y-3.5">
-                  {/* Language Selector Bar */}
-                  <div className="flex items-center justify-between bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm text-xs">
-                    <span className="font-bold text-slate-700 flex items-center gap-1.5 text-[11px]">
-                      <Globe className="w-3.5 h-3.5 text-teal-600" />
-                      <span>Language:</span>
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => handleSwitchLanguage('en')}
-                        className={`px-2 py-0.5 rounded-md font-bold text-[11px] transition-colors ${
-                          selectedLang === 'en'
-                            ? 'bg-teal-600 text-white'
-                            : 'text-slate-600 hover:bg-slate-100'
-                        }`}
-                      >
-                        English
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSwitchLanguage('hi')}
-                        className={`px-2 py-0.5 rounded-md font-bold text-[11px] transition-colors ${
-                          selectedLang === 'hi'
-                            ? 'bg-teal-600 text-white'
-                            : 'text-slate-600 hover:bg-slate-100'
-                        }`}
-                      >
-                        हिंदी
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSwitchLanguage('hinglish')}
-                        className={`px-2 py-0.5 rounded-md font-bold text-[11px] transition-colors ${
-                          selectedLang === 'hinglish'
-                            ? 'bg-teal-600 text-white'
-                            : 'text-slate-600 hover:bg-slate-100'
-                        }`}
-                      >
-                        Hinglish
-                      </button>
+              {/* Chat Message Bubbles */}
+              {chatMessages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed whitespace-pre-line shadow-xs ${
+                      msg.sender === 'user'
+                        ? 'bg-[#0B1F3A] text-white rounded-tr-none'
+                        : 'bg-white text-slate-800 rounded-tl-none border border-slate-200/90'
+                    }`}
+                  >
+                    {msg.text}
+
+                    <div
+                      className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${
+                        msg.sender === 'user' ? 'text-teal-200/70' : 'text-slate-400'
+                      }`}
+                    >
+                      <span>{msg.time}</span>
+                      {msg.sender === 'user' && (
+                        <CheckCheck className="w-3.5 h-3.5 text-sky-400 inline-block" />
+                      )}
                     </div>
                   </div>
+                </div>
+              ))}
 
-                  {/* Visual Voice Cockpit */}
-                  <div className="bg-gradient-to-br from-[#0B1F3A] to-[#102C4D] rounded-2xl p-5 text-white text-center shadow-lg relative overflow-hidden">
-                    <div
-                      className="absolute top-0 right-0 w-40 h-40 rounded-full pointer-events-none"
-                      style={{ background: 'radial-gradient(circle, rgba(15, 157, 138, 0.3), transparent 70%)' }}
+              {/* WhatsApp-Style Typing Dots Indicator */}
+              {isTyping && (
+                <div className="flex items-start">
+                  <div className="bg-white rounded-2xl rounded-tl-none px-3.5 py-2.5 border border-slate-200/90 shadow-xs flex items-center gap-1.5 text-slate-500">
+                    <span
+                      className="w-2 h-2 rounded-full bg-teal-600 animate-bounce"
+                      style={{ animationDelay: '0ms' }}
                     />
+                    <span
+                      className="w-2 h-2 rounded-full bg-teal-600 animate-bounce"
+                      style={{ animationDelay: '150ms' }}
+                    />
+                    <span
+                      className="w-2 h-2 rounded-full bg-teal-600 animate-bounce"
+                      style={{ animationDelay: '300ms' }}
+                    />
+                    <span className="text-[11px] font-medium text-slate-400 ml-1">AI Assistant typing...</span>
+                  </div>
+                </div>
+              )}
 
-                    {/* Animated Audio Equalizer Waveform */}
-                    <div className="relative mx-auto w-24 h-16 mb-2 flex items-center justify-center gap-1">
-                      {[40, 75, 100, 60, 85, 45, 90].map((h, i) => (
-                        <motion.span
-                          key={i}
-                          className="w-1.5 bg-gradient-to-t from-teal-400 to-emerald-300 rounded-full"
-                          animate={
-                            callStatus === 'connected' && (isAiSpeaking || isListeningMic)
-                              ? { height: [`${h * 0.3}%`, `${h}%`, `${h * 0.2}%`] }
-                              : { height: callStatus === 'connected' ? '25%' : '10%' }
-                          }
-                          transition={{
-                            duration: 0.5 + (i % 3) * 0.15,
-                            repeat: Infinity,
-                            ease: 'easeInOut',
-                          }}
-                        />
-                      ))}
+              {/* Quick Prompt Pills (shown initially) */}
+              {chatMessages.length <= 2 && (
+                <div className="pt-2">
+                  <p className="text-[11px] font-bold text-slate-500 mb-1.5 px-1">
+                    {language === 'hi'
+                      ? 'सुझाए गए सवाल:'
+                      : language === 'hinglish'
+                      ? 'Frequent sawaal:'
+                      : 'Suggested questions:'}
+                  </p>
+                  <div className="flex flex-col gap-1.5">
+                    {quickPills[language].map((pill, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleSendMessage(pill)}
+                        className="text-left px-3 py-1.5 rounded-xl bg-white/90 hover:bg-white border border-slate-200 text-slate-700 text-[11px] font-medium hover:border-teal-400 hover:text-teal-900 transition-colors flex items-center justify-between group shadow-2xs"
+                      >
+                        <span>{pill}</span>
+                        <ArrowRight className="w-3 h-3 text-slate-400 group-hover:text-teal-600 group-hover:translate-x-0.5 transition-transform" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input Bar (WhatsApp-style with Voice Mic & Send) */}
+            <div className="p-2.5 sm:p-3 bg-white border-t border-slate-200 flex-shrink-0">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSendMessage();
+                }}
+                className="flex items-center gap-2"
+              >
+                {/* Voice Assistant Mic Button */}
+                <button
+                  type="button"
+                  onClick={handleToggleMic}
+                  className={`p-2.5 rounded-full transition-all shadow-xs flex-shrink-0 ${
+                    isListening
+                      ? 'bg-rose-600 text-white animate-pulse ring-4 ring-rose-200'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-teal-700'
+                  }`}
+                  title={isListening ? 'Listening to voice... (Tap to stop)' : 'Tap to speak your question'}
+                >
+                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                </button>
+
+                {/* Input Text Box */}
+                <input
+                  type="text"
+                  placeholder={isListening ? '🎙️ Listening... Speak now...' : placeholders[language]}
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  className="flex-1 px-3.5 py-2 rounded-full border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 bg-slate-50/70"
+                />
+
+                {/* Send Button */}
+                <button
+                  type="submit"
+                  disabled={!inputText.trim()}
+                  className="p-2.5 rounded-full bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-40 transition-colors shadow-sm flex-shrink-0"
+                  aria-label="Send message"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </form>
+            </div>
+
+            {/* ─── "Team se baat karein" WhatsApp Modal Overlay ─── */}
+            <AnimatePresence>
+              {showTeamModal && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.96 }}
+                  className="absolute inset-0 z-40 bg-white/95 backdrop-blur-sm p-4 sm:p-5 flex flex-col justify-between overflow-y-auto"
+                >
+                  <div>
+                    {/* Header */}
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                          <MessageCircle className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-sm text-slate-900">Team se WhatsApp par baat karein</h4>
+                          <span className="text-[10px] text-emerald-700 font-semibold">
+                            Direct Support (+{cleanSupportNumber})
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowTeamModal(false)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
 
-                    <h4 className="text-sm font-bold text-white">
-                      {callStatus === 'idle' && 'Natural AI Voice Support'}
-                      {callStatus === 'calling' && 'Connecting Natural Voice Line...'}
-                      {callStatus === 'connected' && (
-                        <span>
-                          Call Connected • <span className="text-teal-300 font-mono">{voiceLangs[selectedLang].name}</span>
-                        </span>
-                      )}
-                      {callStatus === 'ended' && 'Call Disconnected'}
-                    </h4>
-
-                    <p className="text-[11px] text-slate-300 mt-1 font-mono">
-                      {callStatus === 'connected' ? (
-                        <span className="text-emerald-400 font-bold">
-                          {Math.floor(callDuration / 60)}:{(callDuration % 60).toString().padStart(2, '0')} (Audio Live)
-                        </span>
-                      ) : (
-                        'High-Fidelity Human Speech • Hindi & English'
-                      )}
+                    <p className="text-xs text-slate-600 mb-3 leading-relaxed">
+                      Aapka sawaal aur chat history automatically WhatsApp message mein format ho kar open hogi taaki hamari engineering team aapko turant reply kar sake.
                     </p>
 
-                    {/* Live Transcript readout */}
-                    {voiceTranscript && (
-                      <div className="mt-3 p-3 bg-white/10 rounded-xl text-xs text-slate-200 border border-white/10 text-left leading-relaxed max-h-24 overflow-y-auto">
-                        <span className="font-bold text-teal-300 block mb-0.5 text-[10px] uppercase">
-                          {isListeningMic ? '🎙️ Listening to You...' : 'Live Speech Transcript:'}
-                        </span>
-                        {voiceTranscript}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Connected Controls: Mic talk, mute, end */}
-                  {callStatus === 'connected' ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-center gap-3">
-                        {/* Two-Way Mic Button */}
-                        <button
-                          type="button"
-                          onClick={handleToggleMic}
-                          className={`px-4 py-2.5 rounded-full font-bold text-xs flex items-center gap-1.5 shadow-md transition-all ${
-                            isListeningMic
-                              ? 'bg-rose-600 text-white animate-pulse'
-                              : 'bg-teal-600 text-white hover:bg-teal-700'
-                          }`}
-                        >
-                          {isListeningMic ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                          <span>{isListeningMic ? 'Listening... (Speak Now)' : 'Tap to Speak'}</span>
-                        </button>
-
-                        {/* Mute */}
-                        <button
-                          type="button"
-                          onClick={() => setIsMuted(!isMuted)}
-                          className={`p-2.5 rounded-full border transition-all ${
-                            isMuted ? 'bg-amber-100 text-amber-700 border-amber-300' : 'bg-white text-slate-700 border-slate-300'
-                          }`}
-                          title={isMuted ? 'Unmute Audio' : 'Mute Audio'}
-                        >
-                          {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                        </button>
-
-                        {/* End Call */}
-                        <button
-                          type="button"
-                          onClick={handleEndCall}
-                          className="px-4 py-2.5 rounded-full bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md flex items-center gap-1.5"
-                        >
-                          <PhoneOff className="w-4 h-4" />
-                          <span>End</span>
-                        </button>
-                      </div>
-
-                      {/* Language Prompt Pills */}
+                    {/* Form */}
+                    <form onSubmit={handleTeamWhatsAppSubmit} className="space-y-3">
                       <div>
-                        <p className="text-[11px] font-semibold text-slate-600 mb-1.5 text-center">
-                          Tap to ask in {voiceLangs[selectedLang].name}:
-                        </p>
-                        <div className="grid grid-cols-2 gap-1.5 text-xs">
-                          {voiceLangs[selectedLang].prompts.map((q) => (
-                            <button
-                              key={q}
-                              type="button"
-                              onClick={() => handleVoiceQuery(q)}
-                              className="p-2 rounded-xl bg-white border border-slate-200 text-[11px] text-slate-700 hover:border-teal-400 hover:bg-teal-50 text-left truncate transition-colors"
-                            >
-                              {q}
-                            </button>
-                          ))}
-                        </div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Aapka Naam (Your Name)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Alex Sharma"
+                          value={teamName}
+                          onChange={(e) => setTeamName(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-500 bg-white"
+                        />
                       </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <button
-                        type="button"
-                        onClick={() => handleStartCall(selectedLang)}
-                        className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all shadow-md flex items-center justify-center gap-2"
-                      >
-                        <Phone className="w-4 h-4" />
-                        <span>Start Voice Call in {voiceLangs[selectedLang].name}</span>
-                      </button>
 
-                      <div className="p-3 bg-teal-50 rounded-xl border border-teal-200 text-[11px] text-teal-950 leading-relaxed flex items-start gap-2">
-                        <Sparkles className="w-4 h-4 text-teal-700 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <strong>Natural Speech &amp; Languages:</strong>
-                          <p className="mt-0.5 text-teal-800">
-                            Equipped with high-fidelity voices and two-way mic input in <strong>English</strong>, <strong>हिंदी (Hindi)</strong>, and <strong>Hinglish</strong>!
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="text-[10px] text-slate-400 text-center pt-2">
-                  High-Fidelity Audio Synthesis • Free In-Browser Call
-                </div>
-              </div>
-            )}
-
-            {/* TAB 3: WhatsApp Desk — Send Inquiry Feature */}
-            {activeTab === 'whatsapp' && (
-              <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-slate-50">
-                {waSubmitted ? (
-                  <div className="py-4 space-y-3.5 bg-white rounded-2xl p-4 sm:p-5 border border-emerald-200 shadow-sm animate-in fade-in zoom-in-95">
-                    {/* Header Confirmation */}
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-inner flex-shrink-0">
-                        <CheckCircle2 className="w-6 h-6" />
-                      </div>
                       <div>
-                        <h4 className="text-sm font-bold text-slate-900">Inquiry Dispatched &amp; Ticket Created</h4>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="font-mono text-[11px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
-                            Ticket #{waTicket}
-                          </span>
-                          <span className="text-[10px] text-slate-400">Desk Notified</span>
-                        </div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Aapka Sawaal / Query *
+                        </label>
+                        <textarea
+                          rows={3}
+                          required
+                          placeholder="Aapko MicroSplit AI ke baare mein kya poochna hai..."
+                          value={teamQuestion}
+                          onChange={(e) => setTeamQuestion(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-500 bg-white resize-none"
+                        />
                       </div>
-                    </div>
 
-                    {/* Instant AI Automated Follow-Up Resolution */}
-                    {aiResolution && (
-                      <div className="bg-gradient-to-br from-teal-50/90 to-emerald-50/90 rounded-2xl p-4 border border-teal-200 text-left space-y-2.5 shadow-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-teal-950 flex items-center gap-1.5">
-                            <Bot className="w-4 h-4 text-teal-600" />
-                            <span>Instant AI Concierge Follow-Up:</span>
-                          </span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-200/60 text-teal-800">
-                            Instant Resolution
-                          </span>
-                        </div>
-
-                        <div className="text-xs text-slate-800 leading-relaxed whitespace-pre-line bg-white/90 rounded-xl p-3 border border-teal-100 shadow-2xs">
-                          {aiResolution.reply}
-                        </div>
-
-                        {aiResolution.link && (
-                          <div className="pt-1">
-                            <a
-                              href={aiResolution.link.href}
-                              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-600 text-white text-xs font-bold hover:bg-teal-700 shadow-sm transition-colors"
-                            >
-                              <span>{aiResolution.link.label}</span>
-                              <ArrowRight className="w-3.5 h-3.5" />
-                            </a>
-                          </div>
-                        )}
+                      <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-[11px] text-slate-500">
+                        <span className="font-bold text-slate-700 block mb-0.5">Chat Context Attached:</span>
+                        Last {Math.min(chatMessages.length, 3)} messages will be attached so our team understands your context.
                       </div>
-                    )}
 
-                    {/* Human Support Desk Status */}
-                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-left text-xs text-slate-600 space-y-1">
-                      <div className="font-bold text-slate-800 flex items-center gap-1.5 text-[11px]">
-                        <Clock className="w-3.5 h-3.5 text-teal-600" />
-                        <span>Human Engineering Desk Follow-Up:</span>
-                      </div>
-                      <p className="text-[11px] leading-relaxed">
-                        Your inquiry has also been dispatched to our desk at WhatsApp (<strong>+91 9294514754</strong>) &amp; Email (<strong>akshatsinghai6682@gmail.com</strong>). An engineer will follow up on your WhatsApp or Email.
-                      </p>
-                    </div>
-
-                    {/* Action buttons */}
-                    <div className="space-y-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('ai')}
-                        className="inline-flex items-center justify-center w-full gap-2 px-3.5 py-2.5 rounded-xl bg-[#0B1F3A] text-white text-xs font-bold hover:bg-slate-800 shadow-sm transition-colors"
-                      >
-                        <Sparkles className="w-4 h-4 text-teal-400" />
-                        <span>Continue Live Conversation in AI Chat</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
-
-                      {waDispatch?.whatsappAlertUrl && (
-                        <a
-                          href={waDispatch.whatsappAlertUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center w-full gap-2 px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-sm transition-colors"
+                      <div className="pt-1 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowTeamModal(false)}
+                          className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-100 transition-colors"
                         >
-                          <MessageCircle className="w-4 h-4" />
-                          <span>Open WhatsApp Chat (+91 9294514754)</span>
-                          <ExternalLink className="w-3 h-3 ml-0.5" />
-                        </a>
-                      )}
+                          Cancel
+                        </button>
 
-                      {waDispatch?.gmailComposeUrl && (
-                        <a
-                          href={waDispatch.gmailComposeUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center w-full gap-2 px-3 py-2 rounded-xl bg-slate-100 text-slate-800 text-xs font-bold hover:bg-slate-200 border border-slate-300 transition-colors"
-                        >
-                          <Mail className="w-4 h-4 text-rose-600" />
-                          <span>Open Gmail Alert (akshatsinghai6682@gmail.com)</span>
-                          <ExternalLink className="w-3 h-3 ml-0.5" />
-                        </a>
-                      )}
-                    </div>
-
-                    <div className="pt-2 text-center">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setWaSubmitted(false);
-                          setWaNotes('');
-                          setWaDispatch(null);
-                        }}
-                        className="text-xs font-semibold text-teal-600 hover:underline"
-                      >
-                        Submit another inquiry
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {/* Fast Direct WhatsApp Link Card */}
-                    <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-200 text-emerald-950">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <MessageCircle className="w-4 h-4 text-emerald-600" />
-                          <h4 className="text-xs font-bold text-emerald-900">Official Support WhatsApp Desk</h4>
-                        </div>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                          Active (+91 9294514754)
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-emerald-800 mb-2.5 leading-relaxed">
-                        Need immediate assistance? Click below to chat directly with our engineering team on WhatsApp.
-                      </p>
-                      <a
-                        href={fastWhatsAppUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center w-full gap-2 px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors shadow-sm"
-                      >
-                        <MessageCircle className="w-4 h-4" />
-                        <span>Chat Directly on WhatsApp (+91 9294514754)</span>
-                        <ExternalLink className="w-3 h-3 ml-0.5" />
-                      </a>
-                    </div>
-
-                    {/* Send Inquiry Form Card */}
-                    <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <Send className="w-4 h-4 text-teal-600" />
-                          <h4 className="text-xs font-bold text-slate-900">Send Inquiry to Support</h4>
-                        </div>
-                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                          To +91 9294514754
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 mb-3 leading-relaxed">
-                        Type your question below. You will receive an <strong>instant automated AI resolution</strong>, and your message will be dispatched directly to our team!
-                      </p>
-
-                      {waError && (
-                        <div className="mb-3 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-1.5">
-                          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span>{waError}</span>
-                        </div>
-                      )}
-
-                      <form onSubmit={handleSendWhatsAppInquiry} className="space-y-3">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                              Your Name
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="Alex"
-                              value={waName}
-                              onChange={(e) => setWaName(e.target.value)}
-                              className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                              Your Phone / WhatsApp *
-                            </label>
-                            <input
-                              type="tel"
-                              required
-                              placeholder="+91 98765 43210"
-                              value={waPhone}
-                              onChange={(e) => setWaPhone(e.target.value)}
-                              className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-500"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                              Your Email (Optional)
-                            </label>
-                            <input
-                              type="email"
-                              placeholder="you@gmail.com"
-                              value={waEmail}
-                              onChange={(e) => setWaEmail(e.target.value)}
-                              className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                              Topic
-                            </label>
-                            <select
-                              value={waTopic}
-                              onChange={(e) => setWaTopic(e.target.value)}
-                              className="w-full px-2.5 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:border-teal-500 bg-white"
-                            >
-                              <option>Evidence Feature Inquiry</option>
-                              <option>Payout Assistance & 0-Cent Math</option>
-                              <option>Streak Bonus Setup</option>
-                              <option>PayPal Batch Config</option>
-                              <option>Squad Onboarding</option>
-                              <option>General Question</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                            Your Inquiry / Message
-                          </label>
-                          <textarea
-                            rows={3}
-                            placeholder="Type your inquiry here (e.g. How can we see and test the evidence feature with our squad?)..."
-                            value={waNotes}
-                            onChange={(e) => setWaNotes(e.target.value)}
-                            className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-500 resize-none"
-                          />
-                        </div>
-
-                        {/* Primary Send Inquiry on WhatsApp */}
                         <button
                           type="submit"
-                          disabled={waLoading || !waPhone.trim()}
-                          className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-bold hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 transition-all shadow-md flex items-center justify-center gap-2"
+                          disabled={!teamQuestion.trim()}
+                          className="flex-2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50"
                         >
                           <MessageCircle className="w-4 h-4" />
-                          <span>
-                            {waLoading ? 'Dispatching...' : 'Send Inquiry on WhatsApp (To +91 9294514754)'}
-                          </span>
-                          <ArrowRight className="w-3.5 h-3.5" />
+                          <span>WhatsApp par Send karein →</span>
                         </button>
-
-                        {/* Secondary Send via Gmail */}
-                        <button
-                          type="button"
-                          onClick={handleSendGmailInquiry}
-                          disabled={waLoading || !waPhone.trim()}
-                          className="w-full py-2 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
-                        >
-                          <Mail className="w-3.5 h-3.5 text-rose-600" />
-                          <span>Or Send via Gmail to akshatsinghai6682@gmail.com</span>
-                          <ExternalLink className="w-3 h-3 ml-0.5 text-slate-400" />
-                        </button>
-                      </form>
-
-                      <div className="mt-3 flex items-center gap-1.5 text-[10px] text-slate-400">
-                        <ShieldCheck className="w-3.5 h-3.5 text-teal-600 flex-shrink-0" />
-                        <span>Private & encrypted. Messages are routed directly to our verified support desk.</span>
                       </div>
-                    </div>
+                    </form>
                   </div>
-                )}
-              </div>
-            )}
 
-            {/* TAB 4: FAQ */}
-            {activeTab === 'faq' && (
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
-                <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
-                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                    Core Platform Capabilities
-                  </h4>
-                  <div className="space-y-2 text-xs">
-                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                      <p className="font-bold text-slate-900 mb-1 flex items-center gap-1.5">
-                        <FileText className="w-3.5 h-3.5 text-teal-600" />
-                        <span>Evidence Vault & AI OCR (/evidence)</span>
-                      </p>
-                      <p className="text-[11px] text-slate-600">
-                        Upload invoices, receipts, and PRs. Multi-modal AI Vision extracts timestamps and amounts with tamper-proof SHA-256 conflict detection.
-                      </p>
-                    </div>
-
-                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                      <p className="font-bold text-slate-900 mb-1 flex items-center gap-1.5">
-                        <Zap className="w-3.5 h-3.5 text-teal-600" />
-                        <span>Deterministic Integer-Cent Math</span>
-                      </p>
-                      <p className="text-[11px] text-slate-600">
-                        Total pool cents are mathematically preserved. AI extracts fact records; pure deterministic code executes zero-loss splits.
-                      </p>
-                    </div>
-
-                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                      <p className="font-bold text-slate-900 mb-1 flex items-center gap-1.5">
-                        <BookOpen className="w-3.5 h-3.5 text-teal-600" />
-                        <span>SHA-256 Merkle Ledger (/ledger)</span>
-                      </p>
-                      <p className="text-[11px] text-slate-600">
-                        Every allocation and batch execution is cryptographically hashed in an append-only verifiable chain.
-                      </p>
-                    </div>
+                  <div className="mt-3 text-[10px] text-slate-400 text-center flex items-center justify-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Official verified MicroSplit AI WhatsApp Desk</span>
                   </div>
-                </div>
-
-                <div className="bg-teal-50 rounded-2xl p-4 border border-teal-200">
-                  <h4 className="text-xs font-bold text-teal-900 mb-1">Direct Support Lines</h4>
-                  <p className="text-[11px] text-teal-800 mb-2">
-                    Connect directly with our engineering team:
-                  </p>
-                  <div className="space-y-1 text-xs font-bold">
-                    <p className="text-teal-900">
-                      📱 WhatsApp: <span className="text-teal-700">+91 9294514754</span>
-                    </p>
-                    <p className="text-teal-900">
-                      📧 Email: <span className="text-teal-700">akshatsinghai6682@gmail.com</span>
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Footer trust bar */}
-            <div className="p-2.5 bg-slate-100 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500 px-4 flex-shrink-0">
-              <span className="flex items-center gap-1">
-                <Clock className="w-3 h-3 text-teal-600" />
-                Response time: &lt; 15 mins
-              </span>
-              <span>MicroSplit AI v2.0 • Online</span>
-            </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>
