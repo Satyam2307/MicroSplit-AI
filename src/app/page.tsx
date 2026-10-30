@@ -25,6 +25,7 @@ import {
   WeightBar,
 } from '@/components/ui';
 import PaymentCard from '@/components/PaymentCard';
+import ShowcaseGallery from '@/components/ShowcaseGallery';
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    HERO — GuestVerify-inspired split layout
@@ -365,6 +366,7 @@ export default function HomePage() {
   return (
     <>
       <HeroSection />
+      <ShowcaseGallery />
       <HowItWorksSection />
       <TrustStrip />
       <CTASection />
