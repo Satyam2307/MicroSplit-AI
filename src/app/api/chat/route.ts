@@ -47,7 +47,18 @@ function getLocalFallbackReply(userMessage: string, lang: 'en' | 'hi' | 'hinglis
   const q = userMessage.toLowerCase().trim();
 
   // 1. Evidence
-  if (q.includes('evidence') || q.includes('proof') || q.includes('upload') || q.includes('ocr') || q.includes('invoice') || q.includes('receipt') || q.includes('screen')) {
+  if (
+    q.includes('evidence') ||
+    q.includes('proof') ||
+    q.includes('upload') ||
+    q.includes('ocr') ||
+    q.includes('invoice') ||
+    q.includes('receipt') ||
+    q.includes('screen') ||
+    q.includes('एविडेंस') ||
+    q.includes('प्रूफ') ||
+    q.includes('अपलोड')
+  ) {
     if (lang === 'hi') {
       return 'MicroSplit AI में स्लैश एविडेंस (/evidence) पर पूरा **Evidence Vault** है:\n• 📄 **Upload Proof**: आप इनवॉइस, रसीद, या GitHub PR अपलोड कर सकते हैं।\n• 👁️ **AI Vision OCR**: AI अपने आप टाइमस्टैम्प और रकम निकालता है।\n• 🔒 **SHA-256 Hash**: हर फाइल क्रिप्टोग्राफिक रूप से सुरक्षित होती है।\n• ⚠️ **Conflict Detection**: डुप्लीकेट बिल तुरंत फ्लैग होते हैं।\n\nअधिक सहायता के लिए नीचे "Team se baat karein" दबाकर WhatsApp पर संपर्क करें।';
     }
@@ -58,7 +69,16 @@ function getLocalFallbackReply(userMessage: string, lang: 'en' | 'hi' | 'hinglis
   }
 
   // 2. 0-Cent Math
-  if (q.includes('0-cent') || q.includes('zero') || q.includes('split') || q.includes('math') || q.includes('calculate') || q.includes('cent')) {
+  if (
+    q.includes('0-cent') ||
+    q.includes('zero') ||
+    q.includes('split') ||
+    q.includes('math') ||
+    q.includes('calculate') ||
+    q.includes('cent') ||
+    q.includes('स्प्लिट') ||
+    q.includes('हिसाब')
+  ) {
     if (lang === 'hi') {
       return 'MicroSplit AI का **0-Cent Loss Guarantee** ऐसे काम करता है:\n• **Pure Integer-Cent Math**: पैसों का हिसाब पूर्णांक सेंट में होता है, जिससे 1 सेंट का भी राउंडिंग लॉस नहीं होता।\n• **Hare-Niemeyer Algorithm**: दशमलव सेंट्स को सबसे बड़े शेषफल वाले सदस्यों में नियमानुसार बांटा जाता है।\n• **AI vs Code**: AI सिर्फ फैक्ट्स पढ़ता है, गणितीय कोड ही पेआउट निष्पादित करता है।\n\n`Sum(Payouts) === Total Pool` 100% सटीक रहता है!';
     }
@@ -69,7 +89,14 @@ function getLocalFallbackReply(userMessage: string, lang: 'en' | 'hi' | 'hinglis
   }
 
   // 3. Consistency Streak
-  if (q.includes('streak') || q.includes('consistency') || q.includes('freeze') || q.includes('bonus')) {
+  if (
+    q.includes('streak') ||
+    q.includes('consistency') ||
+    q.includes('freeze') ||
+    q.includes('bonus') ||
+    q.includes('स्ट्रीक') ||
+    q.includes('बोनस')
+  ) {
     if (lang === 'hi') {
       return 'कंसिस्टेंसी स्ट्रीक बोनस (Consistency Streak Bonus):\n• टीम अपने रेवेन्यू पूल का 5% से 10% स्ट्रीक बोनस के लिए अलग रखती है।\n• हर लगातार सक्रिय दिन पर स्ट्रीक मल्टीप्लायर बढ़ता है (अधिकतम 100 दिन)।\n• **Freeze Days**: बीमारी या छुट्टी के दिनों में फ्रीज टोकन से आपकी स्ट्रीक सुरक्षित रहती है!';
     }
@@ -80,7 +107,14 @@ function getLocalFallbackReply(userMessage: string, lang: 'en' | 'hi' | 'hinglis
   }
 
   // 4. PayPal Batch
-  if (q.includes('paypal') || q.includes('batch') || q.includes('payout') || q.includes('disburse')) {
+  if (
+    q.includes('paypal') ||
+    q.includes('batch') ||
+    q.includes('payout') ||
+    q.includes('disburse') ||
+    q.includes('पेपैल') ||
+    q.includes('पेआउट')
+  ) {
     if (lang === 'hi') {
       return 'पेपैल बैच पेआउट (PayPal Batch Payouts):\n• एक क्लिक में 15,000 टीम मेंबर्स को पेपैल बैच एपीआई v1 द्वारा तुरंत पैसे ट्रांसफर होते हैं।\n• कम फ्लैट फीस और तुरंत वेबहुक कन्फर्मेशन मिलती है।\n• पेआउट होते ही /ledger पर क्रिप्टोग्राफिक ब्लॉक सील हो जाता है!';
     }
