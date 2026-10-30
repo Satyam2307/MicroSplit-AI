@@ -130,12 +130,7 @@ export default function WhatsAppButton() {
   const [ticketCountdown, setTicketCountdown] = useState(299); // 4m 59s
   const [copiedTicket, setCopiedTicket] = useState(false);
 
-  // WhatsApp & Email Constants
-  const defaultSupportNumber =
-    process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ||
-    process.env.NEXT_PUBLIC_WHATSAPP_PHONE ||
-    '919294514754';
-  const cleanSupportNumber = defaultSupportNumber.replace(/[^0-9]/g, '') || '919294514754';
+  // Email Constant
   const supportEmail = 'akshatsinghai6682@gmail.com';
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -237,21 +232,6 @@ export default function WhatsAppButton() {
     }
   };
 
-  // Direct 1-Click WhatsApp Chat Launcher
-  const handleDirectWhatsAppChat = () => {
-    const defaultMsg =
-      language === 'hi'
-        ? `नमस्ते MicroSplit AI टीम! मुझे आपके 0-सेंट स्प्लिट और एविडेंस वॉल्ट के बारे में जानकारी चाहिए।`
-        : language === 'hinglish'
-        ? `Hello MicroSplit AI Team! Mujhe squad revenue splits aur PayPal batch payouts ke baare mein baat karni hai.`
-        : `Hello MicroSplit AI Team! I would like to inquire about deterministic revenue splits and PayPal batch payouts.`;
-
-    const waUrl = `https://wa.me/${cleanSupportNumber}?text=${encodeURIComponent(defaultMsg)}`;
-    if (typeof window !== 'undefined') {
-      window.open(waUrl, '_blank');
-    }
-  };
-
   // Solve Inquiry with AI Chat Instantly
   const handleSolveWithAiNow = () => {
     if (contactMessage.trim()) {
@@ -280,6 +260,19 @@ export default function WhatsAppButton() {
       return;
     }
 
+    const userDigits = contactWhatsapp.replace(/[^0-9]/g, '');
+    const targetPhone =
+      userDigits.length === 10
+        ? `91${userDigits}`
+        : userDigits.length >= 7
+        ? userDigits
+        : '';
+
+    if (destination === 'whatsapp' && !targetPhone) {
+      setContactError('Please enter your WhatsApp / Phone number to send this inquiry to your WhatsApp.');
+      return;
+    }
+
     setContactError(null);
     setDispatchPhase('hashing');
 
@@ -296,7 +289,7 @@ export default function WhatsAppButton() {
         body: JSON.stringify({
           name: contactName.trim(),
           email: contactEmail.trim() || 'visitor@microsplit.ai',
-          whatsapp: contactWhatsapp.trim(),
+          whatsapp: targetPhone || contactWhatsapp.trim(),
           topic: contactTopic,
           message: contactMessage.trim(),
         }),
@@ -316,25 +309,16 @@ export default function WhatsAppButton() {
     setContactSubmittedTicket(generatedTicket);
     setTicketCountdown(299);
 
-    // Get target phone number: whichever number is typed by the user, send to THAT number!
-    const userDigits = contactWhatsapp.replace(/[^0-9]/g, '');
-    const targetPhone =
-      userDigits.length === 10
-        ? `91${userDigits}`
-        : userDigits.length >= 7
-        ? userDigits
-        : cleanSupportNumber;
-
-    if (destination === 'whatsapp') {
+    if (destination === 'whatsapp' && targetPhone) {
       const formattedWhatsApp =
-        `👋 *Hello ${contactName.trim() || 'Visitor'}!*\n` +
+        `👋 *Hello ${contactName.trim()}!*\n\n` +
         `Your MicroSplit AI Inquiry Ticket has been registered on the Cryptographic Ledger [Ticket: #${generatedTicket}]:\n\n` +
         `🏷️ *Topic:* ${contactTopic}\n` +
-        `💬 *Inquiry Message / Sawaal:*\n"${contactMessage.trim()}"\n\n` +
+        `💬 *Inquiry Message / Question:*\n"${contactMessage.trim()}"\n\n` +
         `📱 *Your Number:* +${targetPhone}\n` +
-        `📧 *Your Email:* ${contactEmail.trim() || 'Not specified'}\n\n` +
+        (contactEmail.trim() ? `📧 *Your Email:* ${contactEmail.trim()}\n\n` : '\n') +
         `⚡ *Status:* Registered on Cryptographic Ledger.\n` +
-        `Our engineering team will follow up directly on this WhatsApp chat.\n\n` +
+        `Our support team will follow up directly on this WhatsApp chat.\n\n` +
         `---\n*MicroSplit AI Official Support Desk*`;
 
       const waUrl = `https://wa.me/${targetPhone}?text=${encodeURIComponent(formattedWhatsApp)}`;
@@ -348,7 +332,7 @@ export default function WhatsAppButton() {
         `A new inquiry has been submitted:\n\n` +
         `Name: ${contactName.trim()}\n` +
         `Email: ${contactEmail.trim() || 'Not provided'}\n` +
-        `Phone/WhatsApp: ${contactWhatsapp.trim() || 'Not provided'}\n` +
+        `Phone/WhatsApp: ${targetPhone ? `+${targetPhone}` : contactWhatsapp.trim() || 'Not provided'}\n` +
         `Topic: ${contactTopic}\n` +
         `Ticket ID: ${generatedTicket}\n\n` +
         `Inquiry Message:\n${contactMessage.trim()}\n\n` +
@@ -712,56 +696,19 @@ export default function WhatsAppButton() {
                 <div className="bg-gradient-to-r from-[#0B1F3A] to-[#102C4D] text-white p-3.5 rounded-2xl border border-teal-500/30 shadow-xs relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/10 rounded-full blur-xl pointer-events-none" />
                   <div className="flex items-center gap-2 relative z-10">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0">
                       <ShieldCheck className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-xs sm:text-sm">Official MicroSplit Support Desk</h4>
+                      <h4 className="font-bold text-xs sm:text-sm">Official MicroSplit Inquiry Desk</h4>
                       <p className="text-[10.5px] text-slate-300">
-                        Direct line to Founder & Engineering (+{cleanSupportNumber})
+                        Encrypted Dispatch &amp; Cryptographic Ledger Verification • Rapid SLA &lt; 5 mins
                       </p>
                     </div>
                   </div>
                 </div>
 
-                {/* ── CARD 1: 1-Click Direct WhatsApp Chat ── */}
-                <div className="bg-white p-3.5 rounded-2xl border border-emerald-200 shadow-2xs hover:border-emerald-400 transition-colors">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                        <MessageCircle className="w-4 h-4 fill-current" />
-                      </div>
-                      <div>
-                        <h5 className="font-bold text-xs text-slate-900">Direct WhatsApp Chat</h5>
-                        <p className="text-[10.5px] text-emerald-700 font-semibold">
-                          +{cleanSupportNumber} • Typical reply &lt; 5 mins
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-xs text-slate-600 mb-3 leading-relaxed">
-                    Chat directly with our engineering team on WhatsApp for quick answers regarding revenue split rules or payouts.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleDirectWhatsAppChat}
-                    className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-sm flex items-center justify-center gap-2 active:scale-98"
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    <span>Open WhatsApp Now (+{cleanSupportNumber}) →</span>
-                  </button>
-                </div>
-
-                {/* Divider */}
-                <div className="relative flex py-0.5 items-center">
-                  <div className="flex-grow border-t border-slate-300"></div>
-                  <span className="flex-shrink mx-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Or Instant Verified Inquiry
-                  </span>
-                  <div className="flex-grow border-t border-slate-300"></div>
-                </div>
-
-                {/* ── CARD 2: Dynamic Holographic Inquiry Terminal ── */}
+                {/* ── Dynamic Holographic Inquiry Terminal ── */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs relative">
                   <div className="flex items-center justify-between mb-1">
                     <h5 className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
@@ -773,7 +720,7 @@ export default function WhatsAppButton() {
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-500 mb-3">
-                    Submitting logs an automated ticket to both WhatsApp (+{cleanSupportNumber}) and akshatsinghai6682@gmail.com.
+                    Enter your details below. Your inquiry ticket will be registered and sent directly to your entered WhatsApp number.
                   </p>
 
                   {/* ── Active Animated Dispatch Stages ── */}
@@ -793,7 +740,7 @@ export default function WhatsAppButton() {
                     <div className="mb-3 p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs text-emerald-900 animate-pulse">
                       <div className="flex items-center gap-2 font-bold mb-1">
                         <Phone className="w-4 h-4 text-emerald-600" />
-                        <span>Stage 2/2: Alerting Desk Queue (+{cleanSupportNumber})...</span>
+                        <span>Stage 2/2: Registering Inquiry on Secure Queue...</span>
                       </div>
                       <div className="w-full bg-emerald-200 h-1.5 rounded-full overflow-hidden">
                         <div className="bg-emerald-600 h-full w-full" />
@@ -844,7 +791,7 @@ export default function WhatsAppButton() {
                             <span className="font-mono text-teal-300 font-bold">
                               +{contactWhatsapp.replace(/[^0-9]/g, '').length === 10
                                 ? `91${contactWhatsapp.replace(/[^0-9]/g, '')}`
-                                : contactWhatsapp.replace(/[^0-9]/g, '') || cleanSupportNumber}
+                                : contactWhatsapp.replace(/[^0-9]/g, '')}
                             </span>
                           </div>
                         )}
@@ -877,7 +824,12 @@ export default function WhatsAppButton() {
                             className="py-1.5 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center justify-center gap-1 transition-colors"
                           >
                             <MessageCircle className="w-3 h-3" />
-                            <span>Open WhatsApp</span>
+                            <span>
+                              Open WhatsApp
+                              {contactWhatsapp.replace(/[^0-9]/g, '').length >= 7
+                                ? ` (+${contactWhatsapp.replace(/[^0-9]/g, '').length === 10 ? `91${contactWhatsapp.replace(/[^0-9]/g, '')}` : contactWhatsapp.replace(/[^0-9]/g, '')})`
+                                : ''}
+                            </span>
                           </button>
 
                           {/* Alternative 3: Open in Gmail */}
@@ -921,23 +873,24 @@ export default function WhatsAppButton() {
                     {/* WhatsApp & Email Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-[10.5px] font-bold text-slate-700 mb-0.5">
-                          Your WhatsApp / Phone No.
+                        <label className="block text-[10.5px] font-bold text-slate-700 mb-0.5 flex items-center justify-between">
+                          <span>Your WhatsApp / Phone No. *</span>
                         </label>
                         <input
-                          type="text"
+                          type="tel"
+                          required
                           placeholder="e.g. +91 9876543210"
                           value={contactWhatsapp}
                           onChange={(e) => setContactWhatsapp(e.target.value)}
                           className="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-500 bg-slate-50"
                         />
-                        <span className="text-[9px] text-teal-600 block mt-0.5 font-semibold">
-                          ✓ Inquiry WhatsApp will open to THIS typed number!
+                        <span className="text-[9.5px] text-teal-600 block mt-0.5 font-semibold">
+                          ✓ Inquiry will be sent to THIS entered number!
                         </span>
                       </div>
                       <div>
                         <label className="block text-[10.5px] font-bold text-slate-700 mb-0.5">
-                          Your Gmail / Email
+                          Your Gmail / Email (Optional)
                         </label>
                         <input
                           type="email"
@@ -1001,7 +954,7 @@ export default function WhatsAppButton() {
                         className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-bold text-xs transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
                       >
                         <ShieldCheck className="w-4 h-4" />
-                        <span>Generate Verified Ticket & Alert Desk →</span>
+                        <span>Generate Verified Ticket &amp; Alert Desk →</span>
                       </button>
                     </div>
 
@@ -1014,7 +967,11 @@ export default function WhatsAppButton() {
                         className="py-2 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] transition-colors shadow-2xs flex items-center justify-center gap-1 disabled:opacity-50"
                       >
                         <MessageCircle className="w-3.5 h-3.5" />
-                        <span>Send on WhatsApp</span>
+                        <span>
+                          {contactWhatsapp.replace(/[^0-9]/g, '').length >= 7
+                            ? `Send to +${contactWhatsapp.replace(/[^0-9]/g, '').length === 10 ? `91${contactWhatsapp.replace(/[^0-9]/g, '')}` : contactWhatsapp.replace(/[^0-9]/g, '')}`
+                            : 'Send on WhatsApp'}
+                        </span>
                       </button>
 
                       <button
@@ -1029,7 +986,7 @@ export default function WhatsAppButton() {
                     </div>
 
                     <p className="text-[10px] text-slate-400 text-center mt-1">
-                      Support Desk: <strong>+{cleanSupportNumber}</strong> • <strong>{supportEmail}</strong>
+                      Official Domain Support: <strong>{supportEmail}</strong>
                     </p>
                   </div>
                 </div>
