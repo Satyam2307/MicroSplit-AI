@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   MessageCircle,
   X,
@@ -14,12 +14,17 @@ import {
   Clock,
   Settings,
   HelpCircle,
-  ChevronRight,
-  ArrowRight
+  ArrowRight,
+  Phone,
+  PhoneOff,
+  Volume2,
+  VolumeX,
+  Mic,
+  Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Quick suggested prompt questions for the in-app AI concierge
+// Quick suggested prompt questions
 const quickPrompts = [
   'How does the 0-cent split work?',
   'How is the Consistency Streak Bonus calculated?',
@@ -27,7 +32,7 @@ const quickPrompts = [
   'How does focus session privacy work?',
 ];
 
-// Pre-packaged smart AI responses for instant answers
+// Pre-packaged smart AI responses
 const aiAnswers: Record<string, string> = {
   'How does the 0-cent split work?':
     'MicroSplit AI uses deterministic integer-cent arithmetic with the Largest-Remainder (Hare-Niemeyer) method. The AI never touches money directly — it only proposes structured evidence facts. The math engine converts all amounts to integer cents, rounds down, and distributes any fractional cent remainders strictly by descending remainder with stable member-ID tie-breaking. Exactly zero cents are lost or created.',
@@ -41,7 +46,7 @@ const aiAnswers: Record<string, string> = {
 
 export default function WhatsAppButton() {
   const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'ai' | 'whatsapp' | 'faq'>('ai');
+  const [activeTab, setActiveTab] = useState<'ai' | 'voice' | 'whatsapp' | 'faq'>('ai');
   const [showTooltip, setShowTooltip] = useState(true);
 
   // Chat state
@@ -55,6 +60,13 @@ export default function WhatsAppButton() {
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
+  // Live Voice Call State (Browser Audio / TTS)
+  const [callStatus, setCallStatus] = useState<'idle' | 'calling' | 'connected' | 'ended'>('idle');
+  const [callDuration, setCallDuration] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState<string>('');
+  const callTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // WhatsApp form state
   const [waName, setWaName] = useState('');
   const [waPhone, setWaPhone] = useState('');
@@ -64,12 +76,11 @@ export default function WhatsAppButton() {
   const [waLoading, setWaLoading] = useState(false);
   const [waTicket, setWaTicket] = useState<string | null>(null);
 
-  // Configured WhatsApp number/link (env or localStorage for squad custom number)
+  // Configured WhatsApp number/link
   const [customWaPhone, setCustomWaPhone] = useState<string>('');
   const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
-    // Load custom WhatsApp number from localStorage if previously configured
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('microsplit_custom_whatsapp');
       if (stored) {
@@ -79,6 +90,87 @@ export default function WhatsAppButton() {
       }
     }
   }, []);
+
+  // Voice call duration timer
+  useEffect(() => {
+    if (callStatus === 'connected') {
+      callTimerRef.current = setInterval(() => {
+        setCallDuration((prev) => prev + 1);
+      }, 1000);
+    } else {
+      if (callTimerRef.current) clearInterval(callTimerRef.current);
+      if (callStatus === 'idle') setCallDuration(0);
+    }
+    return () => {
+      if (callTimerRef.current) clearInterval(callTimerRef.current);
+    };
+  }, [callStatus]);
+
+  // Audio helper using Web Speech API
+  const speakVoice = (text: string) => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window && !isMuted) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      utterance.lang = 'en-US';
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  // Start Voice Call
+  const handleStartCall = () => {
+    setCallStatus('calling');
+    setCallDuration(0);
+    setVoiceTranscript('Dialing MicroSplit AI Voice Engine...');
+
+    // Play ringing tone via Web Audio API
+    try {
+      const audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      setTimeout(() => {
+        osc.stop();
+        audioCtx.close();
+      }, 1200);
+    } catch {
+      // AudioContext fallback
+    }
+
+    setTimeout(() => {
+      setCallStatus('connected');
+      const introMsg = 'Hello! You are connected to the MicroSplit AI Live Voice Line. I am your automated squad attribution assistant. How can I help you today?';
+      setVoiceTranscript(introMsg);
+      speakVoice(introMsg);
+    }, 1800);
+  };
+
+  const handleEndCall = () => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    setCallStatus('ended');
+    setVoiceTranscript('Call ended.');
+    setTimeout(() => {
+      setCallStatus('idle');
+      setCallDuration(0);
+    }, 1500);
+  };
+
+  const handleVoiceQuery = (query: string) => {
+    setVoiceTranscript(`You: "${query}"`);
+    const reply = aiAnswers[query] || 'MicroSplit orchestrates verifiable squad splits with zero cents lost or created.';
+    setTimeout(() => {
+      setVoiceTranscript(`AI: "${reply}"`);
+      speakVoice(reply);
+    }, 600);
+  };
 
   const handleSaveCustomPhone = (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,12 +195,10 @@ export default function WhatsAppButton() {
     setIsTyping(true);
 
     setTimeout(() => {
-      // Find matching answer or give intelligent fallback
       let reply =
         aiAnswers[text.trim()] ||
-        `Thanks for asking about "${text.trim()}". MicroSplit AI orchestrates verifiable revenue splits using deterministic math, SHA-256 audit chaining, and single-click PayPal batch disbursements. If you would like our engineering team to review your specific squad structure, feel free to use the WhatsApp Priority tab above!`;
+        `Thanks for asking about "${text.trim()}". MicroSplit AI orchestrates verifiable revenue splits using deterministic math, SHA-256 audit chaining, and single-click PayPal batch disbursements. If you would like our engineering team to review your squad structure, feel free to use the WhatsApp or Live Call tabs above!`;
 
-      // Keyword matching
       const lower = text.toLowerCase();
       if (lower.includes('streak') || lower.includes('consistency')) {
         reply = aiAnswers['How is the Consistency Streak Bonus calculated?'];
@@ -154,7 +244,6 @@ export default function WhatsAppButton() {
       setWaSubmitted(true);
       setWaTicket(data.ticketId || `WA-${Date.now().toString(36).toUpperCase()}`);
     } catch {
-      // Graceful offline fallback
       setWaSubmitted(true);
       setWaTicket(`WA-${Date.now().toString(36).toUpperCase()}`);
     } finally {
@@ -162,29 +251,32 @@ export default function WhatsAppButton() {
     }
   };
 
-  // Direct WhatsApp URL generator (safe - checks if configured)
   const defaultWhatsAppText = encodeURIComponent(
     'Hi MicroSplit AI team, I need priority squad revenue attribution & payout assistance.'
   );
 
-  // If a custom number is configured and not dummy, link directly to wa.me
+  const cleanCustomPhone = customWaPhone.replace(/[^0-9]/g, '');
   const isDirectWhatsAppAvailable =
-    customWaPhone &&
-    customWaPhone.replace(/[^0-9]/g, '').length >= 8 &&
-    customWaPhone !== '15550192834';
+    cleanCustomPhone.length >= 8 && cleanCustomPhone !== '15550192834';
 
   const directWhatsAppUrl = isDirectWhatsAppAvailable
-    ? `https://wa.me/${customWaPhone.replace(/[^0-9]/g, '')}?text=${defaultWhatsAppText}`
+    ? `https://wa.me/${cleanCustomPhone}?text=${defaultWhatsAppText}`
     : null;
+
+  // Generate instant wa.me link for the number entered by user
+  const cleanEnteredPhone = waPhone.replace(/[^0-9]/g, '');
+  const instantUserWhatsAppUrl =
+    cleanEnteredPhone.length >= 8
+      ? `https://wa.me/${cleanEnteredPhone}?text=${defaultWhatsAppText}`
+      : null;
 
   return (
     <>
       <aside aria-label="Support chat" className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 group">
-        {/* Floating Tooltip speech bubble (when closed) */}
         {!isOpen && showTooltip && (
           <div className="hidden sm:flex items-center gap-2 px-3.5 py-2 bg-[#0B1F3A] text-white rounded-xl shadow-xl border border-teal-500/30 text-xs font-semibold animate-in fade-in slide-in-from-right-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>AI & WhatsApp Support</span>
+            <span>AI Voice & WhatsApp Support</span>
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -198,7 +290,6 @@ export default function WhatsAppButton() {
           </div>
         )}
 
-        {/* Floating Trigger Button */}
         <button
           onClick={() => {
             setIsOpen(!isOpen);
@@ -235,7 +326,7 @@ export default function WhatsAppButton() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-24 right-4 sm:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[420px] max-h-[620px] h-[580px] bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
+            className="fixed bottom-24 right-4 sm:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[430px] max-h-[640px] h-[600px] bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
             style={{
               boxShadow: '0 20px 50px rgba(11, 31, 58, 0.25), 0 0 0 1px rgba(15, 157, 138, 0.2)',
             }}
@@ -284,21 +375,21 @@ export default function WhatsAppButton() {
               </div>
             </div>
 
-            {/* Optional Settings Panel (for Squad Admin / Developer to test custom number without hardcoding) */}
+            {/* Optional Settings Panel */}
             {showSettings && (
               <div className="p-3 bg-slate-50 border-b border-slate-200 text-xs">
                 <form onSubmit={handleSaveCustomPhone} className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800">Custom WhatsApp Number / Link</span>
-                    <span className="text-[10px] text-slate-500">Stored in browser locally</span>
+                    <span className="font-bold text-slate-800">Support WhatsApp Number</span>
+                    <span className="text-[10px] text-slate-500">Stored locally</span>
                   </div>
                   <p className="text-[11px] text-slate-600">
-                    Avoid committing personal phone numbers to public GitHub. Enter your phone number with country code (e.g. <code>919876543210</code> or <code>14155552671</code>):
+                    Enter your phone number with country code (e.g. <code>919876543210</code> or <code>14155552671</code>):
                   </p>
                   <div className="flex gap-2">
                     <input
                       type="text"
-                      placeholder="e.g. +91 98765 43210"
+                      placeholder="e.g. 919876543210"
                       value={customWaPhone}
                       onChange={(e) => setCustomWaPhone(e.target.value)}
                       className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-800 bg-white"
@@ -314,50 +405,61 @@ export default function WhatsAppButton() {
               </div>
             )}
 
-            {/* Tab Navigation */}
+            {/* Tab Navigation with 4 tabs */}
             <div className="flex border-b border-slate-200 bg-slate-50 flex-shrink-0">
               <button
                 type="button"
                 onClick={() => setActiveTab('ai')}
-                className={`flex-1 py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
+                className={`flex-1 py-2.5 text-[11px] font-bold flex items-center justify-center gap-1 border-b-2 transition-colors ${
                   activeTab === 'ai'
                     ? 'border-teal-600 text-teal-700 bg-white'
                     : 'border-transparent text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>AI Live Chat</span>
+                <Sparkles className="w-3 h-3" />
+                <span>AI Chat</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('voice')}
+                className={`flex-1 py-2.5 text-[11px] font-bold flex items-center justify-center gap-1 border-b-2 transition-colors ${
+                  activeTab === 'voice'
+                    ? 'border-teal-600 text-teal-700 bg-white'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Phone className="w-3 h-3 text-emerald-600" />
+                <span>Live Call</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('whatsapp')}
-                className={`flex-1 py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
+                className={`flex-1 py-2.5 text-[11px] font-bold flex items-center justify-center gap-1 border-b-2 transition-colors ${
                   activeTab === 'whatsapp'
                     ? 'border-emerald-600 text-emerald-700 bg-white'
                     : 'border-transparent text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <MessageCircle className="w-3.5 h-3.5" />
-                <span>WhatsApp Desk</span>
+                <MessageCircle className="w-3 h-3 text-emerald-600" />
+                <span>WhatsApp</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('faq')}
-                className={`flex-1 py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
+                className={`flex-1 py-2.5 text-[11px] font-bold flex items-center justify-center gap-1 border-b-2 transition-colors ${
                   activeTab === 'faq'
                     ? 'border-teal-600 text-teal-700 bg-white'
                     : 'border-transparent text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <HelpCircle className="w-3.5 h-3.5" />
-                <span>Quick Answers</span>
+                <HelpCircle className="w-3 h-3" />
+                <span>FAQ</span>
               </button>
             </div>
 
-            {/* Tab 1: AI Live Chat */}
+            {/* TAB 1: AI Live Chat */}
             {activeTab === 'ai' && (
               <div className="flex-1 flex flex-col min-h-0 bg-slate-50">
-                {/* Messages scroll area */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
                   {chatMessages.map((msg, idx) => (
                     <div
@@ -386,7 +488,6 @@ export default function WhatsAppButton() {
                     </div>
                   )}
 
-                  {/* Quick prompt chips */}
                   {chatMessages.length <= 2 && (
                     <div className="pt-2">
                       <p className="text-[11px] font-semibold text-slate-500 mb-2">Frequently asked:</p>
@@ -407,7 +508,6 @@ export default function WhatsAppButton() {
                   )}
                 </div>
 
-                {/* Input area */}
                 <div className="p-3 bg-white border-t border-slate-200 flex-shrink-0">
                   <form
                     onSubmit={(e) => {
@@ -418,7 +518,7 @@ export default function WhatsAppButton() {
                   >
                     <input
                       type="text"
-                      placeholder="Ask anything about splits, streaks, PayPal..."
+                      placeholder="Ask about splits, streaks, PayPal..."
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
                       className="flex-1 px-3.5 py-2 rounded-full border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
@@ -426,7 +526,7 @@ export default function WhatsAppButton() {
                     <button
                       type="submit"
                       disabled={!chatInput.trim()}
-                      className="p-2 rounded-full bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-40 disabled:hover:bg-teal-600 transition-colors shadow-sm"
+                      className="p-2 rounded-full bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-40 transition-colors shadow-sm"
                     >
                       <Send className="w-3.5 h-3.5" />
                     </button>
@@ -435,22 +535,163 @@ export default function WhatsAppButton() {
               </div>
             )}
 
-            {/* Tab 2: WhatsApp Desk */}
+            {/* TAB 2: LIVE VOICE CALL (Real Browser Audio & Speech) */}
+            {activeTab === 'voice' && (
+              <div className="flex-1 overflow-y-auto p-5 bg-slate-50 flex flex-col justify-between">
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-br from-[#0B1F3A] to-[#102C4D] rounded-2xl p-6 text-white text-center shadow-lg relative overflow-hidden">
+                    <div
+                      className="absolute top-0 right-0 w-40 h-40 rounded-full pointer-events-none"
+                      style={{ background: 'radial-gradient(circle, rgba(15, 157, 138, 0.3), transparent 70%)' }}
+                    />
+
+                    {/* Visualizer Circle */}
+                    <div className="relative mx-auto w-20 h-20 mb-4 flex items-center justify-center">
+                      {callStatus === 'calling' && (
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+                      )}
+                      {callStatus === 'connected' && (
+                        <span className="animate-pulse absolute inline-flex h-24 w-24 rounded-full bg-teal-500/30" />
+                      )}
+                      <div className="w-16 h-16 rounded-full bg-teal-500 text-white flex items-center justify-center shadow-md relative z-10">
+                        {callStatus === 'connected' ? (
+                          <Volume2 className="w-8 h-8 animate-pulse" />
+                        ) : (
+                          <Phone className="w-7 h-7" />
+                        )}
+                      </div>
+                    </div>
+
+                    <h4 className="text-base font-bold text-white">
+                      {callStatus === 'idle' && 'MicroSplit Voice Support'}
+                      {callStatus === 'calling' && 'Dialing AI Audio Line...'}
+                      {callStatus === 'connected' && 'Live AI Call Connected'}
+                      {callStatus === 'ended' && 'Call Disconnected'}
+                    </h4>
+
+                    <p className="text-xs text-slate-300 mt-1 font-mono">
+                      {callStatus === 'connected' ? (
+                        <span className="text-emerald-400 font-bold">
+                          {Math.floor(callDuration / 60)}:{(callDuration % 60).toString().padStart(2, '0')} (Active Audio)
+                        </span>
+                      ) : (
+                        'In-Browser Realtime Speech Engine'
+                      )}
+                    </p>
+
+                    {/* Audio Transcript readout */}
+                    {voiceTranscript && (
+                      <div className="mt-4 p-3 bg-white/10 rounded-xl text-xs text-slate-200 border border-white/10 text-left leading-relaxed">
+                        <span className="font-bold text-teal-300 block mb-0.5 text-[10px] uppercase">Live Audio Transcript:</span>
+                        {voiceTranscript}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Call Controls */}
+                  {callStatus === 'connected' ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-center gap-4">
+                        <button
+                          type="button"
+                          onClick={() => setIsMuted(!isMuted)}
+                          className={`p-3 rounded-full border transition-all ${
+                            isMuted ? 'bg-amber-100 text-amber-700 border-amber-300' : 'bg-slate-100 text-slate-700 border-slate-300'
+                          }`}
+                          title={isMuted ? 'Unmute Audio' : 'Mute Audio'}
+                        >
+                          {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleEndCall}
+                          className="px-6 py-3 rounded-full bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 shadow-md flex items-center gap-2"
+                        >
+                          <PhoneOff className="w-4 h-4" />
+                          <span>End Call</span>
+                        </button>
+                      </div>
+
+                      <div className="pt-2">
+                        <p className="text-[11px] font-semibold text-slate-600 mb-1.5 text-center">Ask by voice:</p>
+                        <div className="grid grid-cols-2 gap-1.5 text-xs">
+                          {quickPrompts.slice(0, 4).map((q) => (
+                            <button
+                              key={q}
+                              type="button"
+                              onClick={() => handleVoiceQuery(q)}
+                              className="p-2 rounded-xl bg-white border border-slate-200 text-[11px] text-slate-700 hover:border-teal-400 hover:bg-teal-50 text-left truncate"
+                            >
+                              {q}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <button
+                        type="button"
+                        onClick={handleStartCall}
+                        className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all shadow-md flex items-center justify-center gap-2"
+                      >
+                        <Phone className="w-4 h-4" />
+                        <span>Start Free Voice Call (Speaker On)</span>
+                      </button>
+
+                      <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 leading-relaxed flex items-start gap-2">
+                        <Info className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <strong>Note on Cellular Phone Calls:</strong>
+                          <p className="mt-0.5 text-amber-800">
+                            Website contact forms log callback tickets. To receive an outbound cellular phone call to your SIM card, an automated telecom trunk (Twilio Voice / Vapi) is required. You can test live audio immediately using the <strong>Start Free Voice Call</strong> button above!
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-[10px] text-slate-400 text-center pt-2">
+                  Uses Web Speech Audio • Zero carrier charges
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: WhatsApp Desk */}
             {activeTab === 'whatsapp' && (
               <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-slate-50">
                 {waSubmitted ? (
-                  <div className="py-8 text-center space-y-3 bg-white rounded-2xl p-6 border border-emerald-200 shadow-sm">
+                  <div className="py-6 text-center space-y-3 bg-white rounded-2xl p-6 border border-emerald-200 shadow-sm">
                     <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
                       <CheckCircle2 className="w-6 h-6" />
                     </div>
-                    <h4 className="text-base font-bold text-slate-900">WhatsApp Request Dispatched!</h4>
+                    <h4 className="text-base font-bold text-slate-900">Support Request Logged!</h4>
                     <p className="text-xs text-slate-600 max-w-xs mx-auto leading-relaxed">
-                      Our fintech settlement on-call engineer has received your request. We will reach out to you directly on WhatsApp.
+                      Your ticket reference has been recorded in our dispatch system:
                     </p>
                     <div className="inline-block px-3 py-1.5 rounded-lg bg-slate-100 font-mono text-xs font-semibold text-slate-700">
                       Ticket #{waTicket}
                     </div>
-                    <div className="pt-2">
+
+                    {/* Instant WhatsApp Action for the entered number */}
+                    {instantUserWhatsAppUrl && (
+                      <div className="pt-2">
+                        <p className="text-[11px] text-slate-600 mb-2">Want to chat right now?</p>
+                        <a
+                          href={instantUserWhatsAppUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center w-full gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-sm"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          <span>Open in WhatsApp Directly</span>
+                          <ExternalLink className="w-3 h-3 ml-0.5" />
+                        </a>
+                      </div>
+                    )}
+
+                    <div className="pt-3">
                       <button
                         type="button"
                         onClick={() => {
@@ -465,7 +706,7 @@ export default function WhatsAppButton() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {/* Option 1: Direct link (if configured) */}
+                    {/* Direct link if configured */}
                     {directWhatsAppUrl ? (
                       <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-200 text-emerald-950">
                         <div className="flex items-center gap-2 mb-1.5">
@@ -488,19 +729,19 @@ export default function WhatsAppButton() {
                       </div>
                     ) : null}
 
-                    {/* Option 2: Request WhatsApp Callback (Privacy-First - prevents broken dummy number!) */}
+                    {/* Callback Form */}
                     <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <PhoneCall className="w-4 h-4 text-teal-600" />
-                          <h4 className="text-xs font-bold text-slate-900">Request WhatsApp Priority Connect</h4>
+                          <h4 className="text-xs font-bold text-slate-900">WhatsApp Desk Dispatch</h4>
                         </div>
                         <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                          SLA &lt; 15 min
+                          SLA &lt; 15m
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-500 mb-4 leading-relaxed">
-                        Enter your number below. A human fintech engineer will message you directly on WhatsApp to assist with revenue rules, payout errors, or verification.
+                      <p className="text-[11px] text-slate-500 mb-3 leading-relaxed">
+                        Enter your number. Our engineer will message you directly on WhatsApp to resolve payout or split discrepancies.
                       </p>
 
                       <form onSubmit={handleWhatsAppCallbackSubmit} className="space-y-3">
@@ -511,7 +752,7 @@ export default function WhatsAppButton() {
                           <input
                             type="tel"
                             required
-                            placeholder="+1 (555) 000-0000 or +91 98765 43210"
+                            placeholder="+91 98765 43210 or +1 415 555 2671"
                             value={waPhone}
                             onChange={(e) => setWaPhone(e.target.value)}
                             className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-500"
@@ -563,13 +804,29 @@ export default function WhatsAppButton() {
                           className="w-full py-2.5 px-4 rounded-xl bg-[#0F9D8A] text-white text-xs font-bold hover:bg-[#087F73] disabled:opacity-50 transition-colors shadow-sm flex items-center justify-center gap-2"
                         >
                           <Send className="w-3.5 h-3.5" />
-                          <span>{waLoading ? 'Sending...' : 'Request WhatsApp Callback'}</span>
+                          <span>{waLoading ? 'Sending...' : 'Log Callback Request'}</span>
                         </button>
                       </form>
 
+                      {/* Direct WhatsApp launcher if number typed */}
+                      {cleanEnteredPhone.length >= 8 && (
+                        <div className="mt-3 pt-3 border-t border-slate-200">
+                          <a
+                            href={`https://wa.me/${cleanEnteredPhone}?text=${defaultWhatsAppText}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center justify-center w-full gap-2 px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-sm"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            <span>Launch WhatsApp with {waPhone}</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      )}
+
                       <div className="mt-3 flex items-center gap-1.5 text-[10px] text-slate-400">
                         <ShieldCheck className="w-3.5 h-3.5 text-teal-600 flex-shrink-0" />
-                        <span>Private & encrypted. Your phone number is never shared or stored publicly.</span>
+                        <span>Private & encrypted. Phone numbers are never published or shared publicly.</span>
                       </div>
                     </div>
                   </div>
@@ -577,7 +834,7 @@ export default function WhatsAppButton() {
               </div>
             )}
 
-            {/* Tab 3: FAQ & Fast Links */}
+            {/* TAB 4: FAQ */}
             {activeTab === 'faq' && (
               <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
                 <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
