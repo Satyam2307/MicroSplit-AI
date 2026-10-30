@@ -7,19 +7,12 @@ import {
   Send,
   Sparkles,
   Bot,
-  Volume2,
-  VolumeX,
-  Mic,
-  MicOff,
-  Check,
   CheckCheck,
   ShieldCheck,
   ArrowRight,
   Mail,
   Phone,
   HelpCircle,
-  RotateCcw,
-  ExternalLink,
   ChevronRight,
   CheckCircle2,
   AlertCircle
@@ -27,7 +20,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 
 type LanguageType = 'en' | 'hi' | 'hinglish';
-type WidgetTab = 'chat' | 'voice' | 'contact' | 'faq';
+type WidgetTab = 'chat' | 'contact' | 'faq';
 
 interface ChatMessage {
   id: string;
@@ -43,9 +36,9 @@ const greetings: Record<LanguageType, string> = {
 };
 
 const placeholders: Record<LanguageType, string> = {
-  en: 'Ask a question or tap mic to speak...',
-  hi: 'अपना सवाल लिखें या माइक दबाकर बोलें...',
-  hinglish: 'Sawaal likhein ya mic daba kar bolein...',
+  en: 'Type your message...',
+  hi: 'अपना सवाल यहाँ लिखें...',
+  hinglish: 'Apna sawaal yahan likhein...',
 };
 
 const quickPills: Record<LanguageType, string[]> = {
@@ -66,27 +59,6 @@ const quickPills: Record<LanguageType, string[]> = {
     'Evidence vault feature kaise dekhe?',
     'Streak bonus kaise calculate hota hai?',
     'PayPal batch payouts kaise setup karein?',
-  ],
-};
-
-const voicePrompts: Record<LanguageType, string[]> = {
-  en: [
-    'Explain 0-cent remainder split',
-    'How do I verify evidence in the vault?',
-    'Explain consistency streaks',
-    'How do PayPal batch payouts work?',
-  ],
-  hi: [
-    '0-सेंट स्प्लिट का तरीका समझाइए',
-    'एविडेंस वॉल्ट कैसे चेक करें?',
-    'कंसिस्टेंसी स्ट्रीक क्या है?',
-    'पेपैल बैच पेआउट कैसे होता है?',
-  ],
-  hinglish: [
-    '0-cent split math explain karo',
-    'Evidence vault kaise verify hota hai?',
-    'Consistency streak ka formula kya hai?',
-    'PayPal batch payouts kaise kaam karta hai?',
   ],
 };
 
@@ -114,11 +86,8 @@ export default function WhatsAppButton() {
   const [showTooltip, setShowTooltip] = useState(true);
   const [activeTab, setActiveTab] = useState<WidgetTab>('chat');
 
-  // Language & Voice Settings
+  // Language Settings
   const [language, setLanguage] = useState<LanguageType>('hinglish');
-  const [isSpeechEnabled, setIsSpeechEnabled] = useState(true);
-  const [isListening, setIsListening] = useState(false);
-  const [isAiSpeaking, setIsAiSpeaking] = useState(false);
 
   // Chat State
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
@@ -131,11 +100,6 @@ export default function WhatsAppButton() {
   ]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-
-  // Voice Cockpit State
-  const [voiceTranscript, setVoiceTranscript] = useState('');
-  const [voiceReply, setVoiceReply] = useState('');
-  const [voiceStatus, setVoiceStatus] = useState<'idle' | 'listening' | 'thinking' | 'speaking'>('idle');
 
   // Contact / Inquiry Desk State
   const [contactName, setContactName] = useState('');
@@ -156,7 +120,6 @@ export default function WhatsAppButton() {
   const supportEmail = 'akshatsinghai6682@gmail.com';
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const recognitionRef = useRef<any>(null);
 
   // Auto-scroll chat to bottom
   const scrollToBottom = () => {
@@ -169,28 +132,11 @@ export default function WhatsAppButton() {
     }
   }, [chatMessages, isTyping, isOpen, activeTab]);
 
-  // Preload speech synthesis voices
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.getVoices();
-      window.speechSynthesis.onvoiceschanged = () => {
-        window.speechSynthesis.getVoices();
-      };
-    }
-  }, []);
-
   // Language switch handler
   const handleLanguageChange = (newLang: LanguageType) => {
     setLanguage(newLang);
 
-    // Stop speaking if switching languages
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      setIsAiSpeaking(false);
-      setVoiceStatus('idle');
-    }
-
-    // Add greeting in chat
+    // Add greeting in chat for chosen language
     setChatMessages((prev) => [
       ...prev,
       {
@@ -202,158 +148,7 @@ export default function WhatsAppButton() {
     ]);
   };
 
-  // Speaks aloud using browser Web Speech Synthesis
-  const speakText = (text: string, lang: LanguageType) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window) || !isSpeechEnabled) return;
-
-    window.speechSynthesis.cancel();
-
-    // Clean markdown characters for smooth speech
-    const speechClean = text.replace(/[*#`_•]/g, '').slice(0, 450);
-    const utterance = new SpeechSynthesisUtterance(speechClean);
-    const voices = window.speechSynthesis.getVoices();
-
-    if (lang === 'hi') {
-      utterance.lang = 'hi-IN';
-      const hiVoice = voices.find(
-        (v) =>
-          v.lang.toLowerCase().includes('hi') ||
-          v.name.toLowerCase().includes('hindi') ||
-          v.name.includes('Lekha') ||
-          v.name.includes('Kalpana')
-      );
-      if (hiVoice) utterance.voice = hiVoice;
-      utterance.rate = 0.92;
-    } else {
-      utterance.lang = lang === 'hinglish' ? 'en-IN' : 'en-US';
-      const naturalEn = voices.find(
-        (v) =>
-          v.lang.startsWith('en') &&
-          (v.name.includes('Google') ||
-            v.name.includes('Samantha') ||
-            v.name.includes('Daniel') ||
-            v.name.includes('Natural') ||
-            v.name.includes('India'))
-      );
-      if (naturalEn) utterance.voice = naturalEn;
-      utterance.rate = 0.95;
-    }
-
-    utterance.onstart = () => {
-      setIsAiSpeaking(true);
-      if (activeTab === 'voice') setVoiceStatus('speaking');
-    };
-
-    utterance.onend = () => {
-      setIsAiSpeaking(false);
-      if (activeTab === 'voice') setVoiceStatus('idle');
-    };
-
-    utterance.onerror = () => {
-      setIsAiSpeaking(false);
-      if (activeTab === 'voice') setVoiceStatus('idle');
-    };
-
-    window.speechSynthesis.speak(utterance);
-  };
-
-  // Toggle Microphone (Speech-To-Text via Web Speech API)
-  const handleToggleMic = (targetScreen: 'chat' | 'voice' = 'chat') => {
-    if (typeof window === 'undefined') return;
-
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      alert(
-        'Speech Recognition is not supported in this browser. Please use Google Chrome, Microsoft Edge, or Safari.'
-      );
-      return;
-    }
-
-    if (isListening) {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-      setIsListening(false);
-      setVoiceStatus('idle');
-      return;
-    }
-
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.lang = language === 'hi' ? 'hi-IN' : language === 'hinglish' ? 'en-IN' : 'en-US';
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
-
-      recognition.onstart = () => {
-        setIsListening(true);
-        setVoiceStatus('listening');
-      };
-
-      recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setIsListening(false);
-        if (transcript && transcript.trim()) {
-          if (targetScreen === 'voice') {
-            setVoiceTranscript(transcript);
-            executeVoiceQuery(transcript);
-          } else {
-            setInputText(transcript);
-            handleSendMessage(transcript);
-          }
-        } else {
-          setVoiceStatus('idle');
-        }
-      };
-
-      recognition.onerror = () => {
-        setIsListening(false);
-        setVoiceStatus('idle');
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
-      recognitionRef.current = recognition;
-      recognition.start();
-    } catch {
-      setIsListening(false);
-      setVoiceStatus('idle');
-    }
-  };
-
-  // Query Claude AI for the Voice Cockpit
-  const executeVoiceQuery = async (query: string) => {
-    setVoiceStatus('thinking');
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: query,
-          history: [],
-          language,
-        }),
-      });
-
-      const data = await response.json();
-      const reply =
-        data.reply ||
-        'MicroSplit AI orchestrates 0-cent deterministic revenue splits with PayPal batch disbursements.';
-
-      setVoiceReply(reply);
-      speakText(reply, language);
-    } catch {
-      const fallback =
-        'Network error. Please switch to the WhatsApp & Gmail tab to talk directly with our engineering team.';
-      setVoiceReply(fallback);
-      setVoiceStatus('idle');
-    }
-  };
-
-  // Send message to Claude AI Backend (/api/chat) for Chat Tab
+  // Send message to Claude AI Backend (/api/chat)
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputText).trim();
     if (!text) return;
@@ -386,7 +181,7 @@ export default function WhatsAppButton() {
       const data = await response.json();
       const reply =
         data.reply ||
-        'MicroSplit AI orchestrates verifiable revenue splits using deterministic math and PayPal batch disbursements. Switch to WhatsApp & Gmail tab to connect with our team.';
+        'MicroSplit AI orchestrates verifiable revenue splits using deterministic math and PayPal batch disbursements. Switch to WhatsApp & Desk tab to connect with our team.';
 
       const assistantMessage: ChatMessage = {
         id: `a-${Date.now()}`,
@@ -397,14 +192,10 @@ export default function WhatsAppButton() {
 
       setChatMessages((prev) => [...prev, assistantMessage]);
       setIsTyping(false);
-
-      if (isSpeechEnabled) {
-        speakText(reply, language);
-      }
     } catch {
       setIsTyping(false);
       const fallbackReply =
-        'Network issue. Please switch to the "WhatsApp & Gmail" tab to connect directly with our engineering team.';
+        'Network issue. Please switch to the "WhatsApp & Desk" tab to connect directly with our engineering team.';
       setChatMessages((prev) => [
         ...prev,
         {
@@ -563,7 +354,7 @@ export default function WhatsAppButton() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="fixed bottom-4 right-3 sm:bottom-6 sm:right-6 z-50 w-[calc(100vw-1.5rem)] sm:w-[430px] h-[min(620px,calc(100vh-3rem))] bg-white rounded-3xl shadow-2xl border border-slate-300 flex flex-col overflow-hidden"
+            className="fixed bottom-4 right-3 sm:bottom-6 sm:right-6 z-50 w-[calc(100vw-1.5rem)] sm:w-[420px] h-[min(600px,calc(100vh-3rem))] bg-white rounded-3xl shadow-2xl border border-slate-300 flex flex-col overflow-hidden"
             style={{
               boxShadow: '0 20px 50px rgba(11, 31, 58, 0.28), 0 0 0 1px rgba(15, 157, 138, 0.25)',
             }}
@@ -589,28 +380,8 @@ export default function WhatsAppButton() {
                 </div>
               </div>
 
-              {/* Controls: Speaker Mute + Close */}
+              {/* Close Button */}
               <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = !isSpeechEnabled;
-                    setIsSpeechEnabled(next);
-                    if (!next && typeof window !== 'undefined' && 'speechSynthesis' in window) {
-                      window.speechSynthesis.cancel();
-                      setIsAiSpeaking(false);
-                    }
-                  }}
-                  className={`p-1.5 rounded-lg transition-colors ${
-                    isSpeechEnabled
-                      ? 'bg-teal-500/20 text-teal-300 border border-teal-400/30'
-                      : 'bg-white/10 text-slate-400'
-                  }`}
-                  title={isSpeechEnabled ? 'Voice Output ON (Click to Mute)' : 'Voice Output MUTED (Click to Unmute)'}
-                >
-                  {isSpeechEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-                </button>
-
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
@@ -622,14 +393,14 @@ export default function WhatsAppButton() {
               </div>
             </div>
 
-            {/* ─── Sub-bar 1: Language Segmented Selector (Unclipped & Always Visible) ─── */}
+            {/* ─── Sub-bar 1: Language Segmented Selector (Unclipped & Visible) ─── */}
             <div className="bg-[#0e2646] px-3.5 py-2 flex items-center justify-between border-b border-teal-500/20 flex-shrink-0">
               <span className="text-[11px] font-semibold text-teal-200/80 flex items-center gap-1">
                 <Sparkles className="w-3 h-3 text-teal-400" />
                 <span>Language / भाषा:</span>
               </span>
 
-              {/* Horizontal Segmented Bar - Eliminates any dropdown clipping */}
+              {/* Horizontal Segmented Bar */}
               <div className="flex items-center bg-black/25 p-0.5 rounded-xl border border-white/10">
                 <button
                   type="button"
@@ -667,14 +438,14 @@ export default function WhatsAppButton() {
               </div>
             </div>
 
-            {/* ─── Sub-bar 2: Navigation Tabs (AI Chat | Voice | WhatsApp & Gmail | FAQ) ─── */}
+            {/* ─── Sub-bar 2: 3 Clean Navigation Tabs (AI Chat | WhatsApp & Desk | FAQ) ─── */}
             <div className="bg-[#102C4D] px-2 py-1.5 flex items-center border-b border-teal-500/20 flex-shrink-0">
-              <div className="grid grid-cols-4 w-full gap-1">
+              <div className="grid grid-cols-3 w-full gap-1.5">
                 {/* Tab 1: AI Chat */}
                 <button
                   type="button"
                   onClick={() => setActiveTab('chat')}
-                  className={`flex flex-col sm:flex-row items-center justify-center gap-1 py-1.5 px-1 rounded-xl text-[10.5px] font-bold transition-all ${
+                  className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all ${
                     activeTab === 'chat'
                       ? 'bg-teal-600 text-white shadow-sm'
                       : 'text-slate-300 hover:bg-white/10 hover:text-white'
@@ -684,25 +455,11 @@ export default function WhatsAppButton() {
                   <span>AI Chat</span>
                 </button>
 
-                {/* Tab 2: Voice Assistant */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('voice')}
-                  className={`flex flex-col sm:flex-row items-center justify-center gap-1 py-1.5 px-1 rounded-xl text-[10.5px] font-bold transition-all ${
-                    activeTab === 'voice'
-                      ? 'bg-teal-600 text-white shadow-sm'
-                      : 'text-slate-300 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  <Mic className="w-3.5 h-3.5 text-teal-300" />
-                  <span>Voice</span>
-                </button>
-
-                {/* Tab 3: WhatsApp & Gmail Inquiry Desk */}
+                {/* Tab 2: WhatsApp & Desk */}
                 <button
                   type="button"
                   onClick={() => setActiveTab('contact')}
-                  className={`flex flex-col sm:flex-row items-center justify-center gap-1 py-1.5 px-1 rounded-xl text-[10.5px] font-bold transition-all ${
+                  className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all ${
                     activeTab === 'contact'
                       ? 'bg-emerald-600 text-white shadow-sm'
                       : 'text-slate-300 hover:bg-white/10 hover:text-white'
@@ -712,11 +469,11 @@ export default function WhatsAppButton() {
                   <span>WhatsApp & Desk</span>
                 </button>
 
-                {/* Tab 4: FAQ */}
+                {/* Tab 3: FAQ */}
                 <button
                   type="button"
                   onClick={() => setActiveTab('faq')}
-                  className={`flex flex-col sm:flex-row items-center justify-center gap-1 py-1.5 px-1 rounded-xl text-[10.5px] font-bold transition-all ${
+                  className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all ${
                     activeTab === 'faq'
                       ? 'bg-teal-600 text-white shadow-sm'
                       : 'text-slate-300 hover:bg-white/10 hover:text-white'
@@ -729,7 +486,7 @@ export default function WhatsAppButton() {
             </div>
 
             {/* ════════════════════════════════════════════════════════════════════════
-                TAB 1: AI CHAT (WhatsApp Bubble Aesthetic)
+                TAB 1: AI CHAT (WhatsApp Bubble Aesthetic, Clean Text Only)
             ════════════════════════════════════════════════════════════════════════ */}
             {activeTab === 'chat' && (
               <div className="flex-1 flex flex-col min-h-0 bg-[#ECE5DD]">
@@ -827,7 +584,7 @@ export default function WhatsAppButton() {
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* Switch to WhatsApp Banner */}
+                {/* Direct WhatsApp Callout Pill */}
                 <div className="bg-emerald-50 border-t border-emerald-200/60 px-3 py-1.5 flex items-center justify-between text-[11px] text-emerald-900">
                   <span className="flex items-center gap-1 font-medium">
                     <Phone className="w-3 h-3 text-emerald-600" />
@@ -843,7 +600,7 @@ export default function WhatsAppButton() {
                   </button>
                 </div>
 
-                {/* Input Bar */}
+                {/* Clean Input Bar (No Mic Button, Smooth Text Input) */}
                 <div className="p-2.5 sm:p-3 bg-white border-t border-slate-200 flex-shrink-0">
                   <form
                     onSubmit={(e) => {
@@ -852,27 +609,13 @@ export default function WhatsAppButton() {
                     }}
                     className="flex items-center gap-2"
                   >
-                    {/* Voice Mic Button */}
-                    <button
-                      type="button"
-                      onClick={() => handleToggleMic('chat')}
-                      className={`p-2.5 rounded-full transition-all shadow-xs flex-shrink-0 ${
-                        isListening
-                          ? 'bg-rose-600 text-white animate-pulse ring-4 ring-rose-200'
-                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-teal-700'
-                      }`}
-                      title={isListening ? 'Listening... (Tap to stop)' : 'Tap to speak your question'}
-                    >
-                      {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                    </button>
-
                     {/* Text Input */}
                     <input
                       type="text"
-                      placeholder={isListening ? '🎙️ Listening... Speak now...' : placeholders[language]}
+                      placeholder={placeholders[language]}
                       value={inputText}
                       onChange={(e) => setInputText(e.target.value)}
-                      className="flex-1 px-3.5 py-2 rounded-full border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 bg-slate-50/70"
+                      className="flex-1 px-4 py-2.5 rounded-full border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 bg-slate-50/70"
                     />
 
                     {/* Send Button */}
@@ -890,164 +633,7 @@ export default function WhatsAppButton() {
             )}
 
             {/* ════════════════════════════════════════════════════════════════════════
-                TAB 2: VOICE ASSISTANT COCKPIT (Animated Equalizer & Speech)
-            ════════════════════════════════════════════════════════════════════════ */}
-            {activeTab === 'voice' && (
-              <div className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col justify-between bg-gradient-to-b from-[#0B1F3A] via-[#0E2744] to-[#0B1F3A] text-white">
-                {/* Voice Status Pill */}
-                <div className="flex items-center justify-between pb-2 border-b border-teal-500/20">
-                  <div className="flex items-center gap-1.5 text-xs text-teal-300">
-                    <span className="w-2 h-2 rounded-full bg-teal-400 animate-ping" />
-                    <span className="font-bold">Web Speech API Voice Cockpit</span>
-                  </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-slate-300 font-medium">
-                    Native • 100% Free
-                  </span>
-                </div>
-
-                {/* Center Visualizer & Mic Button */}
-                <div className="py-6 flex flex-col items-center justify-center text-center">
-                  {/* Equalizer Sound Waves */}
-                  <div className="flex items-center justify-center gap-1 h-12 mb-5">
-                    {[30, 60, 95, 45, 80, 100, 70, 50, 85, 40, 65, 30].map((h, i) => (
-                      <span
-                        key={i}
-                        className={`w-1 rounded-full transition-all duration-300 ${
-                          voiceStatus === 'listening'
-                            ? 'bg-rose-400 animate-pulse'
-                            : voiceStatus === 'speaking'
-                            ? 'bg-teal-400 animate-bounce'
-                            : 'bg-teal-500/30'
-                        }`}
-                        style={{
-                          height:
-                            voiceStatus === 'listening' || voiceStatus === 'speaking'
-                              ? `${h}%`
-                              : '20%',
-                          animationDelay: `${i * 75}ms`,
-                        }}
-                      />
-                    ))}
-                  </div>
-
-                  {/* Circular Microphone Trigger */}
-                  <div className="relative mb-3">
-                    {voiceStatus === 'listening' && (
-                      <span className="absolute -inset-3 rounded-full bg-rose-500/30 animate-ping" />
-                    )}
-                    {voiceStatus === 'speaking' && (
-                      <span className="absolute -inset-3 rounded-full bg-teal-500/30 animate-pulse" />
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => handleToggleMic('voice')}
-                      className={`relative w-20 h-20 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 transform active:scale-95 ${
-                        voiceStatus === 'listening'
-                          ? 'bg-rose-600 text-white ring-4 ring-rose-400/50'
-                          : voiceStatus === 'thinking'
-                          ? 'bg-amber-600 text-white animate-spin'
-                          : 'bg-gradient-to-tr from-teal-500 to-emerald-400 text-[#0B1F3A] hover:scale-105'
-                      }`}
-                    >
-                      {voiceStatus === 'listening' ? (
-                        <MicOff className="w-8 h-8" />
-                      ) : voiceStatus === 'thinking' ? (
-                        <RotateCcw className="w-8 h-8" />
-                      ) : (
-                        <Mic className="w-8 h-8 font-bold" />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Status Text */}
-                  <p className="text-sm font-bold text-white mt-2">
-                    {voiceStatus === 'listening'
-                      ? '🎙️ Listening to you... (बोलिए)'
-                      : voiceStatus === 'thinking'
-                      ? '⚡ Claude AI is thinking...'
-                      : voiceStatus === 'speaking'
-                      ? '🔊 AI is speaking answer...'
-                      : 'Tap Mic to Speak (बोलने के लिए दबाएं)'}
-                  </p>
-                  <p className="text-xs text-slate-300 mt-1 max-w-xs">
-                    Ask in {language === 'en' ? 'English' : language === 'hi' ? 'हिंदी' : 'Hinglish'} about 0-cent splits, evidence verification, or PayPal payouts.
-                  </p>
-                </div>
-
-                {/* Transcripts Readout Section */}
-                <div className="space-y-2.5">
-                  {voiceTranscript && (
-                    <div className="bg-white/10 backdrop-blur-xs rounded-2xl p-3 border border-white/10">
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-teal-300 uppercase tracking-wider mb-1">
-                        <span>🗣️ You said (आपने कहा):</span>
-                      </div>
-                      <p className="text-xs text-white leading-relaxed font-medium">"{voiceTranscript}"</p>
-                    </div>
-                  )}
-
-                  {voiceReply && (
-                    <div className="bg-teal-950/60 backdrop-blur-xs rounded-2xl p-3 border border-teal-500/30">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[10px] font-bold text-teal-300 uppercase tracking-wider">
-                          🤖 Claude AI Answer:
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => speakText(voiceReply, language)}
-                          className="text-[10.5px] text-teal-300 hover:text-white flex items-center gap-1 font-bold underline"
-                        >
-                          <Volume2 className="w-3 h-3" />
-                          <span>Replay</span>
-                        </button>
-                      </div>
-                      <p className="text-xs text-slate-200 leading-relaxed">{voiceReply}</p>
-                    </div>
-                  )}
-
-                  {/* Quick Voice Prompt Chips */}
-                  {!voiceTranscript && (
-                    <div>
-                      <p className="text-[11px] font-bold text-slate-400 mb-1.5">
-                        Quick Voice Questions (Tap to ask):
-                      </p>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        {voicePrompts[language].map((prompt, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => {
-                              setVoiceTranscript(prompt);
-                              executeVoiceQuery(prompt);
-                            }}
-                            className="p-2 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-left text-[10.5px] text-slate-200 hover:text-white transition-colors"
-                          >
-                            🎤 {prompt}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Cockpit Footer */}
-                <div className="pt-3 border-t border-teal-500/20 text-center">
-                  <span className="text-[10.5px] text-slate-400">
-                    Need official confirmation? Check the{' '}
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('contact')}
-                      className="text-teal-300 hover:underline font-bold"
-                    >
-                      WhatsApp & Gmail Desk
-                    </button>
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* ════════════════════════════════════════════════════════════════════════
-                TAB 3: WHATSAPP & GMAIL DESK (Direct WhatsApp + Inquiry Form)
+                TAB 2: WHATSAPP & GMAIL DESK (Direct WhatsApp + Inquiry Form)
             ════════════════════════════════════════════════════════════════════════ */}
             {activeTab === 'contact' && (
               <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-slate-50 text-slate-900 space-y-4">
@@ -1246,7 +832,7 @@ export default function WhatsAppButton() {
             )}
 
             {/* ════════════════════════════════════════════════════════════════════════
-                TAB 4: FAQ (Instant Knowledge Base)
+                TAB 3: FAQ (Instant Knowledge Base)
             ════════════════════════════════════════════════════════════════════════ */}
             {activeTab === 'faq' && (
               <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-slate-50 text-slate-900 space-y-3">
