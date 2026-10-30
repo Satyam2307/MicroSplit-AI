@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
     const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'anonymous';
     const rateLimit = checkRateLimit(`contact_${clientIp}`, {
       intervalMs: 300000, // 5 minutes
-      maxRequests: 10,
+      maxRequests: 15,
     });
 
     if (!rateLimit.success) {
@@ -23,12 +23,12 @@ export async function POST(req: NextRequest) {
 
     // 2. Parse & Sanitize Body
     const body = await req.json();
-    const name = sanitizeText(body.name);
+    const name = sanitizeText(body.name || 'Visitor');
     const rawEmail = body.email;
     const email = sanitizeEmail(rawEmail);
     const squad = sanitizeText(body.squad || '');
     const topic = sanitizeText(body.topic || 'General Inquiry');
-    const message = sanitizeText(body.message);
+    const message = sanitizeText(body.message || `Inquiry regarding ${topic}`);
     const whatsapp = sanitizeText(body.whatsapp || '');
 
     // 3. Validation
@@ -46,9 +46,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!message || message.length < 5) {
+    if (!message || message.length < 3) {
       return NextResponse.json(
-        { error: 'Please enter a message with at least 5 characters.' },
+        { error: 'Please enter a message with at least 3 characters.' },
         { status: 400 }
       );
     }
@@ -91,11 +91,20 @@ export async function POST(req: NextRequest) {
     const gmailComposeUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${adminEmail},support@microsplit.ai&su=${emailSubject}&body=${emailBody}`;
     const mailtoUrl = `mailto:${adminEmail}?cc=support@microsplit.ai&subject=${emailSubject}&body=${emailBody}`;
 
+    // Automated follow-up resolution summary
+    const autoFollowUp = {
+      ticketId,
+      status: 'received',
+      summary: `Thank you ${name}. Your inquiry regarding "${topic}" has been logged under ticket #${ticketId}. Our founder and engineering team have been alerted.`,
+      nextStep: 'Check the AI Concierge tab for instant answers, or expect an engineer follow-up on your WhatsApp or Email.',
+    };
+
     return NextResponse.json(
       {
         success: true,
         ticketId,
-        message: 'Your inquiry has been registered. You can dispatch an instant WhatsApp alert or email below.',
+        message: 'Your inquiry has been registered. Our AI concierge and support team have been notified.',
+        autoFollowUp,
         details: {
           name,
           email,

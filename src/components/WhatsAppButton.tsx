@@ -526,6 +526,7 @@ export default function WhatsAppButton() {
   const [waLoading, setWaLoading] = useState(false);
   const [waError, setWaError] = useState<string | null>(null);
   const [waTicket, setWaTicket] = useState<string | null>(null);
+  const [aiResolution, setAiResolution] = useState<AiResponseResult | null>(null);
   const [waDispatch, setWaDispatch] = useState<{
     whatsappAlertUrl?: string;
     gmailComposeUrl?: string;
@@ -809,11 +810,8 @@ export default function WhatsAppButton() {
       setWaError('Please enter your WhatsApp or mobile number.');
       return;
     }
-    if (!waNotes.trim()) {
-      setWaError('Please enter your inquiry or message.');
-      return;
-    }
 
+    const finalInquiry = waNotes.trim() || `Inquiry regarding ${waTopic}`;
     setWaError(null);
     setWaLoading(true);
 
@@ -822,6 +820,27 @@ export default function WhatsAppButton() {
     const cleanVisitorPhone = waPhone.trim();
     const visitorEmail = waEmail.trim() || `${cleanVisitorPhone.replace(/[^0-9]/g, '')}@inquiry.microsplit.ai`;
 
+    // Compute immediate AI Resolution for the follow-up screen
+    const resolution = resolveAiResponse(finalInquiry);
+    setAiResolution(resolution);
+
+    // Also populate chatMessages so the user can continue in AI Chat seamlessly
+    setChatMessages((prev) => [
+      ...prev,
+      {
+        sender: 'user',
+        text: `[Inquiry: ${waTopic}] ${finalInquiry}`,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
+      {
+        sender: 'ai',
+        text: resolution.reply,
+        link: resolution.link,
+        suggestions: resolution.suggestions,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
+    ]);
+
     // Formatted WhatsApp message for direct dispatch to owner (+91 9294514754)
     const waText =
       `🔔 *New Inquiry for MicroSplit AI:*\n\n` +
@@ -829,7 +848,7 @@ export default function WhatsAppButton() {
       `📱 *Visitor Phone:* ${cleanVisitorPhone}\n` +
       `📧 *Email:* ${waEmail.trim() || 'Not provided'}\n` +
       `🏷️ *Topic:* ${waTopic}\n\n` +
-      `💬 *Inquiry Message:*\n"${waNotes.trim()}"\n\n` +
+      `💬 *Inquiry Message:*\n"${finalInquiry}"\n\n` +
       `---\n*Sent via MicroSplit AI Support Desk*`;
 
     const directWhatsAppUrl = `https://wa.me/${targetRecipient}?text=${encodeURIComponent(waText)}`;
@@ -849,7 +868,7 @@ export default function WhatsAppButton() {
           email: visitorEmail,
           whatsapp: cleanVisitorPhone,
           topic: `Inquiry: ${waTopic}`,
-          message: waNotes.trim(),
+          message: finalInquiry,
         }),
       });
 
@@ -873,6 +892,83 @@ export default function WhatsAppButton() {
           `[MicroSplit Ticket ${fallbackTicket}] ${waTopic} from ${visitorName}`
         )}&body=${encodeURIComponent(waText)}`,
       });
+    } finally {
+      setWaLoading(false);
+      setWaSubmitted(true);
+    }
+  };
+
+  // Send Inquiry directly via Gmail to akshatsinghai6682@gmail.com
+  const handleSendGmailInquiry = async () => {
+    if (!waPhone.trim()) {
+      setWaError('Please enter your WhatsApp or phone number first.');
+      return;
+    }
+
+    const finalInquiry = waNotes.trim() || `Inquiry regarding ${waTopic}`;
+    setWaError(null);
+    setWaLoading(true);
+
+    const visitorName = waName.trim() || 'Visitor';
+    const cleanVisitorPhone = waPhone.trim();
+    const visitorEmail = waEmail.trim() || `${cleanVisitorPhone.replace(/[^0-9]/g, '')}@inquiry.microsplit.ai`;
+
+    // Compute immediate AI Resolution
+    const resolution = resolveAiResponse(finalInquiry);
+    setAiResolution(resolution);
+
+    // Also populate chatMessages so AI Chat tab has this conversation already
+    setChatMessages((prev) => [
+      ...prev,
+      {
+        sender: 'user',
+        text: `[Inquiry: ${waTopic}] ${finalInquiry}`,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
+      {
+        sender: 'ai',
+        text: resolution.reply,
+        link: resolution.link,
+        suggestions: resolution.suggestions,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
+    ]);
+
+    const generatedTicket = `MS-${Date.now().toString(36).toUpperCase()}`;
+    setWaTicket(generatedTicket);
+
+    const emailSubject = encodeURIComponent(`[MicroSplit Ticket ${generatedTicket}] ${waTopic} from ${visitorName}`);
+    const emailBody = encodeURIComponent(
+      `Hello MicroSplit Team,\n\nA new inquiry has been submitted:\n\n` +
+      `Name: ${visitorName}\n` +
+      `Phone/WhatsApp: ${cleanVisitorPhone}\n` +
+      `Email: ${visitorEmail}\n` +
+      `Topic: ${waTopic}\n` +
+      `Ticket ID: ${generatedTicket}\n\n` +
+      `Inquiry:\n"${finalInquiry}"\n\n` +
+      `---\nMicroSplit AI Automation`
+    );
+
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${supportEmail}&su=${emailSubject}&body=${emailBody}`;
+
+    if (typeof window !== 'undefined') {
+      window.open(gmailUrl, '_blank');
+    }
+
+    try {
+      await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: visitorName,
+          email: visitorEmail,
+          whatsapp: cleanVisitorPhone,
+          topic: `Inquiry: ${waTopic}`,
+          message: finalInquiry,
+        }),
+      });
+    } catch {
+      // offline fallback
     } finally {
       setWaLoading(false);
       setWaSubmitted(true);
@@ -1370,28 +1466,83 @@ export default function WhatsAppButton() {
             {activeTab === 'whatsapp' && (
               <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-slate-50">
                 {waSubmitted ? (
-                  <div className="py-6 text-center space-y-3 bg-white rounded-2xl p-6 border border-emerald-200 shadow-sm animate-in fade-in zoom-in-95">
-                    <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
-                      <CheckCircle2 className="w-7 h-7" />
-                    </div>
-                    <h4 className="text-base font-bold text-slate-900">Inquiry Dispatched!</h4>
-                    <p className="text-xs text-slate-600 max-w-xs mx-auto leading-relaxed">
-                      Your inquiry has been directed to our official WhatsApp line: <strong className="text-slate-900">+91 9294514754</strong>
-                    </p>
-                    <div className="inline-block px-3 py-1.5 rounded-lg bg-slate-100 font-mono text-xs font-bold text-slate-700">
-                      Ticket #{waTicket}
+                  <div className="py-4 space-y-3.5 bg-white rounded-2xl p-4 sm:p-5 border border-emerald-200 shadow-sm animate-in fade-in zoom-in-95">
+                    {/* Header Confirmation */}
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-inner flex-shrink-0">
+                        <CheckCircle2 className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">Inquiry Dispatched &amp; Ticket Created</h4>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="font-mono text-[11px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
+                            Ticket #{waTicket}
+                          </span>
+                          <span className="text-[10px] text-slate-400">Desk Notified</span>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Instant Dispatch Action Buttons */}
-                    <div className="pt-2 space-y-2">
-                      <p className="text-[11px] font-bold text-slate-700">Direct Alert Channels:</p>
+                    {/* Instant AI Automated Follow-Up Resolution */}
+                    {aiResolution && (
+                      <div className="bg-gradient-to-br from-teal-50/90 to-emerald-50/90 rounded-2xl p-4 border border-teal-200 text-left space-y-2.5 shadow-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-teal-950 flex items-center gap-1.5">
+                            <Bot className="w-4 h-4 text-teal-600" />
+                            <span>Instant AI Concierge Follow-Up:</span>
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-200/60 text-teal-800">
+                            Instant Resolution
+                          </span>
+                        </div>
+
+                        <div className="text-xs text-slate-800 leading-relaxed whitespace-pre-line bg-white/90 rounded-xl p-3 border border-teal-100 shadow-2xs">
+                          {aiResolution.reply}
+                        </div>
+
+                        {aiResolution.link && (
+                          <div className="pt-1">
+                            <a
+                              href={aiResolution.link.href}
+                              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-600 text-white text-xs font-bold hover:bg-teal-700 shadow-sm transition-colors"
+                            >
+                              <span>{aiResolution.link.label}</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Human Support Desk Status */}
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-left text-xs text-slate-600 space-y-1">
+                      <div className="font-bold text-slate-800 flex items-center gap-1.5 text-[11px]">
+                        <Clock className="w-3.5 h-3.5 text-teal-600" />
+                        <span>Human Engineering Desk Follow-Up:</span>
+                      </div>
+                      <p className="text-[11px] leading-relaxed">
+                        Your inquiry has also been dispatched to our desk at WhatsApp (<strong>+91 9294514754</strong>) &amp; Email (<strong>akshatsinghai6682@gmail.com</strong>). An engineer will follow up on your WhatsApp or Email.
+                      </p>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="space-y-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('ai')}
+                        className="inline-flex items-center justify-center w-full gap-2 px-3.5 py-2.5 rounded-xl bg-[#0B1F3A] text-white text-xs font-bold hover:bg-slate-800 shadow-sm transition-colors"
+                      >
+                        <Sparkles className="w-4 h-4 text-teal-400" />
+                        <span>Continue Live Conversation in AI Chat</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
 
                       {waDispatch?.whatsappAlertUrl && (
                         <a
                           href={waDispatch.whatsappAlertUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center w-full gap-2 px-3 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-sm transition-colors"
+                          className="inline-flex items-center justify-center w-full gap-2 px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-sm transition-colors"
                         >
                           <MessageCircle className="w-4 h-4" />
                           <span>Open WhatsApp Chat (+91 9294514754)</span>
@@ -1407,13 +1558,13 @@ export default function WhatsAppButton() {
                           className="inline-flex items-center justify-center w-full gap-2 px-3 py-2 rounded-xl bg-slate-100 text-slate-800 text-xs font-bold hover:bg-slate-200 border border-slate-300 transition-colors"
                         >
                           <Mail className="w-4 h-4 text-rose-600" />
-                          <span>Send via Gmail to akshatsinghai6682@gmail.com</span>
+                          <span>Open Gmail Alert (akshatsinghai6682@gmail.com)</span>
                           <ExternalLink className="w-3 h-3 ml-0.5" />
                         </a>
                       )}
                     </div>
 
-                    <div className="pt-3">
+                    <div className="pt-2 text-center">
                       <button
                         type="button"
                         onClick={() => {
@@ -1467,7 +1618,7 @@ export default function WhatsAppButton() {
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-500 mb-3 leading-relaxed">
-                        Type your question below. Clicking <strong>Send Inquiry</strong> will immediately format and open WhatsApp to deliver your message to our official line:
+                        Type your question below. You will receive an <strong>instant automated AI resolution</strong>, and your message will be dispatched directly to our team!
                       </p>
 
                       {waError && (
@@ -1540,22 +1691,21 @@ export default function WhatsAppButton() {
 
                         <div>
                           <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                            Your Inquiry / Message *
+                            Your Inquiry / Message
                           </label>
                           <textarea
                             rows={3}
-                            required
-                            placeholder="Type your inquiry here (e.g. How can we test the evidence feature with our squad?)..."
+                            placeholder="Type your inquiry here (e.g. How can we see and test the evidence feature with our squad?)..."
                             value={waNotes}
                             onChange={(e) => setWaNotes(e.target.value)}
                             className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-500 resize-none"
                           />
                         </div>
 
-                        {/* Primary Send Inquiry Button */}
+                        {/* Primary Send Inquiry on WhatsApp */}
                         <button
                           type="submit"
-                          disabled={waLoading || !waPhone.trim() || !waNotes.trim()}
+                          disabled={waLoading || !waPhone.trim()}
                           className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-bold hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 transition-all shadow-md flex items-center justify-center gap-2"
                         >
                           <MessageCircle className="w-4 h-4" />
@@ -1565,21 +1715,17 @@ export default function WhatsAppButton() {
                           <ArrowRight className="w-3.5 h-3.5" />
                         </button>
 
-                        {/* Secondary Gmail Button */}
-                        <a
-                          href={`https://mail.google.com/mail/?view=cm&fs=1&to=${supportEmail}&su=${encodeURIComponent(
-                            `[MicroSplit Inquiry] ${waTopic} from ${waName || 'Visitor'}`
-                          )}&body=${encodeURIComponent(
-                            `Name: ${waName || 'Visitor'}\nPhone: ${waPhone}\nTopic: ${waTopic}\n\nInquiry:\n${waNotes}`
-                          )}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-full py-2 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+                        {/* Secondary Send via Gmail */}
+                        <button
+                          type="button"
+                          onClick={handleSendGmailInquiry}
+                          disabled={waLoading || !waPhone.trim()}
+                          className="w-full py-2 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
                         >
                           <Mail className="w-3.5 h-3.5 text-rose-600" />
                           <span>Or Send via Gmail to akshatsinghai6682@gmail.com</span>
                           <ExternalLink className="w-3 h-3 ml-0.5 text-slate-400" />
-                        </a>
+                        </button>
                       </form>
 
                       <div className="mt-3 flex items-center gap-1.5 text-[10px] text-slate-400">
