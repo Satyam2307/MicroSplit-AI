@@ -59,7 +59,29 @@ export async function POST(req: NextRequest) {
     const adminPhone = process.env.NEXT_PUBLIC_WHATSAPP_PHONE || '919294514754';
     const adminEmail = 'akshatsinghai6682@gmail.com';
 
-    // Formatted WhatsApp message for instant dispatch to owner
+    // Normalize user's typed phone number so WhatsApp sends directly to the user's number!
+    const userPhoneDigits = whatsapp.replace(/[^0-9]/g, '');
+    const targetUserPhone =
+      userPhoneDigits.length === 10
+        ? `91${userPhoneDigits}`
+        : userPhoneDigits.length >= 7
+        ? userPhoneDigits
+        : adminPhone;
+
+    // Formatted WhatsApp message for dispatch to the user's typed phone number
+    const userWaText = encodeURIComponent(
+      `👋 *Hello ${name}! Welcome to MicroSplit AI Support*\n\n` +
+      `🎫 *Your Ticket ID:* #${ticketId}\n` +
+      `🏷️ *Topic:* ${topic}\n\n` +
+      `💬 *Your Inquiry:*\n"${message}"\n\n` +
+      `✅ *Status:* Registered on Cryptographic Ledger.\n` +
+      `⚡ Our engineering team has received your ticket and will follow up with you on this number (+${targetUserPhone}) within 5 minutes.\n\n` +
+      `--\n*MicroSplit AI Official Support Desk*`
+    );
+
+    const userWhatsappUrl = `https://wa.me/${targetUserPhone}?text=${userWaText}`;
+
+    // Admin alert URL
     const waText = encodeURIComponent(
       `🔔 *New MicroSplit AI Inquiry Received!*\n\n` +
       `👤 *Name:* ${name}\n` +
@@ -69,10 +91,10 @@ export async function POST(req: NextRequest) {
       `🏷️ *Topic:* ${topic}\n` +
       `🎫 *Ticket ID:* ${ticketId}\n\n` +
       `💬 *Inquiry Message:*\n"${message}"\n\n` +
-      `⚡ *Action:* Please reply to ${email} or WhatsApp ${whatsapp || 'N/A'}.`
+      `⚡ *Action:* Please reply to ${email} or WhatsApp ${targetUserPhone}.`
     );
 
-    const whatsappAlertUrl = `https://wa.me/${adminPhone}?text=${waText}`;
+    const whatsappAlertUrl = `https://wa.me/${targetUserPhone}?text=${userWaText}`;
 
     // Gmail Web Compose URL
     const emailSubject = encodeURIComponent(`[MicroSplit Ticket ${ticketId}] ${topic} from ${name}`);

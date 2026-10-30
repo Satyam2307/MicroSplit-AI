@@ -316,17 +316,28 @@ export default function WhatsAppButton() {
     setContactSubmittedTicket(generatedTicket);
     setTicketCountdown(299);
 
+    // Get target phone number: whichever number is typed by the user, send to THAT number!
+    const userDigits = contactWhatsapp.replace(/[^0-9]/g, '');
+    const targetPhone =
+      userDigits.length === 10
+        ? `91${userDigits}`
+        : userDigits.length >= 7
+        ? userDigits
+        : cleanSupportNumber;
+
     if (destination === 'whatsapp') {
       const formattedWhatsApp =
-        `🔔 *MicroSplit AI Inquiry* [Ticket: ${generatedTicket}]\n\n` +
-        `👤 *Name:* ${contactName.trim()}\n` +
-        `📱 *WhatsApp:* ${contactWhatsapp.trim() || 'Not specified'}\n` +
-        `📧 *Email:* ${contactEmail.trim() || 'Not specified'}\n` +
-        `🏷️ *Topic:* ${contactTopic}\n\n` +
-        `💬 *Message / Sawaal:*\n"${contactMessage.trim()}"\n\n` +
-        `---\n*Sent via MicroSplit Official Support Desk*`;
+        `👋 *Hello ${contactName.trim() || 'Visitor'}!*\n` +
+        `Your MicroSplit AI Inquiry Ticket has been registered on the Cryptographic Ledger [Ticket: #${generatedTicket}]:\n\n` +
+        `🏷️ *Topic:* ${contactTopic}\n` +
+        `💬 *Inquiry Message / Sawaal:*\n"${contactMessage.trim()}"\n\n` +
+        `📱 *Your Number:* +${targetPhone}\n` +
+        `📧 *Your Email:* ${contactEmail.trim() || 'Not specified'}\n\n` +
+        `⚡ *Status:* Registered on Cryptographic Ledger.\n` +
+        `Our engineering team will follow up directly on this WhatsApp chat.\n\n` +
+        `---\n*MicroSplit AI Official Support Desk*`;
 
-      const waUrl = `https://wa.me/${cleanSupportNumber}?text=${encodeURIComponent(formattedWhatsApp)}`;
+      const waUrl = `https://wa.me/${targetPhone}?text=${encodeURIComponent(formattedWhatsApp)}`;
       if (typeof window !== 'undefined') {
         window.open(waUrl, '_blank');
       }
@@ -829,8 +840,12 @@ export default function WhatsAppButton() {
                         </div>
                         {contactWhatsapp && (
                           <div className="flex justify-between">
-                            <span className="text-slate-400 text-[11px]">Your Phone:</span>
-                            <span className="font-mono text-teal-300">{contactWhatsapp}</span>
+                            <span className="text-slate-400 text-[11px]">Enquiry Target:</span>
+                            <span className="font-mono text-teal-300 font-bold">
+                              +{contactWhatsapp.replace(/[^0-9]/g, '').length === 10
+                                ? `91${contactWhatsapp.replace(/[^0-9]/g, '')}`
+                                : contactWhatsapp.replace(/[^0-9]/g, '') || cleanSupportNumber}
+                            </span>
                           </div>
                         )}
                         <div className="flex justify-between">
@@ -916,6 +931,9 @@ export default function WhatsAppButton() {
                           onChange={(e) => setContactWhatsapp(e.target.value)}
                           className="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-500 bg-slate-50"
                         />
+                        <span className="text-[9px] text-teal-600 block mt-0.5 font-semibold">
+                          ✓ Inquiry WhatsApp will open to THIS typed number!
+                        </span>
                       </div>
                       <div>
                         <label className="block text-[10.5px] font-bold text-slate-700 mb-0.5">
