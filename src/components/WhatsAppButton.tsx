@@ -7,7 +7,6 @@ import {
   Send,
   Sparkles,
   Bot,
-  ExternalLink,
   Volume2,
   VolumeX,
   Mic,
@@ -16,11 +15,8 @@ import {
   ChevronDown,
   Check,
   CheckCheck,
-  Users,
   ShieldCheck,
-  Clock,
-  ArrowRight,
-  Info
+  ArrowRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -102,6 +98,7 @@ export default function WhatsAppButton() {
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<any>(null);
+  const langRef = useRef<HTMLDivElement | null>(null);
 
   // Auto-scroll chat to bottom
   const scrollToBottom = () => {
@@ -113,6 +110,19 @@ export default function WhatsAppButton() {
       scrollToBottom();
     }
   }, [chatMessages, isTyping, isOpen]);
+
+  // Close language dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (langRef.current && !langRef.current.contains(e.target as Node)) {
+        setLangDropdownOpen(false);
+      }
+    };
+    if (langDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [langDropdownOpen]);
 
   // Preload speech synthesis voices
   useEffect(() => {
@@ -134,7 +144,7 @@ export default function WhatsAppButton() {
       window.speechSynthesis.cancel();
     }
 
-    // Add a polite system transition notice if chat is underway
+    // Add notice in chat
     setChatMessages((prev) => [
       ...prev,
       {
@@ -291,7 +301,7 @@ export default function WhatsAppButton() {
     } catch {
       setIsTyping(false);
       const fallbackReply =
-        'Network error. Please tap "Team se baat karein" to connect directly with our engineering team on WhatsApp.';
+        'Network issue. Please tap "Team se baat karein" to connect directly with our engineering team on WhatsApp.';
       setChatMessages((prev) => [
         ...prev,
         {
@@ -331,7 +341,7 @@ export default function WhatsAppButton() {
     setShowTeamModal(false);
     setTeamQuestion('');
 
-    // Add a confirmation bubble in chat
+    // Add confirmation bubble in chat
     setChatMessages((prev) => [
       ...prev,
       {
@@ -345,75 +355,72 @@ export default function WhatsAppButton() {
 
   return (
     <>
-      {/* ─── Floating Launcher Button ─── */}
-      <aside
-        aria-label="MicroSplit Assistant"
-        className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2.5"
-      >
-        {!isOpen && showTooltip && (
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#0B1F3A] text-white rounded-xl shadow-xl border border-teal-500/30 text-xs font-semibold animate-in fade-in slide-in-from-right-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>MicroSplit AI Assistant</span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowTooltip(false);
-              }}
-              className="text-slate-400 hover:text-white transition-colors ml-1 p-0.5"
-              aria-label="Dismiss tooltip"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-        )}
-
-        <button
-          onClick={() => {
-            setIsOpen(!isOpen);
-            if (!isOpen) setShowTooltip(false);
-          }}
-          aria-label="Toggle MicroSplit AI Chat Assistant"
-          className="relative flex items-center justify-center w-14 h-14 rounded-full text-white shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-teal-400/40"
-          style={{
-            background: isOpen
-              ? '#0B1F3A'
-              : 'linear-gradient(135deg, #0F9D8A 0%, #087F73 100%)',
-            boxShadow: '0 8px 24px rgba(15, 157, 138, 0.45)',
-          }}
+      {/* ─── Floating Launcher Button (visible only when chat is closed) ─── */}
+      {!isOpen && (
+        <aside
+          aria-label="MicroSplit Assistant"
+          className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2.5"
         >
-          {isOpen ? (
-            <X className="w-6 h-6 text-white transition-transform duration-200" />
-          ) : (
-            <>
-              <MessageCircle className="w-7 h-7 fill-current" />
-              <span className="absolute -top-1 -right-1 flex h-4 w-4">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-[#0B1F3A]" />
-              </span>
-            </>
+          {showTooltip && (
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#0B1F3A] text-white rounded-xl shadow-xl border border-teal-500/30 text-xs font-semibold animate-in fade-in slide-in-from-right-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>MicroSplit AI Assistant</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowTooltip(false);
+                }}
+                className="text-slate-400 hover:text-white transition-colors ml-1 p-0.5"
+                aria-label="Dismiss tooltip"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
           )}
-        </button>
-      </aside>
+
+          <button
+            onClick={() => {
+              setIsOpen(true);
+              setShowTooltip(false);
+            }}
+            aria-label="Open MicroSplit AI Chat Assistant"
+            className="relative flex items-center justify-center w-14 h-14 rounded-full text-white shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-teal-400/40"
+            style={{
+              background: 'linear-gradient(135deg, #0F9D8A 0%, #087F73 100%)',
+              boxShadow: '0 8px 24px rgba(15, 157, 138, 0.45)',
+            }}
+          >
+            <MessageCircle className="w-7 h-7 fill-current" />
+            <span className="absolute -top-1 -right-1 flex h-4 w-4">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-[#0B1F3A]" />
+            </span>
+          </button>
+        </aside>
+      )}
 
       {/* ─── WhatsApp-Style Chat Box ─── */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 25, scale: 0.95 }}
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 25, scale: 0.95 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="fixed bottom-24 right-4 sm:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[420px] max-h-[640px] h-[600px] bg-[#ECE5DD] rounded-3xl shadow-2xl border border-slate-300 overflow-hidden flex flex-col"
+            className="fixed bottom-6 right-4 sm:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[410px] h-[min(580px,calc(100vh-3.5rem))] bg-[#ECE5DD] rounded-3xl shadow-2xl border border-slate-300/80 flex flex-col overflow-hidden"
             style={{
-              boxShadow: '0 25px 60px rgba(11, 31, 58, 0.3), 0 0 0 1px rgba(15, 157, 138, 0.25)',
+              boxShadow: '0 20px 50px rgba(11, 31, 58, 0.25), 0 0 0 1px rgba(15, 157, 138, 0.2)',
             }}
           >
-            {/* Header (Navy #0B1F3A with Teal accents) */}
-            <div className="bg-[#0B1F3A] text-white px-4 py-3 sm:px-4 sm:py-3.5 flex items-center justify-between relative overflow-hidden flex-shrink-0 border-b border-teal-500/20">
-              <div
-                className="absolute top-0 right-0 w-36 h-36 rounded-full pointer-events-none"
-                style={{ background: 'radial-gradient(circle, rgba(15, 157, 138, 0.25), transparent 70%)' }}
-              />
+            {/* Header (Navy #0B1F3A with Teal accents - NO overflow-hidden on container to allow dropdown) */}
+            <div className="bg-[#0B1F3A] text-white px-4 py-3 sm:px-4 sm:py-3.5 flex items-center justify-between relative flex-shrink-0 border-b border-teal-500/20 z-20">
+              {/* Background decorative glow (isolated overflow-hidden) */}
+              <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-t-3xl">
+                <div
+                  className="absolute top-0 right-0 w-36 h-36 rounded-full"
+                  style={{ background: 'radial-gradient(circle, rgba(15, 157, 138, 0.25), transparent 70%)' }}
+                />
+              </div>
 
               {/* Bot Info */}
               <div className="flex items-center gap-2.5 relative z-10">
@@ -436,12 +443,12 @@ export default function WhatsAppButton() {
 
               {/* Header Controls: Language Selector, Speaker Toggle, Close */}
               <div className="flex items-center gap-1 relative z-10">
-                {/* Language Dropdown */}
-                <div className="relative">
+                {/* Language Dropdown with outside-click ref */}
+                <div className="relative" ref={langRef}>
                   <button
                     type="button"
                     onClick={() => setLangDropdownOpen(!langDropdownOpen)}
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] font-bold text-slate-200 transition-colors"
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] font-bold text-slate-200 transition-colors"
                     title="Change Assistant Language"
                   >
                     <Globe className="w-3.5 h-3.5 text-teal-400" />
@@ -450,11 +457,11 @@ export default function WhatsAppButton() {
                   </button>
 
                   {langDropdownOpen && (
-                    <div className="absolute right-0 mt-1 w-36 bg-white text-slate-900 rounded-xl shadow-2xl border border-slate-200 py-1 text-xs font-semibold z-30 animate-in fade-in zoom-in-95">
+                    <div className="absolute right-0 top-full mt-1.5 w-36 bg-white text-slate-900 rounded-xl shadow-2xl border border-slate-200 py-1 text-xs font-semibold z-50 animate-in fade-in zoom-in-95">
                       <button
                         type="button"
                         onClick={() => handleLanguageChange('en')}
-                        className={`w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-teal-50 transition-colors ${
+                        className={`w-full px-3 py-2 text-left flex items-center justify-between hover:bg-teal-50 transition-colors ${
                           language === 'en' ? 'text-teal-700 font-bold bg-teal-50/50' : 'text-slate-700'
                         }`}
                       >
@@ -464,7 +471,7 @@ export default function WhatsAppButton() {
                       <button
                         type="button"
                         onClick={() => handleLanguageChange('hi')}
-                        className={`w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-teal-50 transition-colors ${
+                        className={`w-full px-3 py-2 text-left flex items-center justify-between hover:bg-teal-50 transition-colors ${
                           language === 'hi' ? 'text-teal-700 font-bold bg-teal-50/50' : 'text-slate-700'
                         }`}
                       >
@@ -474,7 +481,7 @@ export default function WhatsAppButton() {
                       <button
                         type="button"
                         onClick={() => handleLanguageChange('hinglish')}
-                        className={`w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-teal-50 transition-colors ${
+                        className={`w-full px-3 py-2 text-left flex items-center justify-between hover:bg-teal-50 transition-colors ${
                           language === 'hinglish' ? 'text-teal-700 font-bold bg-teal-50/50' : 'text-slate-700'
                         }`}
                       >
@@ -496,7 +503,7 @@ export default function WhatsAppButton() {
                     }
                   }}
                   className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
-                  title={isSpeechEnabled ? 'Voice Voice Output ON (Click to Mute)' : 'Voice Voice Output MUTED (Click to Unmute)'}
+                  title={isSpeechEnabled ? 'Voice Output ON (Click to Mute)' : 'Voice Output MUTED (Click to Unmute)'}
                 >
                   {isSpeechEnabled ? (
                     <Volume2 className="w-4 h-4 text-teal-300" />
@@ -518,8 +525,8 @@ export default function WhatsAppButton() {
             </div>
 
             {/* Sub-bar: Team se baat karein (WhatsApp Direct Trigger) */}
-            <div className="bg-[#102C4D] text-white px-3.5 py-1.5 flex items-center justify-between text-xs border-b border-teal-500/20 flex-shrink-0">
-              <span className="text-[11px] text-teal-200/90 flex items-center gap-1">
+            <div className="bg-[#102C4D] text-white px-3.5 py-1.5 flex items-center justify-between text-xs border-b border-teal-500/20 flex-shrink-0 z-10">
+              <span className="text-[11px] text-teal-200/90 flex items-center gap-1 font-medium">
                 <Sparkles className="w-3 h-3 text-teal-400" />
                 <span>Instant Verified Support</span>
               </span>
@@ -632,7 +639,7 @@ export default function WhatsAppButton() {
             </div>
 
             {/* Input Bar (WhatsApp-style with Voice Mic & Send) */}
-            <div className="p-2.5 sm:p-3 bg-white border-t border-slate-200 flex-shrink-0">
+            <div className="p-2.5 sm:p-3 bg-white border-t border-slate-200 flex-shrink-0 z-10">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -682,7 +689,7 @@ export default function WhatsAppButton() {
                   initial={{ opacity: 0, scale: 0.96 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.96 }}
-                  className="absolute inset-0 z-40 bg-white/95 backdrop-blur-sm p-4 sm:p-5 flex flex-col justify-between overflow-y-auto"
+                  className="absolute inset-0 z-50 bg-white/95 backdrop-blur-sm p-4 sm:p-5 flex flex-col justify-between overflow-y-auto"
                 >
                   <div>
                     {/* Header */}
