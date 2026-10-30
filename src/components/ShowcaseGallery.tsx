@@ -101,12 +101,12 @@ export default function ShowcaseGallery() {
                 </span>
               </div>
 
-              {/* Showcase Sub-tabs */}
-              <div className="flex items-center gap-1 bg-[#102C4D] p-1 rounded-xl border border-slate-700/80 text-xs font-semibold">
+              {/* Showcase Sub-tabs (Fully Responsive & Scrollable on Mobile) */}
+              <div className="flex items-center gap-1 bg-[#102C4D] p-1 rounded-xl border border-slate-700/80 text-xs font-semibold overflow-x-auto max-w-full scrollbar-none">
                 <button
                   type="button"
                   onClick={() => setActiveTab('dashboard')}
-                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                  className={`px-3 py-1.5 rounded-lg transition-all whitespace-nowrap flex-shrink-0 ${
                     activeTab === 'dashboard'
                       ? 'bg-teal-600 text-white shadow-sm'
                       : 'text-slate-400 hover:text-white'
@@ -117,7 +117,7 @@ export default function ShowcaseGallery() {
                 <button
                   type="button"
                   onClick={() => setActiveTab('ai_ocr')}
-                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                  className={`px-3 py-1.5 rounded-lg transition-all whitespace-nowrap flex-shrink-0 ${
                     activeTab === 'ai_ocr'
                       ? 'bg-teal-600 text-white shadow-sm'
                       : 'text-slate-400 hover:text-white'
@@ -128,7 +128,7 @@ export default function ShowcaseGallery() {
                 <button
                   type="button"
                   onClick={() => setActiveTab('ledger')}
-                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                  className={`px-3 py-1.5 rounded-lg transition-all whitespace-nowrap flex-shrink-0 ${
                     activeTab === 'ledger'
                       ? 'bg-teal-600 text-white shadow-sm'
                       : 'text-slate-400 hover:text-white'
@@ -139,7 +139,7 @@ export default function ShowcaseGallery() {
                 <button
                   type="button"
                   onClick={() => setActiveTab('paypal')}
-                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                  className={`px-3 py-1.5 rounded-lg transition-all whitespace-nowrap flex-shrink-0 ${
                     activeTab === 'paypal'
                       ? 'bg-teal-600 text-white shadow-sm'
                       : 'text-slate-400 hover:text-white'

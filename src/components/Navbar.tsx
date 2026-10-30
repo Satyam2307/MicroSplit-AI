@@ -19,7 +19,9 @@ import {
   ShieldCheck,
   CheckCircle2,
   Flame,
-  Sparkles
+  Sparkles,
+  Radio,
+  Cpu
 } from 'lucide-react';
 import { showToast } from '@/components/Toast';
 
@@ -40,6 +42,25 @@ export default function Navbar() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [scrolled, setScrolled] = useState(false);
+  const [currentTime, setCurrentTime] = useState('');
+
+  // Live IST Clock (+05:30) inspired by GuestVerify
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      const istString = now.toLocaleTimeString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+      });
+      setCurrentTime(`${istString} IST`);
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Monitor scroll for dynamic header elevation
   useEffect(() => {
@@ -184,9 +205,27 @@ export default function Navbar() {
             {/* ─── RIGHT: Actions, Telemetry & CTA ─── */}
             <div className="flex items-center gap-2 sm:gap-2.5 flex-shrink-0">
 
+              {/* GuestVerify-inspired Live IST Clock Pill */}
+              <div
+                className="hidden 2xl:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10.5px] font-mono text-slate-200 bg-white/5 border border-white/10 shadow-xs"
+                title="Live IST Timestamp (Asia/Kolkata)"
+              >
+                <Radio size={11} className="text-teal-400 animate-pulse" />
+                <span>{currentTime || 'IST LIVE'}</span>
+              </div>
+
+              {/* GuestVerify-inspired AI Engine Status Pill */}
+              <div
+                className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10.5px] font-mono text-teal-300 bg-teal-500/15 border border-teal-400/30 shadow-xs"
+                title="Claude 3.5 Sonnet Connected"
+              >
+                <Cpu size={12} className="text-teal-300" />
+                <span>Claude 3.5</span>
+              </div>
+
               {/* Status Indicator Pill */}
               <div
-                className="hidden xl:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10.5px] font-semibold text-teal-300 bg-teal-500/15 border border-teal-400/30 shadow-xs"
+                className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10.5px] font-semibold text-teal-300 bg-teal-500/15 border border-teal-400/30 shadow-xs"
                 title="SHA-256 Ledger verified & PayPal Batch v1 connected"
               >
                 <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#10B981] animate-pulse" />
@@ -406,6 +445,18 @@ export default function Navbar() {
               className="lg:hidden mt-2 rounded-2xl border border-white/15 overflow-hidden bg-[#0B1F3A]/95 backdrop-blur-xl shadow-2xl"
             >
               <div className="px-4 py-4 space-y-3">
+                {/* GuestVerify Live Meta Row */}
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/90 border border-white/10 text-xs">
+                  <div className="flex items-center gap-1.5 text-slate-300 font-mono text-[11px]">
+                    <Radio size={12} className="text-teal-400 animate-pulse" />
+                    <span>{currentTime || 'IST ACTIVE'}</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[11px] font-mono text-teal-300 font-bold">
+                    <Cpu size={12} />
+                    <span>Claude AI Live</span>
+                  </div>
+                </div>
+
                 {/* Search */}
                 <form onSubmit={handleSearchSubmit} className="relative">
                   <Search

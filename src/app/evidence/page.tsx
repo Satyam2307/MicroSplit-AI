@@ -82,29 +82,38 @@ export default function EvidencePage() {
               </p>
             </div>
 
-            {/* Tab switch */}
-            <div className="flex items-center gap-1.5 p-1 bg-white rounded-xl border border-[var(--border)] shadow-sm">
-              <button
-                onClick={() => setActiveTab('evidence')}
-                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
-                  activeTab === 'evidence'
-                    ? 'bg-[var(--accent)] text-white shadow-sm'
-                    : 'text-[var(--muted)] hover:text-[var(--text)]'
-                }`}
-              >
-                Deliverables & Files ({mockEvidence.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('focus_sessions')}
-                className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg transition-all ${
-                  activeTab === 'focus_sessions'
-                    ? 'bg-[var(--accent)] text-white shadow-sm'
-                    : 'text-[var(--muted)] hover:text-[var(--text)]'
-                }`}
-              >
-                <span>Focus Sessions</span>
-                <span className="w-2 h-2 rounded-full bg-[var(--primary)]" />
-              </button>
+            {/* GuestVerify-inspired Luxury Capsule Toggle Bar (100% Visible & Responsive on Mobile) */}
+            <div className="w-full sm:w-auto p-1.5 rounded-2xl bg-[#0B1F3A] sm:bg-white border border-teal-500/30 sm:border-slate-200 shadow-md">
+              <div className="grid grid-cols-2 sm:flex items-center gap-1.5 w-full">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('evidence')}
+                  className={`flex items-center justify-center gap-1.5 py-2.5 px-3 sm:px-4 text-xs font-bold rounded-xl transition-all duration-200 select-none ${
+                    activeTab === 'evidence'
+                      ? 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-sm ring-1 ring-teal-400/40'
+                      : 'text-slate-300 sm:text-slate-600 hover:text-white sm:hover:text-slate-900 hover:bg-white/10 sm:hover:bg-slate-100'
+                  }`}
+                >
+                  <FileText size={14} className={activeTab === 'evidence' ? 'text-white' : 'text-teal-400'} />
+                  <span className="whitespace-nowrap">
+                    <span className="hidden xs:inline sm:inline">Deliverables & </span>Files ({mockEvidence.length})
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('focus_sessions')}
+                  className={`flex items-center justify-center gap-1.5 py-2.5 px-3 sm:px-4 text-xs font-bold rounded-xl transition-all duration-200 select-none ${
+                    activeTab === 'focus_sessions'
+                      ? 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-sm ring-1 ring-teal-400/40'
+                      : 'text-slate-300 sm:text-slate-600 hover:text-white sm:hover:text-slate-900 hover:bg-white/10 sm:hover:bg-slate-100'
+                  }`}
+                >
+                  <Clock size={14} className={activeTab === 'focus_sessions' ? 'text-white' : 'text-teal-400'} />
+                  <span className="whitespace-nowrap">Focus Sessions</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#10B981] animate-pulse" />
+                </button>
+              </div>
             </div>
           </div>
         </Reveal>

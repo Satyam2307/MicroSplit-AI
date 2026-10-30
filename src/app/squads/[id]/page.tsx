@@ -441,8 +441,8 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
           </div>
         </Reveal>
 
-        {/* Tab Navigation */}
-        <div className="border-b border-[var(--text)] mb-8 flex gap-6 text-sm font-bold">
+        {/* Tab Navigation (Responsive & Scrollable on Mobile) */}
+        <div className="border-b border-[var(--text)] mb-8 flex gap-6 text-sm font-bold overflow-x-auto scrollbar-none">
           {(['overview', 'members', 'revenue', 'splits'] as const).map((tab) => {
             const labels = {
               overview: 'Overview',
