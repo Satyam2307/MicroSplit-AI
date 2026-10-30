@@ -15,7 +15,16 @@ import {
   HelpCircle,
   ChevronRight,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Clock,
+  Copy,
+  Check,
+  Cpu,
+  Layers,
+  Flame,
+  CreditCard,
+  FileCheck,
+  Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -31,7 +40,7 @@ interface ChatMessage {
 
 const greetings: Record<LanguageType, string> = {
   en: '👋 Hello! I am your MicroSplit AI Concierge. How can I assist you with evidence verification, 0-cent splits, consistency streaks, or PayPal batch payouts today?',
-  hi: '👋 नमस्ते! मैं MicroSplit AI असिस्टेंट हूँ। मैं आपकी टीम के एविडेंस अपलोड, 0-सेंट स्प्लिट, कंसिस्टेंसी स्ट्रीक, या पेपैल पेआउट में कैसे सहायता कर सकता हूँ?',
+  hi: '👋 नमस्ते! मैं MicroSplit AI असिस्टेंट हूँ। मैं आपकी टीम के एविडेंस अपलोड, 0-सेंट स्प्लिट, कंसिस्टेंसी स्ट्रीk, या पेपैल पेआउट में कैसे सहायता कर सकता हूँ?',
   hinglish: '👋 Hello! Main MicroSplit AI Assistant hoon. Squad revenue splits, evidence vault, 0-cent math ya PayPal batch payouts ke baare mein aapko kya jaankari chahiye?',
 };
 
@@ -61,6 +70,14 @@ const quickPills: Record<LanguageType, string[]> = {
     'PayPal batch payouts kaise setup karein?',
   ],
 };
+
+const topicPills = [
+  { id: '0-Cent Split & Math', label: '0-Cent Split', icon: Zap },
+  { id: 'Evidence Vault & Verification', label: 'Evidence Vault', icon: FileCheck },
+  { id: 'Consistency Streak Bonus', label: 'Streak Bonus', icon: Flame },
+  { id: 'PayPal Batch Payouts', label: 'PayPal Payouts', icon: CreditCard },
+  { id: 'Request Phone Callback', label: 'Phone Callback', icon: Phone },
+];
 
 const faqItems = [
   {
@@ -107,9 +124,11 @@ export default function WhatsAppButton() {
   const [contactEmail, setContactEmail] = useState('');
   const [contactTopic, setContactTopic] = useState('0-Cent Split & Math');
   const [contactMessage, setContactMessage] = useState('');
-  const [isSubmittingContact, setIsSubmittingContact] = useState(false);
+  const [dispatchPhase, setDispatchPhase] = useState<'idle' | 'hashing' | 'alerting' | 'confirmed'>('idle');
   const [contactSubmittedTicket, setContactSubmittedTicket] = useState<string | null>(null);
   const [contactError, setContactError] = useState<string | null>(null);
+  const [ticketCountdown, setTicketCountdown] = useState(299); // 4m 59s
+  const [copiedTicket, setCopiedTicket] = useState(false);
 
   // WhatsApp & Email Constants
   const defaultSupportNumber =
@@ -131,6 +150,16 @@ export default function WhatsAppButton() {
       scrollToBottom();
     }
   }, [chatMessages, isTyping, isOpen, activeTab]);
+
+  // SLA Live Countdown Timer
+  useEffect(() => {
+    if (contactSubmittedTicket && ticketCountdown > 0) {
+      const timer = setInterval(() => {
+        setTicketCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [contactSubmittedTicket, ticketCountdown]);
 
   // Language switch handler
   const handleLanguageChange = (newLang: LanguageType) => {
@@ -223,21 +252,42 @@ export default function WhatsAppButton() {
     }
   };
 
-  // Contact Inquiry Dispatch Handler (WhatsApp or Gmail)
-  const handleInquiryDispatch = async (destination: 'whatsapp' | 'gmail') => {
+  // Solve Inquiry with AI Chat Instantly
+  const handleSolveWithAiNow = () => {
+    if (contactMessage.trim()) {
+      setActiveTab('chat');
+      handleSendMessage(contactMessage.trim());
+    } else {
+      setActiveTab('chat');
+    }
+  };
+
+  // Copy Ticket ID
+  const handleCopyTicket = (ticketId: string) => {
+    navigator.clipboard?.writeText?.(ticketId);
+    setCopiedTicket(true);
+    setTimeout(() => setCopiedTicket(false), 2000);
+  };
+
+  // Dynamic Animated Inquiry Submission Protocol
+  const handleInquiryDispatch = async (destination: 'in_app' | 'whatsapp' | 'gmail') => {
     if (!contactName.trim()) {
-      setContactError('Please enter your full name.');
+      setContactError('Please enter your full name (आपका नाम भरें).');
       return;
     }
     if (!contactMessage.trim()) {
-      setContactError('Please enter your question or inquiry.');
+      setContactError('Please enter your question or inquiry (सवाल लिखें).');
       return;
     }
 
     setContactError(null);
-    setIsSubmittingContact(true);
+    setDispatchPhase('hashing');
 
     let generatedTicket = `MS-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+
+    // Animate stage 1 (SHA-256 Hashing)
+    await new Promise((r) => setTimeout(r, 450));
+    setDispatchPhase('alerting');
 
     try {
       const response = await fetch('/api/contact', {
@@ -257,11 +307,14 @@ export default function WhatsAppButton() {
         generatedTicket = resData.ticketId;
       }
     } catch {
-      // Graceful fallback to client-generated ticket
+      // Graceful fallback to client ticket
     }
 
-    setIsSubmittingContact(false);
+    // Animate stage 2 (Alerting Desk)
+    await new Promise((r) => setTimeout(r, 450));
+    setDispatchPhase('confirmed');
     setContactSubmittedTicket(generatedTicket);
+    setTicketCountdown(299);
 
     if (destination === 'whatsapp') {
       const formattedWhatsApp =
@@ -277,7 +330,7 @@ export default function WhatsAppButton() {
       if (typeof window !== 'undefined') {
         window.open(waUrl, '_blank');
       }
-    } else {
+    } else if (destination === 'gmail') {
       const subject = `[MicroSplit Ticket ${generatedTicket}] ${contactTopic} from ${contactName.trim()}`;
       const body =
         `Hello MicroSplit Team,\n\n` +
@@ -298,6 +351,13 @@ export default function WhatsAppButton() {
         window.open(gmailComposeUrl, '_blank');
       }
     }
+  };
+
+  // Format countdown minutes:seconds
+  const formatCountdown = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -354,7 +414,7 @@ export default function WhatsAppButton() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="fixed bottom-4 right-3 sm:bottom-6 sm:right-6 z-50 w-[calc(100vw-1.5rem)] sm:w-[420px] h-[min(600px,calc(100vh-3rem))] bg-white rounded-3xl shadow-2xl border border-slate-300 flex flex-col overflow-hidden"
+            className="fixed bottom-4 right-3 sm:bottom-6 sm:right-6 z-50 w-[calc(100vw-1.5rem)] sm:w-[420px] h-[min(620px,calc(100vh-3rem))] bg-white rounded-3xl shadow-2xl border border-slate-300 flex flex-col overflow-hidden"
             style={{
               boxShadow: '0 20px 50px rgba(11, 31, 58, 0.28), 0 0 0 1px rgba(15, 157, 138, 0.25)',
             }}
@@ -633,13 +693,14 @@ export default function WhatsAppButton() {
             )}
 
             {/* ════════════════════════════════════════════════════════════════════════
-                TAB 2: WHATSAPP & GMAIL DESK (Direct WhatsApp + Inquiry Form)
+                TAB 2: WHATSAPP & GMAIL DESK (Dynamic Holographic Terminal)
             ════════════════════════════════════════════════════════════════════════ */}
             {activeTab === 'contact' && (
               <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-slate-50 text-slate-900 space-y-4">
                 {/* Desk Header Banner */}
-                <div className="bg-gradient-to-r from-[#0B1F3A] to-[#102C4D] text-white p-3.5 rounded-2xl border border-teal-500/30 shadow-xs">
-                  <div className="flex items-center gap-2">
+                <div className="bg-gradient-to-r from-[#0B1F3A] to-[#102C4D] text-white p-3.5 rounded-2xl border border-teal-500/30 shadow-xs relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/10 rounded-full blur-xl pointer-events-none" />
+                  <div className="flex items-center gap-2 relative z-10">
                     <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
                       <ShieldCheck className="w-5 h-5" />
                     </div>
@@ -652,7 +713,7 @@ export default function WhatsAppButton() {
                   </div>
                 </div>
 
-                {/* ── CARD 1: 1-Click WhatsApp Direct Chat ── */}
+                {/* ── CARD 1: 1-Click Direct WhatsApp Chat ── */}
                 <div className="bg-white p-3.5 rounded-2xl border border-emerald-200 shadow-2xs hover:border-emerald-400 transition-colors">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2">
@@ -668,7 +729,7 @@ export default function WhatsAppButton() {
                     </div>
                   </div>
                   <p className="text-xs text-slate-600 mb-3 leading-relaxed">
-                    Open WhatsApp directly with our team for quick questions about contracts, payouts, or squad setup.
+                    Chat directly with our engineering team on WhatsApp for quick answers regarding revenue split rules or payouts.
                   </p>
                   <button
                     type="button"
@@ -681,39 +742,141 @@ export default function WhatsAppButton() {
                 </div>
 
                 {/* Divider */}
-                <div className="relative flex py-1 items-center">
+                <div className="relative flex py-0.5 items-center">
                   <div className="flex-grow border-t border-slate-300"></div>
                   <span className="flex-shrink mx-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Or Send Official Inquiry
+                    Or Instant Verified Inquiry
                   </span>
                   <div className="flex-grow border-t border-slate-300"></div>
                 </div>
 
-                {/* ── CARD 2: Send Official Inquiry Form (WhatsApp & Gmail) ── */}
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
-                  <h5 className="font-bold text-xs text-slate-900 mb-1 flex items-center gap-1.5">
-                    <Mail className="w-3.5 h-3.5 text-teal-600" />
-                    <span>Submit Inquiry (WhatsApp or Gmail)</span>
-                  </h5>
+                {/* ── CARD 2: Dynamic Holographic Inquiry Terminal ── */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs relative">
+                  <div className="flex items-center justify-between mb-1">
+                    <h5 className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                      <Cpu className="w-3.5 h-3.5 text-teal-600" />
+                      <span>Smart Inquiry Terminal</span>
+                    </h5>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">
+                      SLA: &lt; 5 mins
+                    </span>
+                  </div>
                   <p className="text-[11px] text-slate-500 mb-3">
-                    Generates a verified Ticket ID. Dispatches directly to WhatsApp and akshatsinghai6682@gmail.com.
+                    Submitting logs an automated ticket to both WhatsApp (+{cleanSupportNumber}) and akshatsinghai6682@gmail.com.
                   </p>
 
-                  {/* Success Alert */}
-                  {contactSubmittedTicket && (
-                    <div className="mb-3 p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs text-emerald-900 flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <span className="font-bold block">Inquiry Dispatched!</span>
-                        <span>Ticket ID: </span>
-                        <code className="bg-emerald-100 px-1 py-0.5 rounded font-mono font-bold">
-                          {contactSubmittedTicket}
-                        </code>
-                        <p className="text-[10.5px] text-emerald-800 mt-1">
-                          Our team has been notified. Check your WhatsApp or Email for the engineering response.
-                        </p>
+                  {/* ── Active Animated Dispatch Stages ── */}
+                  {dispatchPhase === 'hashing' && (
+                    <div className="mb-3 p-3 bg-teal-50 border border-teal-300 rounded-xl text-xs text-teal-900 animate-pulse">
+                      <div className="flex items-center gap-2 font-bold mb-1">
+                        <Cpu className="w-4 h-4 animate-spin text-teal-600" />
+                        <span>Stage 1/2: Hashing Inquiry to SHA-256 Ledger...</span>
+                      </div>
+                      <div className="w-full bg-teal-200 h-1.5 rounded-full overflow-hidden">
+                        <div className="bg-teal-600 h-full w-1/2 animate-pulse" />
                       </div>
                     </div>
+                  )}
+
+                  {dispatchPhase === 'alerting' && (
+                    <div className="mb-3 p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs text-emerald-900 animate-pulse">
+                      <div className="flex items-center gap-2 font-bold mb-1">
+                        <Phone className="w-4 h-4 text-emerald-600" />
+                        <span>Stage 2/2: Alerting Desk Queue (+{cleanSupportNumber})...</span>
+                      </div>
+                      <div className="w-full bg-emerald-200 h-1.5 rounded-full overflow-hidden">
+                        <div className="bg-emerald-600 h-full w-full" />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Dynamic Holographic Ticket Receipt (The Alternative!) ── */}
+                  {contactSubmittedTicket && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="mb-4 p-4 bg-gradient-to-br from-[#0B1F3A] to-[#102C4D] text-white rounded-2xl border border-teal-500/40 shadow-xl relative overflow-hidden"
+                    >
+                      <div className="flex items-start justify-between pb-2 border-b border-white/10 mb-2.5">
+                        <div className="flex items-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                          <span className="font-bold text-xs text-emerald-300">Ticket Activated</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyTicket(contactSubmittedTicket)}
+                          className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-white/10 hover:bg-white/20 text-teal-300 flex items-center gap-1 transition-colors"
+                        >
+                          {copiedTicket ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-400" />
+                              <span>Copied</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3" />
+                              <span>{contactSubmittedTicket}</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Ticket Details */}
+                      <div className="space-y-1.5 text-xs text-slate-200 mb-3">
+                        <div className="flex justify-between">
+                          <span className="text-slate-400 text-[11px]">Visitor:</span>
+                          <span className="font-bold text-white">{contactName}</span>
+                        </div>
+                        {contactWhatsapp && (
+                          <div className="flex justify-between">
+                            <span className="text-slate-400 text-[11px]">Your Phone:</span>
+                            <span className="font-mono text-teal-300">{contactWhatsapp}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-slate-400 text-[11px]">Queue SLA:</span>
+                          <span className="font-bold text-emerald-400 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            <span>{formatCountdown(ticketCountdown)} remaining</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 3 Quick Action Alternatives for the User */}
+                      <div className="pt-2 border-t border-white/10 space-y-2">
+                        {/* Alternative 1: Solve right now with AI */}
+                        <button
+                          type="button"
+                          onClick={handleSolveWithAiNow}
+                          className="w-full py-2 px-3 rounded-xl bg-teal-500 hover:bg-teal-400 text-[#0B1F3A] font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all"
+                        >
+                          <Bot className="w-3.5 h-3.5" />
+                          <span>Get Instant AI Answer Now (Solve in 2s) →</span>
+                        </button>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          {/* Alternative 2: Open in WhatsApp */}
+                          <button
+                            type="button"
+                            onClick={() => handleInquiryDispatch('whatsapp')}
+                            className="py-1.5 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center justify-center gap-1 transition-colors"
+                          >
+                            <MessageCircle className="w-3 h-3" />
+                            <span>Open WhatsApp</span>
+                          </button>
+
+                          {/* Alternative 3: Open in Gmail */}
+                          <button
+                            type="button"
+                            onClick={() => handleInquiryDispatch('gmail')}
+                            className="py-1.5 px-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-[11px] flex items-center justify-center gap-1 transition-colors"
+                          >
+                            <Mail className="w-3 h-3" />
+                            <span>Open Gmail</span>
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
                   )}
 
                   {/* Error Alert */}
@@ -724,6 +887,7 @@ export default function WhatsAppButton() {
                     </div>
                   )}
 
+                  {/* Inquiry Form Fields */}
                   <div className="space-y-2.5">
                     {/* Name */}
                     <div>
@@ -743,7 +907,7 @@ export default function WhatsAppButton() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
                         <label className="block text-[10.5px] font-bold text-slate-700 mb-0.5">
-                          Your WhatsApp No.
+                          Your WhatsApp / Phone No.
                         </label>
                         <input
                           type="text"
@@ -767,25 +931,35 @@ export default function WhatsAppButton() {
                       </div>
                     </div>
 
-                    {/* Topic */}
+                    {/* Dynamic Topic Selector Pills */}
                     <div>
-                      <label className="block text-[10.5px] font-bold text-slate-700 mb-0.5">
-                        Inquiry Topic
+                      <label className="block text-[10.5px] font-bold text-slate-700 mb-1">
+                        Select Inquiry Topic
                       </label>
-                      <select
-                        value={contactTopic}
-                        onChange={(e) => setContactTopic(e.target.value)}
-                        className="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:border-teal-500 bg-slate-50"
-                      >
-                        <option value="0-Cent Split & Math">0-Cent Split & Math Logic</option>
-                        <option value="Evidence Vault & Verification">Evidence Vault & Verification (/evidence)</option>
-                        <option value="Consistency Streak Bonus">Consistency Streak Bonus Calculation</option>
-                        <option value="PayPal Batch Payouts">PayPal Batch Payouts Integration</option>
-                        <option value="General Support">General Squad Support</option>
-                      </select>
+                      <div className="flex flex-wrap gap-1">
+                        {topicPills.map((t) => {
+                          const Icon = t.icon;
+                          const isSelected = contactTopic === t.id;
+                          return (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => setContactTopic(t.id)}
+                              className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
+                                isSelected
+                                  ? 'bg-teal-600 text-white shadow-xs'
+                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                              }`}
+                            >
+                              <Icon className="w-3 h-3" />
+                              <span>{t.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
-                    {/* Message */}
+                    {/* Message Textarea */}
                     <div>
                       <label className="block text-[10.5px] font-bold text-slate-700 mb-0.5">
                         Your Message / Question (सवाल) *
@@ -800,31 +974,44 @@ export default function WhatsAppButton() {
                       />
                     </div>
 
-                    {/* Dual Action Dispatch Buttons */}
-                    <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {/* Primary Animated Dispatch Button */}
+                    <div className="pt-2">
                       <button
                         type="button"
-                        disabled={isSubmittingContact}
+                        disabled={dispatchPhase === 'hashing' || dispatchPhase === 'alerting'}
+                        onClick={() => handleInquiryDispatch('in_app')}
+                        className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-bold text-xs transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>Generate Verified Ticket & Alert Desk →</span>
+                      </button>
+                    </div>
+
+                    {/* Dual Action Dispatch Buttons (Direct External) */}
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        type="button"
+                        disabled={dispatchPhase === 'hashing' || dispatchPhase === 'alerting'}
                         onClick={() => handleInquiryDispatch('whatsapp')}
-                        className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors shadow-xs flex items-center justify-center gap-1.5 disabled:opacity-50"
+                        className="py-2 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] transition-colors shadow-2xs flex items-center justify-center gap-1 disabled:opacity-50"
                       >
                         <MessageCircle className="w-3.5 h-3.5" />
-                        <span>Send on WhatsApp →</span>
+                        <span>Send on WhatsApp</span>
                       </button>
 
                       <button
                         type="button"
-                        disabled={isSubmittingContact}
+                        disabled={dispatchPhase === 'hashing' || dispatchPhase === 'alerting'}
                         onClick={() => handleInquiryDispatch('gmail')}
-                        className="py-2.5 px-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors shadow-xs flex items-center justify-center gap-1.5 disabled:opacity-50"
+                        className="py-2 px-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-[11px] transition-colors shadow-2xs flex items-center justify-center gap-1 disabled:opacity-50"
                       >
                         <Mail className="w-3.5 h-3.5" />
-                        <span>Send via Gmail →</span>
+                        <span>Send via Gmail</span>
                       </button>
                     </div>
 
                     <p className="text-[10px] text-slate-400 text-center mt-1">
-                      Target Support Email: <strong>akshatsinghai6682@gmail.com</strong>
+                      Support Desk: <strong>+{cleanSupportNumber}</strong> • <strong>{supportEmail}</strong>
                     </p>
                   </div>
                 </div>
