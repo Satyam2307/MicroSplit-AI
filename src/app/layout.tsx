@@ -5,6 +5,7 @@ import Footer from "@/components/Footer";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import Analytics from "@/components/Analytics";
 import ToastContainer from "@/components/Toast";
+import AnimatedBackground from "@/components/AnimatedBackground";
 import { Suspense } from "react";
 
 export const viewport: Viewport = {
@@ -86,7 +87,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="icon" href="/icon" sizes="32x32" type="image/png" />
         <link rel="apple-touch-icon" href="/apple-icon" sizes="180x180" type="image/png" />
       </head>
-      <body className="min-h-full flex flex-col overflow-x-hidden" style={{ background: "var(--background)" }}>
+      <body className="min-h-full flex flex-col overflow-x-hidden relative" style={{ background: "var(--background)" }}>
+        <AnimatedBackground />
         <Suspense fallback={<div className="h-[64px]" style={{ background: "var(--primary)", borderBottom: "1px solid color-mix(in srgb, var(--background) 8%, transparent)" }} />}>
           <Navbar />
         </Suspense>
