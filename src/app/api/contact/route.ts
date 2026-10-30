@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
     const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'anonymous';
     const rateLimit = checkRateLimit(`contact_${clientIp}`, {
       intervalMs: 300000, // 5 minutes
-      maxRequests: 5,
+      maxRequests: 10,
     });
 
     if (!rateLimit.success) {
@@ -46,28 +46,69 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!message || message.length < 10) {
+    if (!message || message.length < 5) {
       return NextResponse.json(
-        { error: 'Please enter a message with at least 10 characters.' },
+        { error: 'Please enter a message with at least 5 characters.' },
         { status: 400 }
       );
     }
 
-    // 4. Ticket generation & confirmation
+    // 4. Ticket generation & dispatch links
     const ticketId = `MS-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+
+    const adminPhone = process.env.NEXT_PUBLIC_WHATSAPP_PHONE || '919294514754';
+    const adminEmail = 'akshatsinghai6682@gmail.com';
+
+    // Formatted WhatsApp message for instant dispatch to owner
+    const waText = encodeURIComponent(
+      `🔔 *New MicroSplit AI Inquiry Received!*\n\n` +
+      `👤 *Name:* ${name}\n` +
+      `📧 *Email:* ${email}\n` +
+      `📱 *Phone / WhatsApp:* ${whatsapp || 'Not provided'}\n` +
+      `🏢 *Squad:* ${squad || 'Individual'}\n` +
+      `🏷️ *Topic:* ${topic}\n` +
+      `🎫 *Ticket ID:* ${ticketId}\n\n` +
+      `💬 *Inquiry Message:*\n"${message}"\n\n` +
+      `⚡ *Action:* Please reply to ${email} or WhatsApp ${whatsapp || 'N/A'}.`
+    );
+
+    const whatsappAlertUrl = `https://wa.me/${adminPhone}?text=${waText}`;
+
+    // Gmail Web Compose URL
+    const emailSubject = encodeURIComponent(`[MicroSplit Ticket ${ticketId}] ${topic} from ${name}`);
+    const emailBody = encodeURIComponent(
+      `Hello MicroSplit Team,\n\nA new inquiry has been submitted:\n\n` +
+      `Name: ${name}\n` +
+      `Email: ${email}\n` +
+      `Phone/WhatsApp: ${whatsapp || 'Not provided'}\n` +
+      `Squad: ${squad || 'N/A'}\n` +
+      `Topic: ${topic}\n` +
+      `Ticket ID: ${ticketId}\n\n` +
+      `Message:\n${message}\n\n` +
+      `--\nMicroSplit AI Automation`
+    );
+
+    const gmailComposeUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${adminEmail},support@microsplit.ai&su=${emailSubject}&body=${emailBody}`;
+    const mailtoUrl = `mailto:${adminEmail}?cc=support@microsplit.ai&subject=${emailSubject}&body=${emailBody}`;
 
     return NextResponse.json(
       {
         success: true,
         ticketId,
-        message: 'Your message has been received. Our team will respond within 2 hours.',
+        message: 'Your inquiry has been registered. You can dispatch an instant WhatsApp alert or email below.',
         details: {
           name,
           email,
           squad: squad || undefined,
           topic,
           whatsapp: whatsapp || undefined,
-          domainEmail: 'support@microsplit.ai',
+          adminPhone: `+${adminPhone}`,
+          adminEmail,
+        },
+        dispatch: {
+          whatsappAlertUrl,
+          gmailComposeUrl,
+          mailtoUrl,
         },
       },
       { status: 200 }
