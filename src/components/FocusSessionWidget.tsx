@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, StatusChip } from '@/components/ui';
+import { Card } from '@/components/ui';
 import {
   Clock,
   Play,
@@ -10,10 +10,9 @@ import {
   Trash2,
   AlertTriangle,
   Lock,
-  Link as LinkIcon,
   CheckCircle2,
 } from 'lucide-react';
-import { mockFocusSessions, MockFocusSession } from '@/lib/mock-data';
+import type { MockFocusSession } from '@/lib/mock-data';
 
 interface FocusSessionWidgetProps {
   memberId: string;
@@ -22,21 +21,55 @@ interface FocusSessionWidgetProps {
 
 export default function FocusSessionWidget({
   memberId,
-  initialOptIn = true,
+  initialOptIn = false,
 }: FocusSessionWidgetProps) {
   const [optIn, setOptIn] = useState(initialOptIn);
-  const [sessions, setSessions] = useState<MockFocusSession[]>(
-    mockFocusSessions.filter((s) => s.memberId === memberId)
-  );
-  const [activeSession, setActiveSession] = useState<MockFocusSession | null>(
-    sessions.find((s) => s.endedAt === null) || null
-  );
+  const [sessions, setSessions] = useState<MockFocusSession[]>([]);
+  const [activeSession, setActiveSession] = useState<MockFocusSession | null>(null);
 
   const [taskId, setTaskId] = useState('TASK-112');
   const [taskTitle, setTaskTitle] = useState('Build streak heatmap UI');
   const [source, setSource] = useState<'manual' | 'linked_evidence'>('manual');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSessions() {
+      try {
+        const [settingsResponse, sessionsResponse] = await Promise.all([
+          fetch('/api/members/opt-in'),
+          fetch('/api/focus-sessions'),
+        ]);
+        const [settings, sessionData] = await Promise.all([
+          settingsResponse.json(),
+          sessionsResponse.json(),
+        ]);
+
+        if (!settingsResponse.ok || !settings.success) {
+          throw new Error(settings.error || 'Unable to load focus-session settings');
+        }
+        if (!sessionsResponse.ok || !sessionData.success) {
+          throw new Error(sessionData.error || 'Unable to load focus sessions');
+        }
+
+        if (cancelled) return;
+        setOptIn(settings.data.focusSessionsOptIn);
+        setSessions(sessionData.data);
+        setActiveSession(sessionData.data.find((session: MockFocusSession) => session.endedAt === null) ?? null);
+      } catch (error) {
+        if (!cancelled) {
+          setMessage(error instanceof Error ? error.message : 'Unable to load focus sessions');
+        }
+      }
+    }
+
+    void loadSessions();
+    return () => {
+      cancelled = true;
+    };
+  }, [memberId]);
 
   // Timer tick for active session
   useEffect(() => {
@@ -46,8 +79,6 @@ export default function FocusSessionWidget({
       timer = setInterval(() => {
         setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startTime) / 1000)));
       }, 1000);
-    } else {
-      setElapsedSeconds(0);
     }
     return () => clearInterval(timer);
   }, [activeSession]);
@@ -58,22 +89,22 @@ export default function FocusSessionWidget({
       const res = await fetch('/api/members/opt-in', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memberId, optIn: nextVal }),
+        body: JSON.stringify({ optIn: nextVal }),
       });
       const data = await res.json();
-      if (data.success) {
-        setOptIn(nextVal);
-        setMessage(data.message);
-        setTimeout(() => setMessage(null), 4000);
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Unable to update focus-session settings');
       }
-    } catch {
-      setOptIn(nextVal);
+      setOptIn(data.data.focusSessionsOptIn);
+      setMessage(data.message);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to update focus-session settings');
     }
   };
 
   const handleStart = async () => {
     if (!optIn) {
-      alert('Focus sessions require explicit opt-in.');
+      setMessage('Focus sessions require explicit opt-in.');
       return;
     }
 
@@ -82,35 +113,19 @@ export default function FocusSessionWidget({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          memberId,
           taskId,
           taskTitle,
           source,
         }),
       });
       const json = await res.json();
-      if (!res.ok) {
-        alert(json.error || 'Failed to start session');
-        return;
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Failed to start session');
       }
       setActiveSession(json.data);
       setSessions([json.data, ...sessions]);
-    } catch {
-      // Fallback in-memory
-      const newSession: MockFocusSession = {
-        id: `foc_${Date.now()}`,
-        memberId,
-        memberName: 'Member',
-        taskId,
-        taskTitle,
-        startedAt: new Date().toISOString(),
-        endedAt: null,
-        source,
-        status: 'active',
-        createdAt: new Date().toISOString(),
-      };
-      setActiveSession(newSession);
-      setSessions([newSession, ...sessions]);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to start session');
     }
   };
 
@@ -121,30 +136,32 @@ export default function FocusSessionWidget({
         method: 'POST',
       });
       const json = await res.json();
-      if (json.success) {
-        setActiveSession(null);
-        setSessions(sessions.map((s) => (s.id === json.data.id ? json.data : s)));
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Failed to stop session');
       }
-    } catch {
-      const stopped = {
-        ...activeSession,
-        endedAt: new Date().toISOString(),
-        durationMinutes: Math.round(elapsedSeconds / 60),
-        status: 'completed' as const,
-      };
       setActiveSession(null);
-      setSessions(sessions.map((s) => (s.id === stopped.id ? stopped : s)));
+      setElapsedSeconds(0);
+      setSessions(sessions.map((s) => (s.id === json.data.id ? json.data : s)));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to stop session');
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
-      await fetch(`/api/focus-sessions/${id}`, { method: 'DELETE' });
-    } catch {
-      // Ignore
+      const response = await fetch(`/api/focus-sessions/${id}`, { method: 'DELETE' });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to delete focus session');
+      }
+      setSessions(sessions.filter((s) => s.id !== id));
+      if (activeSession?.id === id) {
+        setActiveSession(null);
+        setElapsedSeconds(0);
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to delete focus session');
     }
-    setSessions(sessions.filter((s) => s.id !== id));
-    if (activeSession?.id === id) setActiveSession(null);
   };
 
   const formatElapsed = (sec: number) => {

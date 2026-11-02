@@ -1,43 +1,61 @@
 // POST /api/freeze-grants – Grant a streak freeze day (approver only)
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  mockFreezeGrants,
-  mockMemberships,
-  mockUsers,
   mockLedgerEvents,
 } from '@/lib/mock-data';
 import { createLedgerEntry } from '@/lib/ledger';
+import { getPrisma } from '@/lib/prisma';
+import { requireAuthenticatedActor, requireSquadRole } from '@/lib/authorization';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { squadId, memberId, approverId, date, reason } = body;
+    const { squadId, memberId, date, reason } = body;
 
-    if (!squadId || !memberId || !approverId || !date || !reason) {
+    if (!squadId || !memberId || !date || !reason) {
       return NextResponse.json(
-        { success: false, error: 'squadId, memberId, approverId, date, and reason are required' },
+        { success: false, error: 'squadId, memberId, date, and reason are required' },
         { status: 400 }
       );
     }
 
-    // Role gate: Only approvers or owners can grant freezes
-    const approverMembership = mockMemberships.find(
-      (m) => m.squadId === squadId && m.userId === approverId
-    );
-    if (!approverMembership || !['owner', 'approver'].includes(approverMembership.role)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Forbidden: Only squad approvers or owners can authorize streak freeze grants',
+    const access = await requireSquadRole(squadId, ['owner', 'approver']);
+    if (!access.ok) return access.response;
+
+    const prisma = getPrisma();
+    const memberMembership = await prisma.membership.findUnique({
+      where: {
+        squadId_userId: {
+          squadId,
+          userId: memberId,
         },
-        { status: 403 }
+      },
+      include: { user: { select: { name: true } } },
+    });
+    if (!memberMembership) {
+      return NextResponse.json(
+        { success: false, error: 'Freeze target must be a member of this squad' },
+        { status: 400 }
       );
     }
 
+    const approverId = access.value.userId;
+
     // Check if freeze already exists for this member on this date
-    const exists = mockFreezeGrants.some(
-      (f) => f.memberId === memberId && f.date === date
-    );
+    const freezeDate = new Date(`${date}T00:00:00.000Z`);
+    if (Number.isNaN(freezeDate.getTime()) || freezeDate.toISOString().slice(0, 10) !== date) {
+      return NextResponse.json(
+        { success: false, error: 'date must be a valid YYYY-MM-DD date' },
+        { status: 400 }
+      );
+    }
+
+    const exists = await prisma.freezeGrant.findUnique({
+      where: {
+        memberId_date: { memberId: memberMembership.id, date: freezeDate },
+      },
+      select: { id: true },
+    });
     if (exists) {
       return NextResponse.json(
         { success: false, error: `Freeze grant already active for this member on ${date}` },
@@ -45,22 +63,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const memberUser = mockUsers.find((u) => u.id === memberId);
-    const approverUser = mockUsers.find((u) => u.id === approverId);
-
-    const grant = {
-      id: `frz_${Date.now()}`,
-      squadId,
-      memberId,
-      memberName: memberUser?.name || 'Member',
-      approverId,
-      approverName: approverUser?.name || 'Approver',
-      date, // YYYY-MM-DD
-      reason,
-      createdAt: new Date().toISOString(),
-    };
-
-    mockFreezeGrants.push(grant);
+    const storedGrant = await prisma.freezeGrant.create({
+      data: {
+        squadId,
+        memberId: memberMembership.id,
+        approverId,
+        date: freezeDate,
+        reason,
+      },
+      include: {
+        membership: { include: { user: { select: { name: true } } } },
+        approver: { select: { name: true } },
+      },
+    });
 
     // Cryptographic SHA-256 Ledger Event: freeze_granted
     const prevHash = mockLedgerEvents.length > 0
@@ -70,14 +85,14 @@ export async function POST(request: NextRequest) {
     const ledgerEntry = createLedgerEntry(
       `led_${mockLedgerEvents.length + 1}`,
       'freeze_granted',
-      grant.id,
+      storedGrant.id,
       0, // freeze grant has 0 monetary amount
       {
         squadId,
         memberId,
-        memberName: grant.memberName,
+        memberName: storedGrant.membership.user.name,
         approverId,
-        approverName: grant.approverName,
+        approverName: storedGrant.approver.name,
         date,
         reason,
       },
@@ -89,7 +104,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        data: grant,
+        data: {
+          id: storedGrant.id,
+          squadId: storedGrant.squadId,
+          memberId,
+          memberName: storedGrant.membership.user.name,
+          approverId: storedGrant.approverId,
+          approverName: storedGrant.approver.name,
+          date,
+          reason: storedGrant.reason,
+          createdAt: storedGrant.createdAt.toISOString(),
+        },
         ledgerHash: ledgerEntry.hash,
         message: 'Freeze grant approved and recorded on immutable ledger',
       },
@@ -103,10 +128,43 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const memberId = request.nextUrl.searchParams.get('memberId');
   const squadId = request.nextUrl.searchParams.get('squadId');
+  if (squadId) {
+    const access = await requireSquadRole(squadId);
+    if (!access.ok) return access.response;
+  }
+  const actor = await requireAuthenticatedActor();
+  if (!actor.ok) return actor.response;
 
-  let grants = [...mockFreezeGrants];
-  if (memberId) grants = grants.filter((g) => g.memberId === memberId);
-  if (squadId) grants = grants.filter((g) => g.squadId === squadId);
+  const memberships = await getPrisma().membership.findMany({
+    where: {
+      userId: actor.value.userId,
+      ...(squadId ? { squadId } : {}),
+    },
+    select: { id: true, squadId: true, userId: true },
+  });
+  const squadIds = new Set(memberships.map((membership) => membership.squadId));
+  const grants = await getPrisma().freezeGrant.findMany({
+    where: {
+      squadId: { in: [...squadIds] },
+      ...(memberId ? { membership: { userId: memberId } } : {}),
+    },
+    include: {
+      membership: {
+        include: { user: { select: { id: true, name: true } } },
+      },
+      approver: { select: { id: true, name: true } },
+    },
+    orderBy: { date: 'desc' },
+  });
 
-  return NextResponse.json({ success: true, data: grants });
+  return NextResponse.json({
+    success: true,
+    data: grants.map(({ membership, approver, date, ...grant }) => ({
+      ...grant,
+      memberId: membership.user.id,
+      memberName: membership.user.name,
+      approverName: approver.name,
+      date: date.toISOString().slice(0, 10),
+    })),
+  });
 }

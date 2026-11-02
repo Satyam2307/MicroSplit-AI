@@ -1,18 +1,27 @@
-// GET /api/squads/:id & DELETE /api/squads/:id
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  mockSquads,
-  mockMemberships,
-  mockRevenueEvents,
-  mockUsers,
-} from '@/lib/mock-data';
+import { getPrisma } from '@/lib/prisma';
+import { requireSquadRole } from '@/lib/authorization';
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const squad = mockSquads.find((s) => s.id === id);
+  const access = await requireSquadRole(id);
+  if (!access.ok) return access.response;
+
+  const squad = await getPrisma().squad.findUnique({
+    where: { id },
+    include: {
+      memberships: {
+        include: {
+          user: { select: { id: true, name: true, email: true, avatar: true } },
+        },
+      },
+      owner: { select: { id: true, name: true, email: true, avatar: true } },
+      revenueEvents: true,
+    },
+  });
 
   if (!squad) {
     return NextResponse.json(
@@ -21,16 +30,21 @@ export async function GET(
     );
   }
 
-  const members = mockMemberships.filter((m) => m.squadId === id);
-  const revenue = mockRevenueEvents.filter((r) => r.squadId === id);
-
   return NextResponse.json({
     success: true,
     data: {
-      squad,
-      members,
-      revenue,
-      users: mockUsers,
+      squad: {
+        ...squad,
+        memberCount: squad.memberships.length,
+        totalRevenue: squad.revenueEvents.reduce(
+          (total, event) => total + event.amountMinor,
+          0
+        ),
+        currentRole: access.value.membership.role,
+      },
+      members: squad.memberships,
+      revenue: squad.revenueEvents,
+      users: squad.memberships.map((membership) => membership.user),
     },
   });
 }
@@ -40,35 +54,13 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const squadIndex = mockSquads.findIndex((s) => s.id === id);
+  const access = await requireSquadRole(id, ['owner']);
+  if (!access.ok) return access.response;
 
-  if (squadIndex === -1) {
-    return NextResponse.json(
-      { success: false, error: 'Squad not found' },
-      { status: 404 }
-    );
-  }
-
-  // Remove squad
-  const [deletedSquad] = mockSquads.splice(squadIndex, 1);
-
-  // Remove associated memberships
-  for (let i = mockMemberships.length - 1; i >= 0; i--) {
-    if (mockMemberships[i].squadId === id) {
-      mockMemberships.splice(i, 1);
-    }
-  }
-
-  // Remove associated revenue events
-  for (let i = mockRevenueEvents.length - 1; i >= 0; i--) {
-    if (mockRevenueEvents[i].squadId === id) {
-      mockRevenueEvents.splice(i, 1);
-    }
-  }
-
+  const squad = await getPrisma().squad.delete({ where: { id } });
   return NextResponse.json({
     success: true,
-    message: `Squad ${deletedSquad.name} and associated records successfully deleted`,
-    data: deletedSquad,
+    message: `Squad ${squad.name} and associated records successfully deleted`,
+    data: squad,
   });
 }

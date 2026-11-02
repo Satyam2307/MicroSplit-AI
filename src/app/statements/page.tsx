@@ -1,23 +1,24 @@
 'use client';
 
-import { Reveal, Card, MoneyChip, StatusChip } from '@/components/ui';
-import { mockUsers, mockSplitRuns, mockPayoutBatches } from '@/lib/mock-data';
+import { Reveal, Card, MoneyChip } from '@/components/ui';
+import { mockSplitRuns, mockPayoutBatches } from '@/lib/mock-data';
 import { formatMoney } from '@/lib/money';
+import { useSession } from 'next-auth/react';
 import {
-  User,
-  DollarSign,
-  FileText,
   CheckCircle2,
   Clock,
   Download,
-  Flame,
 } from 'lucide-react';
 import StreakHeatmap from '@/components/StreakHeatmap';
 import FocusSessionWidget from '@/components/FocusSessionWidget';
 
 export default function StatementsPage() {
-  // Show statement for first user
-  const member = mockUsers[1]; // Maya Chen
+  const { data: session, status } = useSession();
+  const member = {
+    id: session?.user.id ?? '',
+    name: session?.user.name || 'Member',
+    email: session?.user.email || '',
+  };
   const lines = mockSplitRuns.flatMap((r) =>
     r.lines.filter((l) => l.memberId === member.id).map((l) => ({ ...l, run: r }))
   );
@@ -25,6 +26,14 @@ export default function StatementsPage() {
     b.items.filter((i) => lines.some((l) => l.id === i.lineId))
   );
   const totalEarned = lines.reduce((s, l) => s + l.amountMinor, 0);
+
+  if (status === 'loading' || !member.id) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--background)' }}>
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>Loading your statement...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--background)' }}>
@@ -70,7 +79,7 @@ export default function StatementsPage() {
               </div>
               <div className="text-center p-4 rounded-xl bg-[var(--background)]">
                 <p className="text-2xl font-black text-[var(--accent)]">
-                  100 <span className="text-xs">days</span>
+                  0 <span className="text-xs">days</span>
                 </p>
                 <p className="text-xs font-semibold mt-1 text-[var(--accent)]">Verified streak</p>
               </div>
@@ -90,8 +99,8 @@ export default function StatementsPage() {
         <Reveal delay={0.12}>
           <StreakHeatmap
             memberName={member.name}
-            streakDays={100}
-            freezeDaysUsed={1}
+            streakDays={0}
+            freezeDaysUsed={0}
             streakCapDays={100}
             timezone="America/Los_Angeles"
           />
@@ -99,7 +108,7 @@ export default function StatementsPage() {
 
         {/* Opt-in Focus Sessions Component */}
         <Reveal delay={0.14}>
-          <FocusSessionWidget memberId={member.id} initialOptIn={true} />
+          <FocusSessionWidget memberId={member.id} initialOptIn={false} />
         </Reveal>
 
         {/* Earnings table */}

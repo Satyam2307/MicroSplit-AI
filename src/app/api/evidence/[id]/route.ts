@@ -8,6 +8,7 @@ import {
   needsHumanReview,
   buildExtractionLog,
 } from '@/lib/ai-extraction';
+import { requireSquadRole } from '@/lib/authorization';
 
 export async function POST(
   request: NextRequest,
@@ -22,6 +23,13 @@ export async function POST(
       { status: 404 }
     );
   }
+
+  const access = await requireSquadRole(evidence.squadId, [
+    'owner',
+    'approver',
+    'contributor',
+  ]);
+  if (!access.ok) return access.response;
 
   if (evidence.status === 'extracted') {
     return NextResponse.json(
