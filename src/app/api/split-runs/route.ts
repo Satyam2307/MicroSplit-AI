@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import {
   requireAuthenticatedActor,
+  requireSquadRole,
 } from "@/lib/authorization";
+
 import { getPrisma } from "@/lib/prisma";
 import {
   createPersistentSplitRun,
