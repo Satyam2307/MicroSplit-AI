@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mockPayoutBatches, mockLedgerEvents } from '@/lib/mock-data';
 import { createLedgerEntry } from '@/lib/ledger';
-import { verifyWebhookSignature, isSandboxConfigured } from '@/lib/paypal';
+import { verifyWebhookSignature } from '@/lib/paypal';
 
 // Track processed event IDs for idempotency
 const processedEventIds = new Set<string>();
@@ -12,23 +12,27 @@ export async function POST(request: NextRequest) {
     const bodyText = await request.text();
     const event = JSON.parse(bodyText);
 
-    // Idempotency check
-    if (processedEventIds.has(event.id)) {
-      return NextResponse.json({ success: true, message: 'Event already processed' });
+    const headers: Record<string, string> = {};
+    request.headers.forEach((value, key) => { headers[key] = value; });
+
+    const verified = await verifyWebhookSignature(headers, bodyText);
+    if (!verified) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid webhook signature' },
+        { status: 401 }
+      );
     }
 
-    // Verify signature in production
-    if (isSandboxConfigured()) {
-      const headers: Record<string, string> = {};
-      request.headers.forEach((value, key) => { headers[key] = value; });
-      
-      const verified = await verifyWebhookSignature(headers, bodyText);
-      if (!verified) {
-        return NextResponse.json(
-          { success: false, error: 'Invalid webhook signature' },
-          { status: 401 }
-        );
-      }
+    if (typeof event.id !== 'string' || typeof event.event_type !== 'string' || !event.resource) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid PayPal event payload' },
+        { status: 400 }
+      );
+    }
+
+    // Verify every delivery before checking idempotency.
+    if (processedEventIds.has(event.id)) {
+      return NextResponse.json({ success: true, message: 'Event already processed' });
     }
 
     const eventType = event.event_type;
@@ -82,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     processedEventIds.add(event.id);
     return NextResponse.json({ success: true, message: 'Webhook processed' });
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       { success: false, error: 'Webhook processing failed' },
       { status: 500 }

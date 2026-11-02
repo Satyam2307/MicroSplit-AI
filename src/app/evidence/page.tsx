@@ -1,31 +1,48 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Upload,
   FileText,
-  Image,
+  Image as ImageIcon,
   FileSpreadsheet,
   Mic,
   Link2,
-  X,
   CheckCircle2,
   AlertTriangle,
-  Clock,
-  Brain,
   ChevronDown,
-  ChevronUp,
-  Search,
   Filter,
 } from 'lucide-react';
-import { Reveal, Card, StatusChip, ConfidenceMeter } from '@/components/ui';
-import { mockEvidence, mockContributions, mockFocusSessions, MockFocusSession } from '@/lib/mock-data';
+import { Reveal, Card, StatusChip } from '@/components/ui';
+import type { MockFocusSession } from '@/lib/mock-data';
+
+type EvidenceRecord = {
+  id: string;
+  squadId: string;
+  uploaderId: string;
+  kind: string;
+  fileName: string | null;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  status: string;
+  reviewedById: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+  uploader: { name: string | null };
+  reviewedBy: { name: string | null } | null;
+};
+
+type EvidenceSquad = {
+  id: string;
+  name: string;
+  currentRole: string;
+};
 
 const kindIcons: Record<string, React.ReactNode> = {
   text: <FileText size={18} />,
   pdf: <FileText size={18} />,
-  image: <Image size={18} />,
+  image: <ImageIcon size={18} aria-hidden="true" />,
   audio: <Mic size={18} />,
   csv: <FileSpreadsheet size={18} />,
   link: <Link2 size={18} />,
@@ -41,23 +58,289 @@ const kindColors: Record<string, string> = {
 };
 
 const statusConfig: Record<string, { variant: 'mint' | 'amber' | 'rose' | 'violet' | 'muted'; label: string }> = {
-  pending: { variant: 'amber', label: 'Pending' },
-  extracted: { variant: 'mint', label: 'Extracted' },
-  failed: { variant: 'rose', label: 'Failed' },
+  uploading: { variant: 'violet', label: 'Uploading' },
+  pending_review: { variant: 'amber', label: 'Pending review' },
+  confirmed: { variant: 'mint', label: 'Confirmed' },
   rejected: { variant: 'muted', label: 'Rejected' },
+  extraction_pending: { variant: 'violet', label: 'Extraction pending' },
+  extraction_completed: { variant: 'mint', label: 'Extraction completed' },
+  extraction_failed: { variant: 'rose', label: 'Extraction failed' },
 };
+
+function uploadEvidenceFile(
+  signedUrl: string,
+  file: File,
+  onProgress: (progress: number) => void
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open('PUT', signedUrl);
+    request.setRequestHeader('Content-Type', file.type);
+    request.setRequestHeader('x-upsert', 'false');
+    request.timeout = 120_000;
+    request.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable) {
+        onProgress(Math.round((event.loaded / event.total) * 100));
+      }
+    });
+    request.addEventListener('load', () => {
+      if (request.status >= 200 && request.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(`Storage upload failed with status ${request.status}`));
+      }
+    });
+    request.addEventListener('error', () => reject(new Error('Storage upload failed')));
+    request.addEventListener('timeout', () => reject(new Error('Storage upload timed out')));
+    request.send(file);
+  });
+}
 
 export default function EvidencePage() {
   const [activeTab, setActiveTab] = useState<'evidence' | 'focus_sessions'>('evidence');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [dragOver, setDragOver] = useState(false);
-  const [sessions, setSessions] = useState<MockFocusSession[]>(mockFocusSessions);
+  const [evidence, setEvidence] = useState<EvidenceRecord[]>([]);
+  const [squads, setSquads] = useState<EvidenceSquad[]>([]);
+  const [selectedSquadId, setSelectedSquadId] = useState('');
+  const [sessions, setSessions] = useState<MockFocusSession[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isLoadingEvidence, setIsLoadingEvidence] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadKeysRef = useRef(new Map<string, string>());
 
+  useEffect(() => {
+    let cancelled = false;
+    async function loadSquads() {
+      try {
+        const squadResponse = await fetch('/api/squads');
+        const squadResult = await squadResponse.json();
+        if (!squadResponse.ok || !squadResult.success) {
+          throw new Error(squadResult.error || 'Unable to load squads');
+        }
+        if (cancelled) return;
+        const availableSquads = squadResult.data as EvidenceSquad[];
+        setSquads(availableSquads);
+        setSelectedSquadId((current) => current || availableSquads[0]?.id || '');
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(error instanceof Error ? error.message : 'Unable to load squads');
+        }
+      }
+    }
+
+    void loadSquads();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadSessions() {
+      try {
+        const response = await fetch('/api/focus-sessions');
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || 'Unable to load focus sessions');
+        }
+        if (!cancelled) setSessions(result.data as MockFocusSession[]);
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(error instanceof Error ? error.message : 'Unable to load focus sessions');
+        }
+      }
+    }
+
+    void loadSessions();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedSquadId) {
+      return;
+    }
+
+    let cancelled = false;
+    async function loadEvidence() {
+      setIsLoadingEvidence(true);
+      setLoadError(null);
+      try {
+        const response = await fetch(
+          `/api/evidence?squadId=${encodeURIComponent(selectedSquadId)}`
+        );
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || 'Unable to load evidence');
+        }
+        if (!cancelled) setEvidence(result.data as EvidenceRecord[]);
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(error instanceof Error ? error.message : 'Unable to load evidence');
+        }
+      } finally {
+        if (!cancelled) setIsLoadingEvidence(false);
+      }
+    }
+
+    void loadEvidence();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSquadId]);
+
+  const squadEvidence = evidence.filter((item) => item.squadId === selectedSquadId);
   const filtered = filterStatus === 'all'
-    ? mockEvidence
-    : mockEvidence.filter((e) => e.status === filterStatus);
+    ? squadEvidence
+    : squadEvidence.filter((e) => e.status === filterStatus);
+
+  const selectedSquad = squads.find((squad) => squad.id === selectedSquadId);
+  const canReviewEvidence =
+    selectedSquad?.currentRole === 'owner' || selectedSquad?.currentRole === 'approver';
+
+  const uploadFiles = async (files: FileList | File[]) => {
+    const queuedFiles = Array.from(files);
+    if (!selectedSquadId) {
+      setUploadMessage('Create or join a squad before uploading evidence.');
+      return;
+    }
+
+    setLoadError(null);
+    setUploadMessage(null);
+    for (const [index, file] of queuedFiles.entries()) {
+      setUploadProgress(0);
+      setUploadMessage(`Preparing ${file.name} (${index + 1} of ${queuedFiles.length})`);
+      let evidenceId: string | undefined;
+      let fileUploaded = false;
+      try {
+        const uploadIdentity =
+          `${selectedSquadId}:${file.name}:${file.size}:${file.lastModified}`;
+        const idempotencyKey =
+          uploadKeysRef.current.get(uploadIdentity) ?? crypto.randomUUID();
+        uploadKeysRef.current.set(uploadIdentity, idempotencyKey);
+        const prepareResponse = await fetch('/api/evidence', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': idempotencyKey,
+          },
+          body: JSON.stringify({
+            squadId: selectedSquadId,
+            fileName: file.name,
+            mimeType: file.type,
+            sizeBytes: file.size,
+          }),
+        });
+        const prepared = await prepareResponse.json();
+        if (!prepareResponse.ok || !prepared.success) {
+          throw new Error(prepared.error || `Unable to prepare ${file.name}`);
+        }
+        evidenceId = prepared.data.id as string;
+        if (prepared.data.completed) {
+          uploadKeysRef.current.delete(uploadIdentity);
+          continue;
+        }
+        if (typeof prepared.data.signedUrl !== 'string') {
+          throw new Error('Upload service did not return a signed upload URL');
+        }
+
+        await uploadEvidenceFile(
+          prepared.data.signedUrl,
+          file,
+          (progress) => {
+            setUploadProgress(progress);
+            setUploadMessage(`Uploading ${file.name} (${index + 1} of ${queuedFiles.length})`);
+          }
+        );
+        fileUploaded = true;
+        setUploadMessage(`Verifying ${file.name} (${index + 1} of ${queuedFiles.length})`);
+
+        const completeResponse = await fetch(`/api/evidence/${evidenceId}/complete`, {
+          method: 'POST',
+        });
+        const completed = await completeResponse.json();
+        if (!completeResponse.ok || !completed.success) {
+          throw new Error(completed.error || `Unable to save ${file.name}`);
+        }
+        uploadKeysRef.current.delete(uploadIdentity);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : `Unable to upload ${file.name}`;
+        if (evidenceId && fileUploaded) {
+          try {
+            const statusResponse = await fetch(`/api/evidence/${evidenceId}`);
+            const current = await statusResponse.json();
+            if (statusResponse.ok && current.success && current.data.status === 'pending_review') {
+              uploadKeysRef.current.delete(
+                `${selectedSquadId}:${file.name}:${file.size}:${file.lastModified}`
+              );
+              continue;
+            }
+            if (!statusResponse.ok || !current.success) {
+              setLoadError(`${message}. Could not confirm whether the upload completed; retry after checking the evidence list.`);
+              break;
+            }
+          } catch {
+            setLoadError(`${message}. Could not confirm whether the upload completed; retry after checking the evidence list.`);
+            break;
+          }
+        }
+        if (evidenceId) {
+          const cleanupResponse = await fetch(`/api/evidence/${evidenceId}`, {
+            method: 'DELETE',
+          });
+          if (!cleanupResponse.ok) {
+            setLoadError(`${message}. Upload cleanup also failed; retry deleting this evidence.`);
+            break;
+          }
+        }
+        setLoadError(message);
+      }
+    }
+    setUploadProgress(null);
+    setUploadMessage(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    try {
+      const response = await fetch(
+        `/api/evidence?squadId=${encodeURIComponent(selectedSquadId)}`
+      );
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Unable to refresh evidence');
+      }
+      setEvidence(result.data as EvidenceRecord[]);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Unable to refresh evidence');
+    }
+  };
+
+  const handleEvidenceReview = async (id: string, status: 'confirmed' | 'rejected') => {
+    setReviewingId(id);
+    setLoadError(null);
+    try {
+      const response = await fetch(`/api/evidence/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Unable to update evidence review');
+      }
+      setEvidence((current) =>
+        current.map((item) => (item.id === id ? result.data as EvidenceRecord : item))
+      );
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Unable to update evidence review');
+    } finally {
+      setReviewingId(null);
+    }
+  };
 
   const handleApproveSession = (id: string) => {
     setSessions(sessions.map((s) => (s.id === id ? { ...s, status: 'approved' as const } : s)));
@@ -78,8 +361,9 @@ export default function EvidencePage() {
                 Evidence & Work Trail
               </h1>
               <p className="text-base mt-1" style={{ color: 'var(--muted)' }}>
-                Upload deliverables, review AI extractions, and adjudicate opt-in focus session conflicts
+                Upload files, review squad evidence, and adjudicate opt-in focus session conflicts
               </p>
+              {loadError && <p role="alert" className="text-sm text-red-600 mt-2">{loadError}</p>}
             </div>
 
             {/* GuestVerify-inspired Luxury Capsule Toggle Bar (100% Visible & Responsive on Mobile) */}
@@ -122,68 +406,108 @@ export default function EvidencePage() {
           <>
             {/* Upload zone */}
             <Reveal delay={0.1}>
-          <div
-            className="mb-8 rounded-2xl border-2 border-dashed p-8 sm:p-12 text-center transition-all duration-200 cursor-pointer"
-            style={{
-              borderColor: dragOver ? 'var(--accent)' : 'color-mix(in srgb, var(--accent) 20%, transparent)',
-              background: dragOver ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'color-mix(in srgb, var(--accent) 2%, transparent)',
-            }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragOver(false);
-              // Would handle file upload here
-            }}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="hidden"
-              multiple
-              accept=".pdf,.png,.jpg,.jpeg,.csv,.txt,.mp3,.wav"
-            />
-            <div
-              className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-              style={{
-                background: 'var(--accent-subtle)',
-                color: 'var(--accent)',
-              }}
-            >
-              <Upload size={28} />
-            </div>
-            <p className="text-lg font-bold mb-2" style={{ color: 'var(--text)' }}>
-              Drop files here or click to upload
-            </p>
-            <p className="text-sm" style={{ color: 'var(--muted)' }}>
-              PDF, PNG, JPG, CSV, TXT, or audio (MP3/WAV) — Max 10MB each
-            </p>
-            <div className="flex items-center justify-center gap-3 mt-4">
-              {['PDF', 'Image', 'CSV', 'Link', 'Audio'].map((type) => (
-                <span
-                  key={type}
-                  className="text-xs font-semibold px-3 py-1 rounded-full"
+              <div className="mb-8">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                  <label className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                    Squad
+                    <select
+                      value={selectedSquadId}
+                      onChange={(event) => setSelectedSquadId(event.target.value)}
+                      onClick={(event) => event.stopPropagation()}
+                      className="ml-3 rounded-lg border px-3 py-2"
+                      style={{
+                        background: 'var(--surface)',
+                        color: 'var(--text)',
+                        borderColor: 'var(--border)',
+                      }}
+                    >
+                      <option value="">Select a squad</option>
+                      {squads.map((squad) => (
+                        <option key={squad.id} value={squad.id}>{squad.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  {selectedSquad && (
+                    <span className="text-xs capitalize" style={{ color: 'var(--muted)' }}>
+                      Your role: {selectedSquad.currentRole}
+                    </span>
+                  )}
+                </div>
+                <div
+                  className="rounded-2xl border-2 border-dashed p-8 sm:p-12 text-center transition-all duration-200 cursor-pointer"
                   style={{
-                    background: 'var(--accent-subtle)',
-                    color: 'var(--accent)',
+                    borderColor: dragOver ? 'var(--accent)' : 'color-mix(in srgb, var(--accent) 20%, transparent)',
+                    background: dragOver ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'color-mix(in srgb, var(--accent) 2%, transparent)',
+                    opacity: uploadProgress === null ? 1 : 0.75,
                   }}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    setDragOver(true);
+                  }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setDragOver(false);
+                    void uploadFiles(event.dataTransfer.files);
+                  }}
+                  onClick={() => uploadProgress === null && fileInputRef.current?.click()}
                 >
-                  {type}
-                </span>
-              ))}
-            </div>
-          </div>
-        </Reveal>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    multiple
+                    accept=".pdf,.png,.jpg,.jpeg,.csv,.txt,.mp3,.wav"
+                    disabled={uploadProgress !== null}
+                    onChange={(event) => {
+                      if (event.target.files) void uploadFiles(event.target.files);
+                    }}
+                  />
+                  <div
+                    className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                    style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}
+                  >
+                    <Upload size={28} />
+                  </div>
+                  <p className="text-lg font-bold mb-2" style={{ color: 'var(--text)' }}>
+                    {uploadProgress === null ? 'Drop files here or click to upload' : uploadMessage}
+                  </p>
+                  <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                    PDF, PNG, JPG, CSV, TXT, or audio (MP3/WAV) — Max 10MB each
+                  </p>
+                  {uploadProgress !== null && (
+                    <div className="max-w-md mx-auto mt-4">
+                      <progress className="w-full" max={100} value={uploadProgress} />
+                      <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                        {uploadProgress}% uploaded
+                      </p>
+                    </div>
+                  )}
+                  {uploadMessage && uploadProgress === null && (
+                    <p className="text-sm mt-3" role="status" style={{ color: 'var(--accent)' }}>
+                      {uploadMessage}
+                    </p>
+                  )}
+                  <div className="flex items-center justify-center gap-3 mt-4">
+                    {['PDF', 'Image', 'CSV', 'Text', 'Audio'].map((type) => (
+                      <span
+                        key={type}
+                        className="text-xs font-semibold px-3 py-1 rounded-full"
+                        style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}
+                      >
+                        {type}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </Reveal>
 
         {/* Filter bar */}
         <Reveal delay={0.15}>
           <div className="flex items-center gap-3 mb-6 overflow-x-auto pb-2">
             <Filter size={16} style={{ color: 'var(--muted)' }} />
-            {['all', 'pending', 'extracted', 'failed'].map((status) => (
+            {['all', 'pending_review', 'confirmed', 'rejected'].map((status) => (
               <button
                 key={status}
                 className="text-sm font-semibold px-4 py-2 rounded-xl transition-all whitespace-nowrap"
@@ -193,8 +517,8 @@ export default function EvidencePage() {
                 }}
                 onClick={() => setFilterStatus(status)}
               >
-                {status.charAt(0).toUpperCase() + status.slice(1)}
-                {status === 'all' && ` (${mockEvidence.length})`}
+                {status === 'all' ? 'All' : statusConfig[status].label}
+                {status === 'all' && ` (${evidence.length})`}
               </button>
             ))}
           </div>
@@ -202,15 +526,27 @@ export default function EvidencePage() {
 
         {/* Evidence list */}
         <div className="space-y-4">
+          {isLoadingEvidence && (
+            <p className="text-sm" role="status" style={{ color: 'var(--muted)' }}>
+              Loading evidence…
+            </p>
+          )}
+          {!isLoadingEvidence && squads.length === 0 && (
+            <p className="text-sm" style={{ color: 'var(--muted)' }}>
+              Join or create a squad to manage evidence.
+            </p>
+          )}
+          {!isLoadingEvidence && selectedSquadId && filtered.length === 0 && (
+            <p className="text-sm" style={{ color: 'var(--muted)' }}>
+              No evidence matches this filter yet.
+            </p>
+          )}
           {filtered.map((evi, idx) => {
-            const contributions = mockContributions.filter(
-              (c) => c.evidenceId === evi.id
-            );
             const isExpanded = expandedId === evi.id;
-            const hasConflicts = contributions.some(
-              (c) => c.flags.length > 0
-            );
-            const sc = statusConfig[evi.status] || statusConfig.pending;
+            const sc = statusConfig[evi.status] ?? {
+              variant: 'muted' as const,
+              label: evi.status,
+            };
 
             return (
               <Reveal key={evi.id} delay={idx * 0.05}>
@@ -226,35 +562,27 @@ export default function EvidencePage() {
                       className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                       style={{
                         background: `color-mix(in srgb,  8%, transparent)`,
-                        color: kindColors[evi.kind],
+                        color: kindColors[evi.kind] ?? 'var(--accent)',
                       }}
                     >
-                      {kindIcons[evi.kind]}
+                      {kindIcons[evi.kind] ?? <FileText size={18} aria-hidden="true" />}
                     </div>
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>
-                          {evi.fileName}
+                          {evi.fileName ?? 'Untitled file'}
                         </p>
-                        {hasConflicts && (
-                          <AlertTriangle size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-                        )}
                       </div>
                       <p className="text-xs mt-0.5" style={{ color: 'var(--muted-light)' }}>
                         {evi.kind.toUpperCase()} &bull;{' '}
-                        {(evi.sizeBytes / 1024).toFixed(0)} KB &bull;{' '}
+                        {((evi.sizeBytes ?? 0) / 1024).toFixed(0)} KB &bull;{' '}
                         {new Date(evi.createdAt).toLocaleDateString()}
                       </p>
                     </div>
 
                     <div className="flex items-center gap-3">
                       <StatusChip label={sc.label} variant={sc.variant} />
-                      {contributions.length > 0 && (
-                        <span className="text-xs font-semibold" style={{ color: 'var(--muted)' }}>
-                          {contributions.length} record{contributions.length !== 1 ? 's' : ''}
-                        </span>
-                      )}
                       <motion.div
                         animate={{ rotate: isExpanded ? 180 : 0 }}
                         transition={{ duration: 0.2 }}
@@ -264,9 +592,8 @@ export default function EvidencePage() {
                     </div>
                   </div>
 
-                  {/* Expanded: extracted contributions */}
                   <AnimatePresence>
-                    {isExpanded && contributions.length > 0 && (
+                    {isExpanded && (
                       <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
@@ -281,68 +608,42 @@ export default function EvidencePage() {
                             borderTop: '1px solid var(--border)',
                           }}
                         >
-                          <div className="flex items-center gap-2 mb-3">
-                            <Brain size={14} style={{ color: 'var(--accent)' }} />
-                            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--accent)' }}>
-                              AI Extracted Records
-                            </span>
-                          </div>
-                          {contributions.map((c) => (
-                            <div
-                              key={c.id}
-                              className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl"
-                              style={{
-                                background: c.flags.length > 0
-                                  ? 'var(--primary-subtle)'
-                                  : 'var(--surface)',
-                                border: `1px solid ${c.flags.length > 0 ? 'color-mix(in srgb, var(--accent) 20%, transparent)' : 'var(--border)'}`,
-                              }}
+                          <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                            Uploaded by {evi.uploader.name ?? 'Squad member'} on{' '}
+                            {new Date(evi.createdAt).toLocaleString()}
+                          </p>
+                          {evi.reviewedAt && (
+                            <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                              Reviewed by {evi.reviewedBy?.name ?? 'Squad member'} on{' '}
+                              {new Date(evi.reviewedAt).toLocaleString()}
+                            </p>
+                          )}
+                          <div className="flex flex-wrap items-center gap-3">
+                            <a
+                              className="btn-secondary text-sm py-2 px-4"
+                              href={`/api/evidence/${evi.id}/file`}
                             >
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
-                                  {c.memberName}
-                                </p>
-                                <p className="text-xs" style={{ color: 'var(--muted)' }}>
-                                  {c.quantity} {c.unit} of {c.activity} &bull; {c.period}
-                                </p>
-                                {c.flags.length > 0 && (
-                                  <div className="mt-1.5 space-y-1">
-                                    {c.flags.map((flag, fi) => (
-                                      <p
-                                        key={fi}
-                                        className="text-xs flex items-center gap-1"
-                                        style={{ color: 'var(--primary)' }}
-                                      >
-                                        <AlertTriangle size={12} />
-                                        {flag}
-                                      </p>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <ConfidenceMeter value={c.confidence} />
-                                <StatusChip
-                                  label={c.status}
-                                  variant={
-                                    c.status === 'confirmed' ? 'mint' :
-                                    c.status === 'pending' ? 'amber' :
-                                    c.status === 'rejected' ? 'rose' : 'muted'
-                                  }
-                                />
-                              </div>
-                            </div>
-                          ))}
-
-                          {/* Action buttons */}
-                          <div className="flex items-center gap-3 mt-4">
-                            <button className="btn-3d btn-3d-sm">
-                              <CheckCircle2 size={14} />
-                              Confirm all
-                            </button>
-                            <button className="btn-secondary text-sm py-2 px-4">
-                              Re-extract
-                            </button>
+                              Download file
+                            </a>
+                            {canReviewEvidence && evi.status === 'pending_review' && (
+                              <>
+                                <button
+                                  className="btn-3d btn-3d-sm"
+                                  disabled={reviewingId === evi.id}
+                                  onClick={() => void handleEvidenceReview(evi.id, 'confirmed')}
+                                >
+                                  <CheckCircle2 size={14} />
+                                  {reviewingId === evi.id ? 'Saving…' : 'Confirm evidence'}
+                                </button>
+                                <button
+                                  className="btn-secondary text-sm py-2 px-4"
+                                  disabled={reviewingId === evi.id}
+                                  onClick={() => void handleEvidenceReview(evi.id, 'rejected')}
+                                >
+                                  Reject evidence
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
                       </motion.div>

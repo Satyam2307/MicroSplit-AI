@@ -138,6 +138,19 @@ export async function verifyWebhookSignature(
   headers: Record<string, string>,
   body: string
 ): Promise<boolean> {
+  if (
+    !PAYPAL_WEBHOOK_ID ||
+    !PAYPAL_CLIENT_ID ||
+    !PAYPAL_CLIENT_SECRET ||
+    !headers['paypal-auth-algo'] ||
+    !headers['paypal-cert-url'] ||
+    !headers['paypal-transmission-id'] ||
+    !headers['paypal-transmission-sig'] ||
+    !headers['paypal-transmission-time']
+  ) {
+    return false;
+  }
+
   const token = await getAccessToken();
 
   const verifyBody = {
