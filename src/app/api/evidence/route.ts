@@ -1,85 +1,181 @@
-// POST /api/evidence – Upload evidence
-// POST /api/evidence/:id/extract – Run AI extraction
-import { NextRequest, NextResponse } from 'next/server';
-import { mockEvidence, mockContributions } from '@/lib/mock-data';
-import CryptoJS from 'crypto-js';
-import { getPrisma } from '@/lib/prisma';
-import { requireAuthenticatedActor, requireSquadRole } from '@/lib/authorization';
+import { randomUUID } from "node:crypto";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuthenticatedActor, requireSquadRole } from "@/lib/authorization";
+import {
+  EvidenceStorageError,
+  getEvidenceStorage,
+} from "@/lib/evidence-storage";
+import {
+  EvidenceWorkflowError,
+  prepareEvidenceUpload,
+  validateEvidenceUploadMetadata,
+  type EvidenceUploadRecord,
+} from "@/lib/evidence-workflow";
+import { getPrisma } from "@/lib/prisma";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const ALLOWED_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'text/csv', 'text/plain', 'audio/mpeg', 'audio/wav'];
+const uploadRoles = ["owner", "approver", "contributor"] as const;
 
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { squadId, kind, fileName, fileUrl, mimeType, sizeBytes } = body;
-
-    if (!squadId || !kind || !fileName) {
-      return NextResponse.json(
-        { success: false, error: 'squadId, kind, and fileName are required' },
-        { status: 400 }
-      );
-    }
-
-    const access = await requireSquadRole(squadId, ['owner', 'approver', 'contributor']);
-    if (!access.ok) return access.response;
-
-    // Validate file type
-    if (mimeType && !ALLOWED_TYPES.includes(mimeType)) {
-      return NextResponse.json(
-        { success: false, error: `File type ${mimeType} not allowed. Accepted: PDF, PNG, JPG, CSV, TXT, MP3, WAV` },
-        { status: 400 }
-      );
-    }
-
-    // Validate file size
-    if (sizeBytes && sizeBytes > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        { success: false, error: `File exceeds 10MB limit (${(sizeBytes / 1024 / 1024).toFixed(1)}MB)` },
-        { status: 400 }
-      );
-    }
-
-    // Compute hash
-    const sha256 = CryptoJS.SHA256(fileName + Date.now().toString()).toString().substring(0, 16);
-
-    const evidence = {
-      id: `evi_${Date.now()}`,
-      squadId,
-      uploaderId: access.value.userId,
-      kind,
-      fileName,
-      fileUrl: fileUrl || `/evidence/${fileName}`,
-      sha256,
-      mimeType: mimeType || 'application/octet-stream',
-      sizeBytes: sizeBytes || 0,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-    };
-
-    mockEvidence.push(evidence);
-    return NextResponse.json({ success: true, data: evidence }, { status: 201 });
-  } catch {
-    return NextResponse.json({ success: false, error: 'Invalid request' }, { status: 400 });
-  }
-}
-
-export async function GET() {
   const actor = await requireAuthenticatedActor();
   if (!actor.ok) return actor.response;
 
-  const memberships = await getPrisma().membership.findMany({
-    where: { userId: actor.value.userId },
-    select: { squadId: true },
-  });
-  const squadIds = new Set(memberships.map((membership) => membership.squadId));
+  let parsedBody: unknown;
+  try {
+    parsedBody = await request.json();
+  } catch {
+    return NextResponse.json(
+      { success: false, error: "Request body must be valid JSON" },
+      { status: 400 }
+    );
+  }
+  if (
+    !parsedBody ||
+    typeof parsedBody !== "object" ||
+    Array.isArray(parsedBody)
+  ) {
+    return NextResponse.json(
+      { success: false, error: "Request body must be a JSON object" },
+      { status: 400 }
+    );
+  }
+  const body = parsedBody as Record<string, unknown>;
 
-  const evidence = mockEvidence.filter((item) => squadIds.has(item.squadId));
-  const evidenceIds = new Set(evidence.map((item) => item.id));
+  const idempotencyKey = request.headers.get("Idempotency-Key");
+  let metadata: ReturnType<typeof validateEvidenceUploadMetadata>;
+  try {
+    metadata = validateEvidenceUploadMetadata({
+      squadId: typeof body.squadId === "string" ? body.squadId : undefined,
+      idempotencyKey: idempotencyKey ?? undefined,
+      fileName: typeof body.fileName === "string" ? body.fileName : undefined,
+      mimeType: typeof body.mimeType === "string" ? body.mimeType : undefined,
+      sizeBytes: typeof body.sizeBytes === "number" ? body.sizeBytes : undefined,
+    });
+  } catch (error) {
+    if (error instanceof EvidenceWorkflowError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: error.statusCode }
+      );
+    }
+    throw error;
+  }
 
-  return NextResponse.json({
-    success: true,
-    data: evidence,
-    contributions: mockContributions.filter((item) => evidenceIds.has(item.evidenceId)),
+  const access = await requireSquadRole(metadata.squadId, uploadRoles);
+  if (!access.ok) return access.response;
+
+  try {
+    const prisma = getPrisma();
+    const storage = getEvidenceStorage();
+    const repository = {
+      findByIdempotencyKey: (squadId: string, uploaderId: string, key: string) =>
+        prisma.evidence.findFirst({
+          where: { squadId, uploaderId, idempotencyKey: key },
+        }),
+      create: (input: {
+        squadId: string;
+        uploaderId: string;
+        idempotencyKey: string;
+        fileName: string;
+        mimeType: string;
+        sizeBytes: number;
+        kind: string;
+        storageKey: string;
+      }) =>
+        prisma.evidence.create({
+          data: {
+            ...input,
+            fileUrl: null,
+            sha256: null,
+            status: "uploading",
+          },
+        }),
+      deleteUploading: async (id: string) => {
+        await prisma.evidence.deleteMany({ where: { id, status: "uploading" } });
+      },
+    };
+    const prepared = await prepareEvidenceUpload<EvidenceUploadRecord>(
+      {
+        ...metadata,
+        uploaderId: actor.value.userId,
+      },
+      `${metadata.squadId}/${randomUUID()}`,
+      repository,
+      storage
+    );
+
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          id: prepared.record.id,
+          status: prepared.record.status,
+          completed: prepared.reused && prepared.record.status === "pending_review",
+          signedUrl: prepared.signedUrl || undefined,
+        },
+      },
+      { status: prepared.reused ? 200 : 201 }
+    );
+  } catch (error) {
+    if (error instanceof EvidenceWorkflowError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: error.statusCode }
+      );
+    }
+    console.error("Unable to prepare evidence upload", error);
+    return NextResponse.json(
+      { success: false, error: "Unable to prepare evidence upload" },
+      { status: error instanceof EvidenceStorageError ? 502 : 500 }
+    );
+  }
+}
+
+export async function GET(request: NextRequest) {
+  const actor = await requireAuthenticatedActor();
+  if (!actor.ok) return actor.response;
+
+  const requestedSquadId = request.nextUrl.searchParams.get("squadId");
+  let squadIds: string[];
+  if (requestedSquadId) {
+    const access = await requireSquadRole(requestedSquadId);
+    if (!access.ok) return access.response;
+    squadIds = [requestedSquadId];
+  } else {
+    const memberships = await getPrisma().membership.findMany({
+      where: { userId: actor.value.userId },
+      select: { squadId: true },
+    });
+    squadIds = memberships.map(({ squadId }) => squadId);
+  }
+
+  if (squadIds.length === 0) {
+    return NextResponse.json({ success: true, data: [] });
+  }
+
+  const evidence = await getPrisma().evidence.findMany({
+    where: {
+      squadId: { in: squadIds },
+      storageKey: { not: null },
+      status: { notIn: ["uploading", "deletion_pending"] },
+    },
+    select: {
+      id: true,
+      squadId: true,
+      uploaderId: true,
+      kind: true,
+      fileName: true,
+      sha256: true,
+      mimeType: true,
+      sizeBytes: true,
+      status: true,
+      reviewedById: true,
+      reviewedAt: true,
+      createdAt: true,
+      uploader: { select: { name: true } },
+      reviewedBy: { select: { name: true } },
+    },
+    orderBy: { createdAt: "desc" },
   });
+
+  return NextResponse.json({ success: true, data: evidence });
 }

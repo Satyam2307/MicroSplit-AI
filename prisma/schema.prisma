@@ -23,6 +23,7 @@ model User {
   ownedSquads       Squad[]
   memberships       Membership[]
   evidence          Evidence[]
+  evidenceReviewed  Evidence[] @relation("EvidenceReviewer")
   contributions     Contribution[]
   approvals         Approval[]
   freezeGrantsGiven FreezeGrant[]
@@ -106,21 +107,28 @@ model Evidence {
   id         String   @id @default(cuid())
   squadId    String   @map("squad_id")
   uploaderId String   @map("uploader_id")
+  reviewedById String? @map("reviewed_by_id")
+  reviewedAt DateTime? @map("reviewed_at")
   kind       String // text | pdf | image | audio | csv | link
   fileName   String?  @map("file_name")
-  fileUrl    String   @map("file_url")
-  sha256     String
+  fileUrl    String?  @map("file_url")
+  storageKey String?  @unique @map("storage_key")
+  idempotencyKey String? @map("idempotency_key")
+  sha256     String?
   mimeType   String?  @map("mime_type")
   sizeBytes  Int?     @map("size_bytes")
-  status     String   @default("pending") // pending | extracted | failed | rejected
+  status     String   @default("pending") // pending is legacy; new records use uploading, pending_review, confirmed, rejected, or extraction states
   createdAt  DateTime @default(now()) @map("created_at")
 
   squad         Squad          @relation(fields: [squadId], references: [id], onDelete: Cascade)
   uploader      User           @relation(fields: [uploaderId], references: [id])
+  reviewedBy    User?          @relation("EvidenceReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   contributions Contribution[]
   aiLogs        AILog[]
   focusSessions FocusSession[]
 
+  @@unique([squadId, uploaderId, idempotencyKey])
+  @@index([squadId, createdAt])
   @@map("evidence")
 }
 
