@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
     const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'anonymous';
     const rateLimit = checkRateLimit(`contact_${clientIp}`, {
       intervalMs: 300000, // 5 minutes
-      maxRequests: 15,
+      maxRequests: 5,
     });
 
     if (!rateLimit.success) {
@@ -23,12 +23,12 @@ export async function POST(req: NextRequest) {
 
     // 2. Parse & Sanitize Body
     const body = await req.json();
-    const name = sanitizeText(body.name || 'Visitor');
+    const name = sanitizeText(body.name);
     const rawEmail = body.email;
     const email = sanitizeEmail(rawEmail);
     const squad = sanitizeText(body.squad || '');
     const topic = sanitizeText(body.topic || 'General Inquiry');
-    const message = sanitizeText(body.message || `Inquiry regarding ${topic}`);
+    const message = sanitizeText(body.message);
     const whatsapp = sanitizeText(body.whatsapp || '');
 
     // 3. Validation
@@ -46,88 +46,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!message || message.length < 3) {
+    if (!message || message.length < 10) {
       return NextResponse.json(
-        { error: 'Please enter a message with at least 3 characters.' },
+        { error: 'Please enter a message with at least 10 characters.' },
         { status: 400 }
       );
     }
 
-    // 4. Ticket generation & dispatch links
+    // 4. Ticket generation & confirmation
     const ticketId = `MS-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
-
-    const adminEmail = 'akshatsinghai6682@gmail.com';
-
-    // Normalize user's typed phone number so WhatsApp sends directly to the user's typed number!
-    const userPhoneDigits = whatsapp ? whatsapp.replace(/[^0-9]/g, '') : '';
-    const targetUserPhone =
-      userPhoneDigits.length === 10
-        ? `91${userPhoneDigits}`
-        : userPhoneDigits.length >= 7
-        ? userPhoneDigits
-        : '';
-
-    // Formatted WhatsApp message for dispatch to the user's typed phone number
-    let userWhatsappUrl: string | null = null;
-    let whatsappAlertUrl: string | null = null;
-
-    if (targetUserPhone) {
-      const userWaText = encodeURIComponent(
-        `👋 *Hello ${name}! Welcome to MicroSplit AI Support*\n\n` +
-        `🎫 *Your Ticket ID:* #${ticketId}\n` +
-        `🏷️ *Topic:* ${topic}\n\n` +
-        `💬 *Your Inquiry:*\n"${message}"\n\n` +
-        `✅ *Status:* Registered on Cryptographic Ledger.\n` +
-        `⚡ Our engineering team has received your ticket and will follow up with you on this number (+${targetUserPhone}) within 5 minutes.\n\n` +
-        `--\n*MicroSplit AI Official Support Desk*`
-      );
-      userWhatsappUrl = `https://wa.me/${targetUserPhone}?text=${userWaText}`;
-      whatsappAlertUrl = userWhatsappUrl;
-    }
-
-    // Gmail Web Compose URL
-    const emailSubject = encodeURIComponent(`[MicroSplit Ticket ${ticketId}] ${topic} from ${name}`);
-    const emailBody = encodeURIComponent(
-      `Hello MicroSplit Team,\n\nA new inquiry has been submitted:\n\n` +
-      `Name: ${name}\n` +
-      `Email: ${email}\n` +
-      `Phone/WhatsApp: ${whatsapp || 'Not provided'}\n` +
-      `Squad: ${squad || 'N/A'}\n` +
-      `Topic: ${topic}\n` +
-      `Ticket ID: ${ticketId}\n\n` +
-      `Message:\n${message}\n\n` +
-      `--\nMicroSplit AI Automation`
-    );
-
-    const gmailComposeUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${adminEmail},support@microsplit.ai&su=${emailSubject}&body=${emailBody}`;
-    const mailtoUrl = `mailto:${adminEmail}?cc=support@microsplit.ai&subject=${emailSubject}&body=${emailBody}`;
-
-    // Automated follow-up resolution summary
-    const autoFollowUp = {
-      ticketId,
-      status: 'received',
-      summary: `Thank you ${name}. Your inquiry regarding "${topic}" has been logged under ticket #${ticketId}. Our founder and engineering team have been alerted.`,
-      nextStep: 'Check the AI Concierge tab for instant answers, or expect an engineer follow-up on your WhatsApp or Email.',
-    };
 
     return NextResponse.json(
       {
         success: true,
         ticketId,
-        message: 'Your inquiry has been registered. Our AI concierge and support team have been notified.',
-        autoFollowUp,
+        message: 'Your message has been received. Our team will respond within 2 hours.',
         details: {
           name,
           email,
           squad: squad || undefined,
           topic,
-          whatsapp: targetUserPhone ? `+${targetUserPhone}` : undefined,
-          adminEmail,
-        },
-        dispatch: {
-          whatsappAlertUrl,
-          gmailComposeUrl,
-          mailtoUrl,
+          whatsapp: whatsapp || undefined,
+          domainEmail: 'support@microsplit.ai',
         },
       },
       { status: 200 }

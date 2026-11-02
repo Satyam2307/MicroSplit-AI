@@ -25,8 +25,6 @@ import {
   WeightBar,
 } from '@/components/ui';
 import PaymentCard from '@/components/PaymentCard';
-import ShowcaseGallery from '@/components/ShowcaseGallery';
-import CinematicVaultGallery from '@/components/CinematicVaultGallery';
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    HERO — GuestVerify-inspired split layout
@@ -65,9 +63,7 @@ function HeroSection() {
                 style={{ color: 'var(--primary)' }}
               >
                 Split squad revenue,<br />
-                <span className="bg-gradient-to-r from-[#0F9D8A] via-[#14B8A6] to-[#10B981] bg-clip-text text-transparent">
-                  with better judgment.
-                </span>
+                <span style={{ color: 'var(--accent)' }}>with better judgment.</span>
               </h1>
             </Reveal>
 
@@ -369,8 +365,6 @@ export default function HomePage() {
   return (
     <>
       <HeroSection />
-      <CinematicVaultGallery />
-      <ShowcaseGallery />
       <HowItWorksSection />
       <TrustStrip />
       <CTASection />
