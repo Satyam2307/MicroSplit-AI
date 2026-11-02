@@ -5,7 +5,7 @@ import Footer from "@/components/Footer";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import Analytics from "@/components/Analytics";
 import ToastContainer from "@/components/Toast";
-import AnimatedBackground from "@/components/AnimatedBackground";
+import AuthProvider from "@/components/AuthProvider";
 import { Suspense } from "react";
 
 export const viewport: Viewport = {
@@ -136,16 +136,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col overflow-x-hidden relative" style={{ background: "var(--background)" }}>
-        <AnimatedBackground />
-        <Suspense fallback={<div className="h-[64px]" style={{ background: "var(--primary)", borderBottom: "1px solid color-mix(in srgb, var(--background) 8%, transparent)" }} />}>
-          <Navbar />
-        </Suspense>
-        <main className="flex-1 w-full max-w-full overflow-x-hidden">{children}</main>
-        <Footer />
-        <WhatsAppButton />
-        <Analytics />
-        <ToastContainer />
+      <body className="min-h-full flex flex-col overflow-x-hidden" style={{ background: "var(--background)" }}>
+        <AuthProvider>
+          <Suspense fallback={<div className="h-[64px]" style={{ background: "var(--primary)", borderBottom: "1px solid color-mix(in srgb, var(--background) 8%, transparent)" }} />}>
+            <Navbar />
+          </Suspense>
+          <main className="flex-1 w-full max-w-full overflow-x-hidden">{children}</main>
+          <Footer />
+          <WhatsAppButton />
+          <Analytics />
+          <ToastContainer />
+        </AuthProvider>
       </body>
     </html>
   );
