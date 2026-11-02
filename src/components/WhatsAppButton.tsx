@@ -348,6 +348,40 @@ export default function WhatsAppButton() {
     }
   };
 
+  // Quick Direct WhatsApp Inquiry Dispatch
+  const handleQuickWhatsAppInquiry = (phoneToUse?: string) => {
+    const raw = phoneToUse || contactWhatsapp;
+    const digits = raw.replace(/[^0-9]/g, '');
+    const target =
+      digits.length === 10
+        ? `91${digits}`
+        : digits.length >= 7
+        ? digits
+        : '';
+
+    if (!target) {
+      setContactError('Please enter a valid WhatsApp / Phone number (at least 10 digits).');
+      return;
+    }
+
+    setContactError(null);
+    const quickTicket = `MS-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+    const quickMsg =
+      `👋 *Hello! MicroSplit AI Inquiry Ticket*\n\n` +
+      `🎫 *Ticket ID:* #${quickTicket}\n` +
+      `🏷️ *Topic:* ${contactTopic || '0-Cent Split & Math'}\n` +
+      `📱 *Recipient Phone:* +${target}\n\n` +
+      `💬 *Inquiry Message:*\n"${contactMessage.trim() || 'Hi MicroSplit Team! I am enquiring about squad revenue splits, evidence verification, and PayPal batch payouts.'}"\n\n` +
+      `⚡ *Status:* Registered on Cryptographic Ledger.\n` +
+      `Our team will assist you on this WhatsApp thread.\n\n` +
+      `---\n*MicroSplit AI Official Support Desk*`;
+
+    const waUrl = `https://wa.me/${target}?text=${encodeURIComponent(quickMsg)}`;
+    if (typeof window !== 'undefined') {
+      window.open(waUrl, '_blank');
+    }
+  };
+
   // Format countdown minutes:seconds
   const formatCountdown = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -360,33 +394,43 @@ export default function WhatsAppButton() {
       {/* ─── Floating Launcher Button ─── */}
       {!isOpen && (
         <aside
-          aria-label="MicroSplit Assistant"
-          className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2.5"
+          aria-label="MicroSplit WhatsApp Assistant"
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 sm:gap-3"
         >
           {showTooltip && (
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#0B1F3A] text-white rounded-xl shadow-xl border border-teal-500/30 text-xs font-semibold animate-in fade-in slide-in-from-right-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>MicroSplit AI Concierge</span>
+            <div
+              onClick={() => {
+                setActiveTab('contact');
+                setIsOpen(true);
+                setShowTooltip(false);
+              }}
+              className="flex items-center gap-2 px-3.5 py-2 bg-white text-slate-800 rounded-full shadow-lg border border-slate-200 text-xs font-semibold cursor-pointer hover:shadow-xl hover:border-teal-500 transition-all select-none group"
+            >
+              <span className="text-slate-800 font-medium group-hover:text-teal-700 transition-colors">
+                Chat on WhatsApp
+              </span>
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowTooltip(false);
                 }}
-                className="text-slate-400 hover:text-white transition-colors ml-1 p-0.5"
-                aria-label="Dismiss tooltip"
+                className="text-slate-400 hover:text-slate-700 transition-colors p-0.5 rounded-full hover:bg-slate-100"
+                aria-label="Dismiss"
               >
-                <X className="w-3 h-3" />
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
           )}
 
           <button
             onClick={() => {
+              setActiveTab('contact');
               setIsOpen(true);
               setShowTooltip(false);
             }}
-            aria-label="Open MicroSplit AI Concierge"
-            className="relative flex items-center justify-center w-14 h-14 rounded-full text-white shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-teal-400/40"
+            aria-label="Chat on WhatsApp"
+            className="relative flex items-center justify-center w-14 h-14 rounded-full text-white shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-teal-400/40 cursor-pointer"
             style={{
               background: 'linear-gradient(135deg, #0F9D8A 0%, #087F73 100%)',
               boxShadow: '0 8px 24px rgba(15, 157, 138, 0.45)',
@@ -395,7 +439,7 @@ export default function WhatsAppButton() {
             <MessageCircle className="w-7 h-7 fill-current" />
             <span className="absolute -top-1 -right-1 flex h-4 w-4">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-[#0B1F3A]" />
+              <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-400 border-2 border-white" />
             </span>
           </button>
         </aside>
@@ -706,6 +750,44 @@ export default function WhatsAppButton() {
                       </p>
                     </div>
                   </div>
+                </div>
+
+                {/* ── Quick Direct WhatsApp Inquiry Bar ── */}
+                <div className="bg-gradient-to-r from-emerald-950 via-[#0B1F3A] to-[#102C4D] text-white p-4 rounded-2xl border border-emerald-500/30 shadow-xs relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-xs flex items-center gap-1.5 text-emerald-300">
+                      <MessageCircle className="w-4 h-4 text-emerald-400" />
+                      <span>Instant WhatsApp Chat</span>
+                    </span>
+                    <span className="text-[9.5px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                      Direct WhatsApp
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 mb-2.5">
+                    Type any phone number to immediately open WhatsApp with an enquiry ticket:
+                  </p>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleQuickWhatsAppInquiry();
+                    }}
+                    className="flex flex-col sm:flex-row gap-2"
+                  >
+                    <input
+                      type="tel"
+                      placeholder="e.g. 9876543210 or +1..."
+                      value={contactWhatsapp}
+                      onChange={(e) => setContactWhatsapp(e.target.value)}
+                      className="flex-1 px-3 py-2 rounded-xl bg-white/10 border border-emerald-500/30 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-emerald-400"
+                    />
+                    <button
+                      type="submit"
+                      className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1 transition-colors shadow-sm flex-shrink-0 cursor-pointer"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      <span>Chat on WhatsApp →</span>
+                    </button>
+                  </form>
                 </div>
 
                 {/* ── Dynamic Holographic Inquiry Terminal ── */}
