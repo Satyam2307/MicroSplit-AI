@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
@@ -23,7 +23,7 @@ import {
   StatusChip,
   ProgressPipeline,
 } from '@/components/ui';
-import { mockPayoutBatches } from '@/lib/mock-data';
+import type { MockPayoutBatch } from '@/lib/mock-data';
 import { formatMoney } from '@/lib/money';
 
 const itemStatusConfig: Record<string, { icon: React.ReactNode; variant: 'mint' | 'amber' | 'rose' | 'muted'; color: string }> = {
@@ -37,7 +37,47 @@ const itemStatusConfig: Record<string, { icon: React.ReactNode; variant: 'mint' 
 };
 
 export default function PayoutsPage() {
-  const batch = mockPayoutBatches[0]; // Primary batch
+  const [batches, setBatches] = useState<MockPayoutBatch[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadPayouts() {
+      try {
+        const response = await fetch('/api/payouts');
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || 'Unable to load payouts');
+        }
+        if (!cancelled) setBatches(result.data);
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(error instanceof Error ? error.message : 'Unable to load payouts');
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+
+    void loadPayouts();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const batch = batches[0];
+  if (isLoading) {
+    return <div className="p-12 text-center text-[var(--muted)]">Loading payouts...</div>;
+  }
+  if (loadError || !batch) {
+    return (
+      <div className="p-12 text-center text-[var(--muted)]">
+        {loadError || 'No payouts are available for your squads yet.'}
+      </div>
+    );
+  }
+
   const successCount = batch.items.filter((i) => i.status === 'success').length;
   const failedItems = batch.items.filter((i) => i.status === 'failed');
   const totalPaid = batch.items

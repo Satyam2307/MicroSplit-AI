@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -22,14 +22,25 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Reveal, Card, MoneyChip } from '@/components/ui';
-import { mockSquads, mockUsers, mockMemberships } from '@/lib/mock-data';
 import { formatMoney } from '@/lib/money';
 import { showToast } from '@/components/Toast';
 
+interface SquadListItem {
+  id: string;
+  name: string;
+  ownerId: string;
+  currency: string;
+  memberCount: number;
+  totalRevenue: number;
+  currentRole: string;
+  owner: { name: string } | null;
+}
+
 export default function SquadsPage() {
   const router = useRouter();
-  const [squads, setSquads] = useState(mockSquads);
+  const [squads, setSquads] = useState<SquadListItem[]>([]);
   const [search, setSearch] = useState('');
+  const [listError, setListError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newSquadName, setNewSquadName] = useState('');
   const [newSquadCurrency, setNewSquadCurrency] = useState('USD');
@@ -41,7 +52,28 @@ export default function SquadsPage() {
   );
 
   const totalPool = squads.reduce((sum, s) => sum + s.totalRevenue, 0);
-  const totalCollaborators = mockMemberships.length;
+  const totalCollaborators = squads.reduce((sum, squad) => sum + squad.memberCount, 0);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/squads')
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || 'Unable to load squads');
+        }
+        if (active) setSquads(result.data);
+      })
+      .catch((err: unknown) => {
+        if (active) {
+          setListError(err instanceof Error ? err.message : 'Unable to load squads');
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleCreateSquad = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,21 +92,12 @@ export default function SquadsPage() {
         body: JSON.stringify({
           name: newSquadName.trim(),
           currency: newSquadCurrency,
-          ownerId: 'usr_1',
         }),
       });
 
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Failed to create squad');
-      }
-
-      // Sync in-memory arrays so new squad and its single owner member exist immediately
-      if (!mockSquads.some((s) => s.id === data.data.id)) {
-        mockSquads.push(data.data);
-      }
-      if (data.membership && !mockMemberships.some((m) => m.id === data.membership.id)) {
-        mockMemberships.push(data.membership);
       }
 
       setSquads((prev) => [...prev.filter((s) => s.id !== data.data.id), data.data]);
@@ -108,8 +131,6 @@ export default function SquadsPage() {
       }
 
       setSquads((prev) => prev.filter((s) => s.id !== squadId));
-      const idx = mockSquads.findIndex((s) => s.id === squadId);
-      if (idx !== -1) mockSquads.splice(idx, 1);
 
       showToast({
         type: 'info',
@@ -223,9 +244,14 @@ export default function SquadsPage() {
         </div>
 
         {/* Squad Cards Grid */}
+        {listError && (
+          <p className="mb-5 text-sm font-semibold text-rose-700" role="alert">
+            {listError}
+          </p>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredSquads.map((squad, idx) => {
-            const owner = mockUsers.find((u) => u.id === squad.ownerId);
+            const owner = squad.owner;
             return (
               <Reveal key={squad.id} delay={idx * 0.05}>
                 <Card
@@ -250,7 +276,7 @@ export default function SquadsPage() {
                           status="paid"
                           size="sm"
                         />
-                        <button
+                        {squad.currentRole === 'owner' && <button
                           type="button"
                           onClick={(e) => {
                             e.preventDefault();
@@ -264,7 +290,7 @@ export default function SquadsPage() {
                           title={`Delete squad "${squad.name}"`}
                         >
                           <Trash2 size={15} />
-                        </button>
+                        </button>}
                       </div>
                     </div>
 

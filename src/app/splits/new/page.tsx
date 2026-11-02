@@ -2,13 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { getCurrencySymbol } from '@/lib/currency';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Zap,
-  Settings,
-  Users,
   Percent,
   BarChart3,
   Target,
@@ -16,22 +13,36 @@ import {
   ArrowRight,
   Plus,
   Minus,
-  DollarSign,
   Info,
   Flame,
-  Sparkles,
   CheckCircle2,
-  RefreshCw,
   Sliders,
-  UserPlus,
 } from 'lucide-react';
 import { Reveal, Card, WeightBar, MoneyChip } from '@/components/ui';
 import { formatMoney } from '@/lib/money';
 import { calculateConsistencySplit } from '@/lib/consistency-streak';
-import { mockSquads, mockUsers, mockMemberships } from '@/lib/mock-data';
 import { showToast } from '@/components/Toast';
 
 type RuleType = 'fixed_percentage' | 'weighted_points' | 'tiered' | 'milestone';
+interface SquadOption {
+  id: string;
+  name: string;
+  currency: string;
+}
+
+interface SquadMember {
+  userId: string;
+  role: string;
+  user: { id: string; name: string; email: string };
+}
+
+interface RevenueEventOption {
+  id: string;
+  amountMinor: number;
+  currency: string;
+  description: string | null;
+  createdAt: string;
+}
 
 const ruleOptions: { type: RuleType; label: string; desc: string; icon: React.ReactNode }[] = [
   { type: 'fixed_percentage', label: 'Fixed %', desc: 'Set a fixed percentage for each member', icon: <Percent size={20} /> },
@@ -49,46 +60,106 @@ interface MemberSplit {
 
 export default function SplitsNewPage() {
   const router = useRouter();
-  const [selectedSquad, setSelectedSquad] = useState(mockSquads[0]);
+  const [squads, setSquads] = useState<SquadOption[]>([]);
+  const [selectedSquadId, setSelectedSquadId] = useState('');
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [revenueEvents, setRevenueEvents] = useState<RevenueEventOption[]>([]);
+  const [selectedRevenueEventId, setSelectedRevenueEventId] = useState('');
+  const selectedSquad = squads.find((squad) => squad.id === selectedSquadId) ?? {
+    id: '',
+    name: '',
+    currency: 'USD',
+  };
   const [selectedRule, setSelectedRule] = useState<RuleType>('fixed_percentage');
-  const [poolAmount, setPoolAmount] = useState(100000); // Default to $1,000.00 (100,000 cents)
+  const selectedRevenueEvent = revenueEvents.find(
+    (event) => event.id === selectedRevenueEventId
+  );
+  const poolAmount = selectedRevenueEvent?.amountMinor ?? 0;
   const [enableConsistency, setEnableConsistency] = useState(true);
   const [consistencyPercent, setConsistencyPercent] = useState(5); // Default 5%, max 10%
-  const [streakCapDays, setStreakCapDays] = useState(100);
+  const streakCapDays = 100;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const [memberSplits, setMemberSplits] = useState<MemberSplit[]>([
-    { memberId: 'usr_2', name: 'Maya Chen', percentage: 50, streakDays: 100 },
-    { memberId: 'usr_4', name: 'Sam Patel', percentage: 50, streakDays: 0 },
-    { memberId: 'usr_1', name: 'Alex Rivera', percentage: 0, streakDays: 45 },
-    { memberId: 'usr_3', name: 'Jordan Kim', percentage: 0, streakDays: 32 },
-  ]);
+  const [memberSplits, setMemberSplits] = useState<MemberSplit[]>([]);
 
-  // Synchronize members dynamically when selected squad changes
   useEffect(() => {
-    const mems = mockMemberships.filter((m) => m.squadId === selectedSquad.id);
-    if (mems.length > 0) {
-      const baseShare = Math.floor(1000 / mems.length) / 10;
-      let remainder = 1000 - Math.floor(1000 / mems.length) * mems.length;
-      const initialSplits = mems.map((m) => {
-        const u = mockUsers.find((usr) => usr.id === m.userId);
-        const name =
-          m.memberName ||
-          u?.name ||
-          (m.payoutReceiver?.includes('@') ? m.payoutReceiver.split('@')[0] : 'Collaborator');
-        const extra = remainder > 0 ? 0.1 : 0;
-        if (remainder > 0) remainder--;
-        return {
-          memberId: m.userId,
-          name,
-          percentage: Math.round((baseShare + extra) * 10) / 10,
-          streakDays: m.streakDays ?? 0,
-        };
-      });
-      setMemberSplits(initialSplits);
+    let cancelled = false;
+    async function loadSquads() {
+      try {
+        const response = await fetch('/api/squads');
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || 'Unable to load squads');
+        }
+        if (cancelled) return;
+        const availableSquads = result.data as SquadOption[];
+        setSquads(availableSquads);
+        setSelectedSquadId((current) => current || availableSquads[0]?.id || '');
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(error instanceof Error ? error.message : 'Unable to load squads');
+        }
+      }
     }
-  }, [selectedSquad.id]);
+
+    void loadSquads();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedSquadId) return;
+    let cancelled = false;
+    async function loadMembers() {
+      try {
+        const [membersResponse, squadResponse] = await Promise.all([
+          fetch(`/api/squads/${encodeURIComponent(selectedSquadId)}/members`),
+          fetch(`/api/squads/${encodeURIComponent(selectedSquadId)}`),
+        ]);
+        const [membersResult, squadResult] = await Promise.all([
+          membersResponse.json(),
+          squadResponse.json(),
+        ]);
+        if (!membersResponse.ok || !membersResult.success) {
+          throw new Error(membersResult.error || 'Unable to load squad members');
+        }
+        if (!squadResponse.ok || !squadResult.success) {
+          throw new Error(squadResult.error || 'Unable to load squad revenue');
+        }
+        if (cancelled) return;
+        const members = membersResult.data as SquadMember[];
+        const activeRevenue = squadResult.data.revenue.filter(
+          (event: RevenueEventOption & { status: string }) => event.status === 'active'
+        ) as RevenueEventOption[];
+        setLoadError(null);
+        setRevenueEvents(activeRevenue);
+        setSelectedRevenueEventId(activeRevenue[0]?.id || '');
+        const baseShare = Math.floor(1000 / members.length) / 10;
+        let remainder = 1000 - Math.floor(1000 / members.length) * members.length;
+        setMemberSplits(members.map((member) => {
+          const extra = remainder > 0 ? 0.1 : 0;
+          if (remainder > 0) remainder--;
+          return {
+            memberId: member.userId,
+            name: member.user.name,
+            percentage: Math.round((baseShare + extra) * 10) / 10,
+            streakDays: 0,
+          };
+        }));
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(error instanceof Error ? error.message : 'Unable to load squad members');
+        }
+      }
+    }
+
+    void loadMembers();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSquadId]);
 
   // Active members with >0% share or active in calculation
   const activeMembers = memberSplits.filter((m) => m.percentage > 0);
@@ -155,7 +226,7 @@ export default function SplitsNewPage() {
 
   // Run the split - functional backend dispatch
   const handleRunSplit = async () => {
-    if (!isValid || poolAmount <= 0) return;
+    if (!selectedSquad.id || !isValid || poolAmount <= 0) return;
 
     setIsSubmitting(true);
     setSubmitError(null);
@@ -166,7 +237,7 @@ export default function SplitsNewPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           squadId: selectedSquad.id,
-          poolMinor: poolAmount,
+          revenueEventId: selectedRevenueEventId,
           currency: selectedSquad.currency || 'USD',
           ruleConfig: {
             consistency_percent: enableConsistency ? consistencyPercent : 0,
@@ -175,9 +246,7 @@ export default function SplitsNewPage() {
           },
           memberSplits: memberSplits.map((m) => ({
             memberId: m.memberId,
-            name: m.name,
             percentage: m.percentage,
-            streakDays: m.streakDays,
           })),
         }),
       });
@@ -189,8 +258,8 @@ export default function SplitsNewPage() {
 
       showToast({
         type: 'success',
-        title: 'Split Run Created!',
-        message: `Run ${json.data.id} is ready for human approver sign-off.`,
+        title: 'Split Run Saved',
+        message: `Run ${json.data.id} was saved as an immutable calculation snapshot.`,
       });
 
       // Redirect to the newly generated run page
@@ -240,43 +309,51 @@ export default function SplitsNewPage() {
                       Squad Workspace
                     </label>
                     <select
-                      value={selectedSquad.id}
-                      onChange={(e) => {
-                        const s = mockSquads.find((sq) => sq.id === e.target.value);
-                        if (s) setSelectedSquad(s);
-                      }}
+                      value={selectedSquadId}
+                      onChange={(e) => setSelectedSquadId(e.target.value)}
                       className="input-field font-medium"
                     >
-                      {mockSquads.map((squad) => (
+                      {squads.map((squad) => (
                         <option key={squad.id} value={squad.id}>
                           {squad.name} ({squad.currency})
                         </option>
                       ))}
                     </select>
+                    {loadError && <p className="text-xs text-red-600 mt-2">{loadError}</p>}
+                    {!loadError && squads.length === 0 && (
+                      <p className="text-xs mt-2 text-[var(--muted)]">
+                        Create a squad and add members before configuring a split.
+                      </p>
+                    )}
                   </div>
 
                   <div>
                     <label className="block text-sm font-bold mb-2 text-[var(--primary)]">
-                      Total Revenue Pool ({selectedSquad.currency})
+                      Revenue Event ({selectedSquad.currency})
                     </label>
-                    <div className="relative flex items-center">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-base font-bold text-[var(--text)] select-none z-10 font-mono">
-                        {getCurrencySymbol(selectedSquad.currency)}
-                      </span>
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        value={poolAmount / 100}
-                        onChange={(e) => {
-                          const val = Math.max(0, parseFloat(e.target.value || '0'));
-                          setPoolAmount(Math.round(val * 100));
-                        }}
-                        className="input-field font-bold font-mono text-base w-full"
-                        placeholder="1000.00"
-                        style={{ paddingLeft: '48px' }}
-                      />
-                    </div>
+                    <select
+                      value={selectedRevenueEventId}
+                      onChange={(event) => setSelectedRevenueEventId(event.target.value)}
+                      className="input-field font-medium"
+                      disabled={revenueEvents.length === 0}
+                    >
+                      {revenueEvents.map((event) => (
+                        <option key={event.id} value={event.id}>
+                          {event.description || 'Revenue event'} — {getCurrencySymbol(event.currency)}
+                          {(event.amountMinor / 100).toFixed(2)}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedRevenueEvent ? (
+                      <p className="text-xs mt-2 text-[var(--muted)]">
+                        Pool: {getCurrencySymbol(selectedRevenueEvent.currency)}
+                        {(poolAmount / 100).toFixed(2)}
+                      </p>
+                    ) : (
+                      <p className="text-xs mt-2 text-[var(--muted)]">
+                        Record an active revenue event for this squad before running a split.
+                      </p>
+                    )}
                   </div>
                 </div>
               </Card>
@@ -365,30 +442,6 @@ export default function SplitsNewPage() {
                       </p>
                     </div>
 
-                    {/* Quick Preset: Canonical $1000 Example */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPoolAmount(100000);
-                        setConsistencyPercent(5);
-                        setEnableConsistency(true);
-                        setMemberSplits([
-                          { memberId: 'usr_2', name: 'Maya Chen', percentage: 50, streakDays: 100 },
-                          { memberId: 'usr_4', name: 'Sam Patel', percentage: 50, streakDays: 0 },
-                          { memberId: 'usr_1', name: 'Alex Rivera', percentage: 0, streakDays: 45 },
-                          { memberId: 'usr_3', name: 'Jordan Kim', percentage: 0, streakDays: 32 },
-                        ]);
-                        showToast({
-                          type: 'success',
-                          title: 'Loaded Canonical $1,000 Preset',
-                          message: 'Maya (100d streak, 50%) vs Sam (0d streak, 50%).',
-                        });
-                      }}
-                      className="w-full py-2.5 px-3 rounded-lg text-xs font-bold text-[var(--accent)] bg-[var(--background)] hover:bg-[var(--text)] border border-[var(--text)] flex items-center justify-center gap-1.5 transition-colors"
-                    >
-                      <Sparkles size={13} />
-                      Load $1,000 Canonical Preset (Maya 100d vs Sam 0d)
-                    </button>
                   </div>
                 )}
               </Card>
@@ -538,7 +591,7 @@ export default function SplitsNewPage() {
                     style={{ background: 'color-mix(in srgb, var(--accent) 8%, transparent)', color: 'var(--primary)' }}
                   >
                     <Info size={16} className="flex-shrink-0" />
-                    Percentages must equal exactly 100.0%. Difference: {(100 - totalPct).toFixed(1)}%. Click "Split Evenly" above to auto-balance.
+                    Percentages must equal exactly 100.0%. Difference: {(100 - totalPct).toFixed(1)}%. Click &quot;Split Evenly&quot; above to auto-balance.
                   </div>
                 )}
               </Card>
@@ -627,7 +680,7 @@ export default function SplitsNewPage() {
                               </div>
                               <MoneyChip
                                 amount={formatMoney(line.finalAmountMinor)}
-                                status="paid"
+                                status="default"
                                 size="sm"
                               />
                             </div>
@@ -669,7 +722,7 @@ export default function SplitsNewPage() {
                   <button
                     type="button"
                     onClick={handleRunSplit}
-                    disabled={!isValid || isSubmitting}
+                    disabled={!selectedSquad.id || !selectedRevenueEventId || !isValid || isSubmitting}
                     className="btn-primary w-full mt-6 justify-center text-white"
                     style={{
                       background: 'var(--accent)',
@@ -681,7 +734,7 @@ export default function SplitsNewPage() {
                     {isSubmitting ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Executing Split Run...
+                        Saving Split Run...
                       </>
                     ) : (
                       <>
@@ -692,7 +745,7 @@ export default function SplitsNewPage() {
                     )}
                   </button>
                   <p className="text-[11px] text-center text-[var(--muted-light)] mt-2">
-                    Creates an immutable run requiring human approver sign-off.
+                    Saves an immutable calculation snapshot. The server recalculates streak allocation from squad activity.
                   </p>
                 </Card>
               </Reveal>

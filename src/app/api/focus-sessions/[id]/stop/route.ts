@@ -1,6 +1,7 @@
 // POST /api/focus-sessions/[id]/stop – Stop active focus session with conflict checking
 import { NextRequest, NextResponse } from 'next/server';
 import { mockFocusSessions } from '@/lib/mock-data';
+import { requireAuthenticatedActor } from '@/lib/authorization';
 
 export async function POST(
   request: NextRequest,
@@ -8,9 +9,11 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    const actor = await requireAuthenticatedActor();
+    if (!actor.ok) return actor.response;
     const session = mockFocusSessions.find((s) => s.id === id);
 
-    if (!session) {
+    if (!session || session.memberId !== actor.value.userId) {
       return NextResponse.json(
         { success: false, error: 'Focus session not found' },
         { status: 404 }

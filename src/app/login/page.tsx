@@ -1,14 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { Zap, GitBranch, Mail, ArrowRight } from 'lucide-react';
+import { Zap, GitBranch, ArrowRight } from 'lucide-react';
 import { Reveal } from '@/components/ui';
+import { signInWithGitHub } from '@/app/actions/auth';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState('contributor');
-
   return (
     <div
       className="min-h-screen flex items-center justify-center px-4"
@@ -48,70 +44,20 @@ export default function LoginPage() {
           </p>
 
           {/* GitHub button */}
-          <button
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl font-semibold text-sm mb-4 transition-all text-white"
-            style={{ background: 'var(--primary)' }}
-          >
-            <GitBranch size={18} />
-            Continue with GitHub
-          </button>
-
-          <div className="flex items-center gap-3 my-6">
-            <div className="flex-1 h-px bg-[var(--text)]" />
-            <span className="text-xs font-medium text-[var(--text)]">or</span>
-            <div className="flex-1 h-px bg-[var(--text)]" />
-          </div>
-
-          {/* Email login */}
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wider block mb-2 text-[var(--text)]">
-                Email
-              </label>
-              <div className="relative flex items-center">
-                <Mail
-                  size={16}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10 text-[var(--text)]"
-                />
-                <input
-                  type="email"
-                  className="input-field w-full text-sm font-medium"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  style={{ paddingLeft: '44px' }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wider block mb-2 text-[var(--text)]">
-                Demo Role
-              </label>
-              <select
-                className="input-field w-full text-sm font-medium"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-              >
-                <option value="owner">Owner</option>
-                <option value="approver">Approver</option>
-                <option value="contributor">Contributor</option>
-                <option value="viewer">Viewer</option>
-              </select>
-            </div>
-
-            <Link
-              href="/squads"
+          <form action={signInWithGitHub}>
+            <button
+              type="submit"
               className="btn-primary w-full justify-center mt-2 text-white"
               style={{ background: 'var(--accent)' }}
             >
-              Sign in
+              <GitBranch size={18} />
+              Continue with GitHub
               <ArrowRight size={16} />
-            </Link>
-          </div>
+            </button>
+          </form>
 
           <p className="text-xs text-center mt-6 text-[var(--text)]">
-            Demo mode — no real authentication required
+            Sign in securely with your GitHub account
           </p>
         </div>
       </Reveal>

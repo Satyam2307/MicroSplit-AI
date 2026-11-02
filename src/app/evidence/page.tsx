@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Upload,
@@ -20,7 +20,7 @@ import {
   Filter,
 } from 'lucide-react';
 import { Reveal, Card, StatusChip, ConfidenceMeter } from '@/components/ui';
-import { mockEvidence, mockContributions, mockFocusSessions, MockFocusSession } from '@/lib/mock-data';
+import type { MockContribution, MockEvidence, MockFocusSession } from '@/lib/mock-data';
 
 const kindIcons: Record<string, React.ReactNode> = {
   text: <FileText size={18} />,
@@ -52,12 +52,54 @@ export default function EvidencePage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [dragOver, setDragOver] = useState(false);
-  const [sessions, setSessions] = useState<MockFocusSession[]>(mockFocusSessions);
+  const [evidence, setEvidence] = useState<MockEvidence[]>([]);
+  const [contributions, setContributions] = useState<MockContribution[]>([]);
+  const [sessions, setSessions] = useState<MockFocusSession[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function loadEvidence() {
+      try {
+        const [evidenceResponse, sessionResponse] = await Promise.all([
+          fetch('/api/evidence'),
+          fetch('/api/focus-sessions'),
+        ]);
+        const [evidenceResult, sessionResult] = await Promise.all([
+          evidenceResponse.json(),
+          sessionResponse.json(),
+        ]);
+        if (!evidenceResponse.ok || !evidenceResult.success) {
+          throw new Error(evidenceResult.error || 'Unable to load evidence');
+        }
+        if (!sessionResponse.ok || !sessionResult.success) {
+          throw new Error(sessionResult.error || 'Unable to load focus sessions');
+        }
+        if (cancelled) return;
+        const authorizedEvidence = evidenceResult.data as MockEvidence[];
+        const authorizedEvidenceIds = new Set(authorizedEvidence.map((item) => item.id));
+        setEvidence(authorizedEvidence);
+        setContributions((evidenceResult.contributions ?? []).filter(
+          (item: MockContribution) => authorizedEvidenceIds.has(item.evidenceId)
+        ));
+        setSessions(sessionResult.data as MockFocusSession[]);
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(error instanceof Error ? error.message : 'Unable to load evidence');
+        }
+      }
+    }
+
+    void loadEvidence();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const filtered = filterStatus === 'all'
-    ? mockEvidence
-    : mockEvidence.filter((e) => e.status === filterStatus);
+    ? evidence
+    : evidence.filter((e) => e.status === filterStatus);
 
   const handleApproveSession = (id: string) => {
     setSessions(sessions.map((s) => (s.id === id ? { ...s, status: 'approved' as const } : s)));
@@ -80,6 +122,7 @@ export default function EvidencePage() {
               <p className="text-base mt-1" style={{ color: 'var(--muted)' }}>
                 Upload deliverables, review AI extractions, and adjudicate opt-in focus session conflicts
               </p>
+              {loadError && <p role="alert" className="text-sm text-red-600 mt-2">{loadError}</p>}
             </div>
 
             {/* Tab switch */}
@@ -92,7 +135,7 @@ export default function EvidencePage() {
                     : 'text-[var(--muted)] hover:text-[var(--text)]'
                 }`}
               >
-                Deliverables & Files ({mockEvidence.length})
+                Deliverables & Files ({evidence.length})
               </button>
               <button
                 onClick={() => setActiveTab('focus_sessions')}
@@ -185,7 +228,7 @@ export default function EvidencePage() {
                 onClick={() => setFilterStatus(status)}
               >
                 {status.charAt(0).toUpperCase() + status.slice(1)}
-                {status === 'all' && ` (${mockEvidence.length})`}
+                {status === 'all' && ` (${evidence.length})`}
               </button>
             ))}
           </div>
@@ -194,11 +237,11 @@ export default function EvidencePage() {
         {/* Evidence list */}
         <div className="space-y-4">
           {filtered.map((evi, idx) => {
-            const contributions = mockContributions.filter(
+            const evidenceContributions = contributions.filter(
               (c) => c.evidenceId === evi.id
             );
             const isExpanded = expandedId === evi.id;
-            const hasConflicts = contributions.some(
+            const hasConflicts = evidenceContributions.some(
               (c) => c.flags.length > 0
             );
             const sc = statusConfig[evi.status] || statusConfig.pending;
@@ -241,9 +284,9 @@ export default function EvidencePage() {
 
                     <div className="flex items-center gap-3">
                       <StatusChip label={sc.label} variant={sc.variant} />
-                      {contributions.length > 0 && (
+                      {evidenceContributions.length > 0 && (
                         <span className="text-xs font-semibold" style={{ color: 'var(--muted)' }}>
-                          {contributions.length} record{contributions.length !== 1 ? 's' : ''}
+                          {evidenceContributions.length} record{evidenceContributions.length !== 1 ? 's' : ''}
                         </span>
                       )}
                       <motion.div
@@ -257,7 +300,7 @@ export default function EvidencePage() {
 
                   {/* Expanded: extracted contributions */}
                   <AnimatePresence>
-                    {isExpanded && contributions.length > 0 && (
+                    {isExpanded && evidenceContributions.length > 0 && (
                       <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
@@ -278,7 +321,7 @@ export default function EvidencePage() {
                               AI Extracted Records
                             </span>
                           </div>
-                          {contributions.map((c) => (
+                          {evidenceContributions.map((c) => (
                             <div
                               key={c.id}
                               className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl"

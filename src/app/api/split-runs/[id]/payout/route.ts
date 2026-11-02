@@ -1,6 +1,6 @@
 // POST /api/split-runs/:id/payout – Create PayPal payout batch
 import { NextRequest, NextResponse } from 'next/server';
-import { mockSplitRuns, mockPayoutBatches, mockMemberships, mockLedgerEvents } from '@/lib/mock-data';
+import { mockSplitRuns, mockPayoutBatches, mockLedgerEvents } from '@/lib/mock-data';
 import { createLedgerEntry } from '@/lib/ledger';
 import { toPayPalAmount } from '@/lib/money';
 import {
@@ -10,6 +10,8 @@ import {
   mockPayoutBatch,
   type PayoutRecipient,
 } from '@/lib/paypal';
+import { getPrisma } from '@/lib/prisma';
+import { requireSquadRole } from '@/lib/authorization';
 
 export async function POST(
   request: NextRequest,
@@ -21,6 +23,14 @@ export async function POST(
   if (!run) {
     return NextResponse.json({ success: false, error: 'Split run not found' }, { status: 404 });
   }
+
+  const squadId = run.squadId;
+  if (!squadId) {
+    return NextResponse.json({ success: false, error: 'Split run has no squad association' }, { status: 403 });
+  }
+
+  const access = await requireSquadRole(squadId, ['owner', 'approver']);
+  if (!access.ok) return access.response;
 
   if (run.status !== 'approved') {
     return NextResponse.json(
@@ -40,11 +50,35 @@ export async function POST(
 
     // Build batch
     const senderBatchId = `${run.id}_${new Date().toISOString().replace(/[:.]/g, '')}`;
+    const memberships = await getPrisma().membership.findMany({
+      where: {
+        squadId,
+        userId: { in: run.lines.map((line) => line.memberId) },
+      },
+      select: {
+        userId: true,
+        payoutReceiver: true,
+        payoutReceiverType: true,
+        user: { select: { name: true } },
+      },
+    });
+    if (
+      memberships.length !== run.lines.length ||
+      memberships.some((membership) => membership.payoutReceiverType !== 'EMAIL')
+    ) {
+      return NextResponse.json(
+        { success: false, error: 'Every payout recipient must be a squad member with an email receiver' },
+        { status: 400 }
+      );
+    }
+
+    const membershipByUserId = new Map(memberships.map((membership) => [membership.userId, membership]));
     const recipients: PayoutRecipient[] = run.lines.map((line) => {
-      const membership = mockMemberships.find((m) => m.userId === line.memberId);
+      const membership = membershipByUserId.get(line.memberId);
+      if (!membership) throw new Error('Payout recipient membership disappeared during request.');
       return {
         senderItemId: `${run.id}_${line.memberId}`,
-        email: membership?.payoutReceiver || `${line.memberId}@paypal.demo`,
+        email: membership.payoutReceiver,
         amountValue: toPayPalAmount(line.amountMinor),
         currency: 'USD',
         note: `MicroSplit: ${line.rationale.contribution_summary}`,
@@ -77,7 +111,7 @@ export async function POST(
       totalMinor: run.poolMinor,
       createdAt: new Date().toISOString(),
       items: run.lines.map((line) => {
-        const membership = mockMemberships.find((m) => m.userId === line.memberId);
+        const membership = membershipByUserId.get(line.memberId);
         return {
           id: `pi_${Date.now()}_${line.memberId}`,
           batchId: `bat_${Date.now()}`,
@@ -85,7 +119,7 @@ export async function POST(
           senderItemId: `${run.id}_${line.memberId}`,
           paypalItemId: '',
           amountMinor: line.amountMinor,
-          recipientName: line.memberName,
+          recipientName: membership?.user.name || line.memberName,
           recipientEmail: membership?.payoutReceiver || '',
           status: 'pending',
           failureReason: null,

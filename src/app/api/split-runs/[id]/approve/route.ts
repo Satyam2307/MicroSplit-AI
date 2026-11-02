@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mockSplitRuns, mockApprovals, mockLedgerEvents } from '@/lib/mock-data';
 import { createLedgerEntry } from '@/lib/ledger';
+import { requireSquadRole } from '@/lib/authorization';
 
 export async function POST(
   request: NextRequest,
@@ -14,13 +15,16 @@ export async function POST(
     return NextResponse.json({ success: false, error: 'Split run not found' }, { status: 404 });
   }
 
+  const access = await requireSquadRole(run.squadId ?? '', ['owner', 'approver']);
+  if (!access.ok) return access.response;
+
   if (run.status === 'paid') {
     return NextResponse.json({ success: false, error: 'Cannot modify a paid run' }, { status: 409 });
   }
 
   try {
     const body = await request.json();
-    const { approverId, approverName, decision, note } = body;
+    const { decision, note } = body;
 
     if (!['approved', 'disputed', 'adjusted'].includes(decision)) {
       return NextResponse.json(
@@ -33,8 +37,8 @@ export async function POST(
     const approval = {
       id: `apr_${Date.now()}`,
       runId: id,
-      approverId: approverId || 'usr_1',
-      approverName: approverName || 'System',
+      approverId: access.value.userId,
+      approverName: access.value.name || access.value.email || 'Squad approver',
       decision,
       note: note || '',
       createdAt: new Date().toISOString(),
@@ -59,7 +63,7 @@ export async function POST(
       'split_approved',
       id,
       run.poolMinor,
-      { approver: approverName, decision },
+      { approver: access.value.name || access.value.email, decision },
       prevHash
     );
     mockLedgerEvents.push(ledgerEntry);

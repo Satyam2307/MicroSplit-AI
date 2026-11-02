@@ -10,18 +10,13 @@ import {
   Shield,
   Sparkles,
   Globe,
-  Mail,
-  User,
 } from 'lucide-react';
 import { Reveal, Card } from '@/components/ui';
-import { mockSquads, mockMemberships, mockUsers } from '@/lib/mock-data';
 
 export default function NewSquadPage() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [currency, setCurrency] = useState('USD');
-  const [ownerName, setOwnerName] = useState('Alex Rivera');
-  const [ownerEmail, setOwnerEmail] = useState('alex@paypal.demo');
   const [ownerTimezone, setOwnerTimezone] = useState('Asia/Kolkata');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,11 +27,6 @@ export default function NewSquadPage() {
       setError('Squad name is required');
       return;
     }
-    if (!ownerEmail.trim()) {
-      setError('Owner email address is required');
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
@@ -47,8 +37,6 @@ export default function NewSquadPage() {
         body: JSON.stringify({
           name: name.trim(),
           currency,
-          ownerName: ownerName.trim() || ownerEmail.split('@')[0],
-          ownerEmail: ownerEmail.trim(),
           ownerTimezone,
         }),
       });
@@ -56,17 +44,6 @@ export default function NewSquadPage() {
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Failed to create squad');
-      }
-
-      // Sync client in-memory data
-      if (data.data && !mockSquads.some((s) => s.id === data.data.id)) {
-        mockSquads.push(data.data);
-      }
-      if (data.membership && !mockMemberships.some((m) => m.id === data.membership.id)) {
-        mockMemberships.push(data.membership);
-      }
-      if (data.user && !mockUsers.some((u) => u.id === data.user.id)) {
-        mockUsers.push(data.user);
       }
 
       router.push(`/squads/${data.data.id}`);
@@ -178,42 +155,16 @@ export default function NewSquadPage() {
                   </div>
                 </div>
 
-                {/* Creator Details (User can specify own name and email) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                  <div>
-                    <label className="block text-sm font-bold mb-2 text-[var(--primary)]">
-                      Creator / Owner Name
-                    </label>
-                    <div className="relative flex items-center">
-                      <User size={16} className="absolute left-3.5 text-[var(--text)] pointer-events-none" />
-                      <input
-                        type="text"
-                        required
-                        placeholder="Your full name"
-                        value={ownerName}
-                        onChange={(e) => setOwnerName(e.target.value)}
-                        className="input-field text-sm w-full"
-                        style={{ paddingLeft: '44px' }}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold mb-2 text-[var(--primary)]">
-                      Creator PayPal / Payout Email
-                    </label>
-                    <div className="relative flex items-center">
-                      <Mail size={16} className="absolute left-3.5 text-[var(--text)] pointer-events-none" />
-                      <input
-                        type="email"
-                        required
-                        placeholder="your@paypal.email"
-                        value={ownerEmail}
-                        onChange={(e) => setOwnerEmail(e.target.value)}
-                        className="input-field text-sm w-full"
-                        style={{ paddingLeft: '44px' }}
-                      />
-                    </div>
+                <div
+                  className="p-4 rounded-xl border flex items-start gap-3"
+                  style={{ background: 'var(--background)', borderColor: 'var(--text)' }}
+                >
+                  <Shield size={18} className="text-[var(--accent)] mt-0.5 flex-shrink-0" />
+                  <div className="text-xs">
+                    <p className="font-bold text-[var(--primary)] mb-0.5">Verified owner identity</p>
+                    <p className="text-[var(--text)]">
+                      The signed-in GitHub account will be recorded as the squad owner. Payout details can be configured separately.
+                    </p>
                   </div>
                 </div>
 
