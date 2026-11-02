@@ -1,23 +1,48 @@
 // POST /api/evidence – Upload evidence
 // POST /api/evidence/:id/extract – Run AI extraction
 import { NextRequest, NextResponse } from 'next/server';
-import { mockEvidence } from '@/lib/mock-data';
+import { mockEvidence, mockContributions } from '@/lib/mock-data';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { sanitizeId, sanitizeText } from '@/lib/sanitize';
 import CryptoJS from 'crypto-js';
+import { getPrisma } from '@/lib/prisma';
+import { requireAuthenticatedActor, requireSquadRole } from '@/lib/authorization';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'text/csv', 'text/plain', 'audio/mpeg', 'audio/wav'];
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { squadId, uploaderId, kind, fileName, fileUrl, mimeType, sizeBytes } = body;
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'anonymous';
+    const rateLimit = checkRateLimit(`evidence_upload_${clientIp}`, {
+      intervalMs: 60000,
+      maxRequests: 15,
+    });
 
-    if (!squadId || !uploaderId || !kind || !fileName) {
+    if (!rateLimit.success) {
       return NextResponse.json(
-        { success: false, error: 'squadId, uploaderId, kind, and fileName are required' },
+        { success: false, error: 'Too many uploads. Please wait a moment.' },
+        { status: 429 }
+      );
+    }
+
+    const body = await request.json();
+    const squadId = sanitizeId(body.squadId);
+    const kind = sanitizeText(body.kind);
+    const fileName = sanitizeText(body.fileName);
+    const fileUrl = body.fileUrl ? sanitizeText(body.fileUrl) : undefined;
+    const mimeType = body.mimeType ? sanitizeText(body.mimeType) : undefined;
+    const sizeBytes = Number(body.sizeBytes) || 0;
+
+    if (!squadId || !kind || !fileName) {
+      return NextResponse.json(
+        { success: false, error: 'squadId, kind, and fileName are required' },
         { status: 400 }
       );
     }
+
+    const access = await requireSquadRole(squadId, ['owner', 'approver', 'contributor']);
+    if (!access.ok) return access.response;
 
     // Validate file type
     if (mimeType && !ALLOWED_TYPES.includes(mimeType)) {
@@ -41,7 +66,7 @@ export async function POST(request: NextRequest) {
     const evidence = {
       id: `evi_${Date.now()}`,
       squadId,
-      uploaderId,
+      uploaderId: access.value.userId,
       kind,
       fileName,
       fileUrl: fileUrl || `/evidence/${fileName}`,
@@ -60,5 +85,21 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ success: true, data: mockEvidence });
+  const actor = await requireAuthenticatedActor();
+  if (!actor.ok) return actor.response;
+
+  const memberships = await getPrisma().membership.findMany({
+    where: { userId: actor.value.userId },
+    select: { squadId: true },
+  });
+  const squadIds = new Set(memberships.map((membership) => membership.squadId));
+
+  const evidence = mockEvidence.filter((item) => squadIds.has(item.squadId));
+  const evidenceIds = new Set(evidence.map((item) => item.id));
+
+  return NextResponse.json({
+    success: true,
+    data: evidence,
+    contributions: mockContributions.filter((item) => evidenceIds.has(item.evidenceId)),
+  });
 }

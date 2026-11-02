@@ -5,10 +5,11 @@ import Footer from "@/components/Footer";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import Analytics from "@/components/Analytics";
 import ToastContainer from "@/components/Toast";
+import AuthProvider from "@/components/AuthProvider";
 import { Suspense } from "react";
 
 export const viewport: Viewport = {
-  themeColor: "var(--primary)",
+  themeColor: "#0B1F3A",
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
@@ -85,16 +86,67 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
         <link rel="icon" href="/icon" sizes="32x32" type="image/png" />
         <link rel="apple-touch-icon" href="/apple-icon" sizes="180x180" type="image/png" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@graph": [
+                {
+                  "@type": "Organization",
+                  "@id": "https://microsplit.ai/#organization",
+                  "name": "MicroSplit AI",
+                  "url": "https://microsplit.ai",
+                  "logo": "https://microsplit.ai/icon",
+                  "sameAs": [
+                    "https://github.com/Satyam2307/MicroSplit-AI",
+                    "https://twitter.com/microsplit_ai"
+                  ],
+                  "description": "Enterprise revenue splitting and automated batch payouts for autonomous squads and open source teams."
+                },
+                {
+                  "@type": "WebSite",
+                  "@id": "https://microsplit.ai/#website",
+                  "url": "https://microsplit.ai",
+                  "name": "MicroSplit AI",
+                  "publisher": {
+                    "@id": "https://microsplit.ai/#organization"
+                  }
+                },
+                {
+                  "@type": "SoftwareApplication",
+                  "@id": "https://microsplit.ai/#software",
+                  "name": "MicroSplit AI Platform",
+                  "applicationCategory": "FintechApplication",
+                  "operatingSystem": "All",
+                  "offers": {
+                    "@type": "Offer",
+                    "price": "0",
+                    "priceCurrency": "USD"
+                  },
+                  "featureList": [
+                    "Deterministic integer-cents largest-remainder math",
+                    "PayPal Batch API v1 disbursements",
+                    "SHA-256 tamper-evident cryptographic audit ledger",
+                    "Consistency streak bonuses with freeze grants"
+                  ]
+                }
+              ]
+            }),
+          }}
+        />
       </head>
       <body className="min-h-full flex flex-col overflow-x-hidden" style={{ background: "var(--background)" }}>
-        <Suspense fallback={<div className="h-[64px]" style={{ background: "var(--primary)", borderBottom: "1px solid color-mix(in srgb, var(--background) 8%, transparent)" }} />}>
-          <Navbar />
-        </Suspense>
-        <main className="flex-1 w-full max-w-full overflow-x-hidden">{children}</main>
-        <Footer />
-        <WhatsAppButton />
-        <Analytics />
-        <ToastContainer />
+        <AuthProvider>
+          <Suspense fallback={<div className="h-[64px]" style={{ background: "var(--primary)", borderBottom: "1px solid color-mix(in srgb, var(--background) 8%, transparent)" }} />}>
+            <Navbar />
+          </Suspense>
+          <main className="flex-1 w-full max-w-full overflow-x-hidden">{children}</main>
+          <Footer />
+          <WhatsAppButton />
+          <Analytics />
+          <ToastContainer />
+        </AuthProvider>
       </body>
     </html>
   );
