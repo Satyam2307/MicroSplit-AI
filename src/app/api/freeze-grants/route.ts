@@ -6,11 +6,29 @@ import {
 import { createLedgerEntry } from '@/lib/ledger';
 import { getPrisma } from '@/lib/prisma';
 import { requireAuthenticatedActor, requireSquadRole } from '@/lib/authorization';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { sanitizeId, sanitizeText } from '@/lib/sanitize';
 
 export async function POST(request: NextRequest) {
   try {
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'anonymous';
+    const rateLimit = checkRateLimit(`freeze_grant_${clientIp}`, {
+      intervalMs: 60000,
+      maxRequests: 20,
+    });
+
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { success: false, error: 'Too many freeze grant requests. Please wait.' },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
-    const { squadId, memberId, date, reason } = body;
+    const squadId = sanitizeId(body.squadId);
+    const memberId = sanitizeId(body.memberId);
+    const date = sanitizeText(body.date);
+    const reason = sanitizeText(body.reason);
 
     if (!squadId || !memberId || !date || !reason) {
       return NextResponse.json(

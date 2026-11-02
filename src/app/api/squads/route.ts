@@ -1,50 +1,97 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
-import { requireAuthenticatedActor } from '@/lib/authorization';
+import { NextRequest, NextResponse } from "next/server";
+import { getPrisma } from "@/lib/prisma";
+import { requireAuthenticatedActor } from "@/lib/authorization";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { sanitizeText } from "@/lib/sanitize";
 
 export async function POST(request: NextRequest) {
   const actor = await requireAuthenticatedActor();
   if (!actor.ok) return actor.response;
 
+  const rateLimit = checkRateLimit(
+    `squad_create_${actor.value.userId}`,
+    {
+      intervalMs: 60000,
+      maxRequests: 10,
+    }
+  );
+
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Too many squad creation attempts. Please wait.",
+      },
+      { status: 429 }
+    );
+  }
+
   try {
     const body = await request.json();
-    const name = typeof body.name === 'string' ? body.name.trim() : '';
-    const currency =
-      typeof body.currency === 'string' ? body.currency.trim().toUpperCase() : 'USD';
-    const timezone =
-      typeof body.ownerTimezone === 'string' ? body.ownerTimezone : 'UTC';
 
-    if (!name) {
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
       return NextResponse.json(
-        { success: false, error: 'Squad name is required' },
+        { success: false, error: "Invalid request body" },
+        { status: 400 }
+      );
+    }
+
+    const name = sanitizeText(
+      typeof body.name === "string" ? body.name : ""
+    );
+
+    const currency = sanitizeText(
+      typeof body.currency === "string" ? body.currency : "USD"
+    ).toUpperCase();
+
+    const timezone = sanitizeText(
+      typeof body.ownerTimezone === "string"
+        ? body.ownerTimezone
+        : "UTC"
+    );
+
+    if (name.length < 2) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Squad name must be at least 2 characters",
+        },
         { status: 400 }
       );
     }
 
     if (!/^[A-Z]{3}$/.test(currency)) {
       return NextResponse.json(
-        { success: false, error: 'Currency must be a three-letter ISO code' },
+        {
+          success: false,
+          error: "Currency must be a three-letter ISO code",
+        },
         { status: 400 }
       );
     }
 
     try {
-      new Intl.DateTimeFormat('en-US', { timeZone: timezone });
+      new Intl.DateTimeFormat("en-US", { timeZone: timezone });
     } catch {
       return NextResponse.json(
-        { success: false, error: 'Invalid IANA timezone' },
+        { success: false, error: "Invalid IANA timezone" },
         { status: 400 }
       );
     }
 
     const prisma = getPrisma();
+
     const owner = await prisma.user.findUnique({
       where: { id: actor.value.userId },
       select: { id: true, name: true, email: true },
     });
+
     if (!owner) {
       return NextResponse.json(
-        { success: false, error: 'Authenticated user was not found' },
+        {
+          success: false,
+          error: "Authenticated user was not found",
+        },
         { status: 401 }
       );
     }
@@ -57,16 +104,23 @@ export async function POST(request: NextRequest) {
         memberships: {
           create: {
             userId: owner.id,
-            role: 'owner',
+            role: "owner",
             payoutReceiver: owner.email,
-            payoutReceiverType: 'EMAIL',
+            payoutReceiverType: "EMAIL",
             timezone,
           },
         },
       },
       include: {
         memberships: true,
-        owner: { select: { id: true, name: true, email: true, avatar: true } },
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            avatar: true,
+          },
+        },
       },
     });
 
@@ -77,7 +131,7 @@ export async function POST(request: NextRequest) {
           ...squad,
           memberCount: squad.memberships.length,
           totalRevenue: 0,
-          currentRole: 'owner',
+          currentRole: "owner",
         },
         membership: squad.memberships[0],
         user: owner,
@@ -85,8 +139,12 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to create squad';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    console.error("Failed to create squad", error);
+
+    return NextResponse.json(
+      { success: false, error: "Unable to create squad" },
+      { status: 500 }
+    );
   }
 }
 
