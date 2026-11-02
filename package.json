@@ -7,12 +7,13 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test tests/consistency-streak.test.ts tests/authorization-policy.test.ts tests/split-run-persistence.test.ts"
+    "test": "node --experimental-strip-types --test tests/consistency-streak.test.ts tests/authorization-policy.test.ts tests/split-run-persistence.test.ts tests/evidence-workflow.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.31.0",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
+    "@supabase/supabase-js": "^2.118.0",
     "crypto-js": "^4.2.0",
     "date-fns": "^4.4.0",
     "dotenv": "^18.0.9",
