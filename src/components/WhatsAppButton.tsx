@@ -1,10 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
-import { MessageCircle, X } from 'lucide-react';
+import { MessageCircle, X, Send, ShieldCheck } from 'lucide-react';
 
 export default function WhatsAppButton() {
+  const [isOpen, setIsOpen] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [inquiryText, setInquiryText] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   const phone = process.env.NEXT_PUBLIC_WHATSAPP_PHONE || '15550192834';
   const message = encodeURIComponent(
