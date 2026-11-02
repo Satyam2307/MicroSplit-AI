@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "next build --webpack",
+    "build": "prisma generate && next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "test": "node --experimental-strip-types --test tests/consistency-streak.test.ts tests/authorization-policy.test.ts tests/split-run-persistence.test.ts tests/evidence-workflow.test.ts"
