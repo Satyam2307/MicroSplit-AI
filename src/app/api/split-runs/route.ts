@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuthenticatedActor, requireSquadRole } from "@/lib/authorization";
+import {
+  requireAuthenticatedActor,
+} from "@/lib/authorization";
 import { getPrisma } from "@/lib/prisma";
 import {
   createPersistentSplitRun,
@@ -7,10 +9,27 @@ import {
   splitRunInclude,
   toSplitRunDTO,
 } from "@/lib/split-run-persistence";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   const actor = await requireAuthenticatedActor();
   if (!actor.ok) return actor.response;
+
+  // Limit split calculations per authenticated user.
+  const rateLimit = checkRateLimit(`split_run_${actor.value.userId}`, {
+    intervalMs: 60000,
+    maxRequests: 20,
+  });
+
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Too many split calculation requests. Please wait.",
+      },
+      { status: 429 }
+    );
+  }
 
   let body: unknown;
   try {
@@ -36,6 +55,7 @@ export async function POST(request: NextRequest) {
       actor.value.userId,
       parsed.value
     );
+
     if (!result.ok) {
       return NextResponse.json(
         { success: false, error: result.error },
@@ -57,11 +77,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "Another split calculation changed this revenue event. Please retry.",
+          error:
+            "Another split calculation changed this revenue event. Please retry.",
         },
         { status: 409 }
       );
     }
+
     console.error("Failed to persist split run", error);
     return NextResponse.json(
       { success: false, error: "Unable to create split run" },

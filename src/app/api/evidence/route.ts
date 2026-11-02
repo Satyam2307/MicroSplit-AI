@@ -2,6 +2,8 @@
 // POST /api/evidence/:id/extract – Run AI extraction
 import { NextRequest, NextResponse } from 'next/server';
 import { mockEvidence, mockContributions } from '@/lib/mock-data';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { sanitizeId, sanitizeText } from '@/lib/sanitize';
 import CryptoJS from 'crypto-js';
 import { getPrisma } from '@/lib/prisma';
 import { requireAuthenticatedActor, requireSquadRole } from '@/lib/authorization';
@@ -11,8 +13,26 @@ const ALLOWED_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'text/csv',
 
 export async function POST(request: NextRequest) {
   try {
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'anonymous';
+    const rateLimit = checkRateLimit(`evidence_upload_${clientIp}`, {
+      intervalMs: 60000,
+      maxRequests: 15,
+    });
+
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { success: false, error: 'Too many uploads. Please wait a moment.' },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
-    const { squadId, kind, fileName, fileUrl, mimeType, sizeBytes } = body;
+    const squadId = sanitizeId(body.squadId);
+    const kind = sanitizeText(body.kind);
+    const fileName = sanitizeText(body.fileName);
+    const fileUrl = body.fileUrl ? sanitizeText(body.fileUrl) : undefined;
+    const mimeType = body.mimeType ? sanitizeText(body.mimeType) : undefined;
+    const sizeBytes = Number(body.sizeBytes) || 0;
 
     if (!squadId || !kind || !fileName) {
       return NextResponse.json(
