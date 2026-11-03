@@ -44,16 +44,27 @@ export async function POST(
       );
     }
 
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     const receiver = '';
-    const user = body.userId
+    let user = body.userId
       ? await getPrisma().user.findUnique({ where: { id: body.userId } })
-      : receiver
-        ? await getPrisma().user.findUnique({ where: { email: receiver } })
+      : email
+        ? await getPrisma().user.findUnique({ where: { email } })
         : null;
+
+    if (!user && email) {
+      user = await getPrisma().user.create({
+        data: {
+          email,
+          name: typeof body.name === 'string' && body.name.trim() ? body.name.trim() : email.split('@')[0],
+          role: 'contributor',
+        },
+      });
+    }
 
     if (!user) {
       return NextResponse.json(
-        { success: false, error: 'Invitees must first sign in with GitHub' },
+        { success: false, error: 'A valid email or user ID is required to add a member' },
         { status: 404 }
       );
     }

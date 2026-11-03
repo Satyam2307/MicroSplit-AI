@@ -346,7 +346,7 @@ export default function Navbar() {
                             <p className="text-[11px] text-[var(--text)]">{session.user.email}</p>
                           )}
                           <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-[var(--background)] text-[var(--accent)]">
-                            GitHub account
+                            Demo account
                           </span>
                         </div>
                         <div className="py-1">

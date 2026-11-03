@@ -1,14 +1,57 @@
 import NextAuth from "next-auth";
-import GitHub from "next-auth/providers/github";
+import Credentials from "next-auth/providers/credentials";
 import { getPrisma } from "@/lib/prisma";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
-    GitHub({
-      authorization: {
-        params: {
-          scope: "read:user user:email",
-        },
+    Credentials({
+      id: "mock-github",
+      name: "GitHub (Demo)",
+      credentials: {
+        email: { label: "Email", type: "text" },
+        role: { label: "Role", type: "text" },
+        name: { label: "Name", type: "text" },
+      },
+      async authorize(credentials) {
+        const prisma = getPrisma();
+        const rawEmail =
+          typeof credentials?.email === "string"
+            ? credentials.email.trim().toLowerCase()
+            : "";
+        const email = rawEmail || "alex@microsplit.demo";
+        const customName =
+          typeof credentials?.name === "string" && credentials.name.trim()
+            ? credentials.name.trim()
+            : null;
+        const fallbackName =
+          email
+            .split("@")[0]
+            .split(/[._-]/)
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(" ") || "Demo User";
+        const name = customName || fallbackName;
+        const role =
+          typeof credentials?.role === "string" && credentials.role.trim()
+            ? credentials.role.trim()
+            : "owner";
+
+        let user = await prisma.user.findUnique({ where: { email } });
+        if (!user) {
+          user = await prisma.user.create({
+            data: {
+              email,
+              name,
+              githubUsername: email.split("@")[0].toLowerCase(),
+              role,
+            },
+          });
+        }
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+        };
       },
     }),
   ],
@@ -19,95 +62,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn: "/login",
   },
   callbacks: {
-    async signIn({ account, user, profile }) {
-      if (
-        account?.provider !== "github" ||
-        !account.providerAccountId ||
-        !account.access_token
-      ) {
-        return false;
-      }
-
-      const emailResponse = await fetch("https://api.github.com/user/emails", {
-        headers: {
-          Accept: "application/vnd.github+json",
-          Authorization: `Bearer ${account.access_token}`,
-          "X-GitHub-Api-Version": "2022-11-28",
-        },
-      });
-      if (!emailResponse.ok) {
-        throw new Error("Unable to retrieve a verified primary GitHub email.");
-      }
-
-      const emails = (await emailResponse.json()) as Array<{
-        email: string;
-        primary: boolean;
-        verified: boolean;
-      }>;
-      const email = emails
-        .find((entry) => entry.primary && entry.verified)
-        ?.email.trim()
-        .toLowerCase();
-      if (!email) {
-        return false;
-      }
-
-      const prisma = getPrisma();
-      const githubUsername =
-        typeof profile?.login === "string" ? profile.login.trim().toLowerCase() : null;
-      const linkedUser = await prisma.user.findUnique({
-        where: { githubId: account.providerAccountId },
-      });
-
-      if (linkedUser) {
-        if (githubUsername && linkedUser.githubUsername !== githubUsername) {
-          await prisma.user.update({
-            where: { id: linkedUser.id },
-            data: { githubUsername },
-          });
-        }
-        return true;
-      }
-
-      const existingEmail = await prisma.user.findUnique({ where: { email } });
-      if (existingEmail) {
-        return false;
-      }
-
-      await prisma.user.create({
-        data: {
-          githubId: account.providerAccountId,
-          githubUsername,
-          name: user.name?.trim() || email.split("@")[0],
-          email,
-          avatar: user.image,
-        },
-      });
-
-      return true;
-    },
-    async jwt({ token, account }) {
-      if (account?.provider === "github") {
-        const user = await getPrisma().user.findUnique({
-          where: { githubId: account.providerAccountId },
-          select: { id: true },
-        });
-
-        if (!user) {
-          throw new Error("GitHub account has no persisted application user.");
-        }
-
+    jwt({ token, user }) {
+      if (user?.id) {
         token.userId = user.id;
       }
-
       return token;
     },
-    async session({ session, token }) {
-      if (!session.user || typeof token.userId !== "string") {
-        throw new Error("Authenticated session is missing its persisted user identity.");
+    session({ session, token }) {
+      if (session.user && typeof token.userId === "string") {
+        session.user.id = token.userId;
       }
-
-      session.user.id = token.userId;
       return session;
     },
     authorized({ auth }) {
