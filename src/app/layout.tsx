@@ -6,6 +6,7 @@ import MicroSplitConcierge from "@/components/MicroSplitConcierge";
 import Analytics from "@/components/Analytics";
 import ToastContainer from "@/components/Toast";
 import AuthProvider from "@/components/AuthProvider";
+import ThemeProvider from "@/components/ThemeProvider";
 import { Suspense } from "react";
 
 export const viewport: Viewport = {
@@ -144,26 +145,28 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         className="min-h-full flex flex-col overflow-x-hidden relative"
         style={{ background: "var(--background)" }}
       >
-        <AuthProvider>
-          <Suspense
-            fallback={
-              <div
-                className="h-[64px]"
-                style={{
-                  background: "var(--primary)",
-                  borderBottom: "1px solid color-mix(in srgb, var(--background) 8%, transparent)",
-                }}
-              />
-            }
-          >
-            <Navbar />
-          </Suspense>
-          <main className="flex-1 w-full max-w-full overflow-x-hidden">{children}</main>
-          <Footer />
-          <MicroSplitConcierge />
-          <Analytics />
-          <ToastContainer />
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <Suspense
+              fallback={
+                <div
+                  className="h-[64px]"
+                  style={{
+                    background: "var(--primary)",
+                    borderBottom: "1px solid color-mix(in srgb, var(--background) 8%, transparent)",
+                  }}
+                />
+              }
+            >
+              <Navbar />
+            </Suspense>
+            <main className="flex-1 w-full max-w-full overflow-x-hidden">{children}</main>
+            <Footer />
+            <MicroSplitConcierge />
+            <Analytics />
+            <ToastContainer />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
