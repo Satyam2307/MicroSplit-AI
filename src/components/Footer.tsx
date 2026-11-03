@@ -1,148 +1,100 @@
 'use client';
 
 import Link from 'next/link';
-import {
-  Zap,
-  ExternalLink,
-  ShieldCheck,
-  Globe,
-  Lock,
-  CreditCard,
-  Flame,
-} from 'lucide-react';
+import { Zap, ExternalLink } from 'lucide-react';
 
 const footerSections = [
   {
-    title: 'Products & Engines',
+    title: 'Platform',
     links: [
-      { label: 'Split Calculation Engine', href: '/splits/new' },
-      { label: 'Consistency Streak Bonus', href: '/statements' },
-      { label: 'Privacy-First Focus Sessions', href: '/statements' },
-      { label: 'PayPal Batch v1 Payouts', href: '/payouts' },
-      { label: 'SHA-256 Cryptographic Ledger', href: '/ledger' },
+      { label: 'Squads', href: '/squads' },
+      { label: 'New Split Run', href: '/splits/new' },
+      { label: 'Batch Payouts', href: '/payouts' },
+      { label: 'Audit Ledger', href: '/ledger' },
+      { label: 'Evidence Trail', href: '/evidence' },
     ],
   },
   {
-    title: 'Squad Solutions',
+    title: 'Resources',
     links: [
-      { label: 'Autonomous Agent Collectives', href: '/squads' },
-      { label: 'Open Source Contributors', href: '/squads' },
-      { label: 'Freelancer & Founder Guilds', href: '/squads' },
-      { label: 'Multi-Timezone Remote Teams', href: '/evidence' },
-      { label: 'Freeze Grant Governance', href: '/evidence' },
-    ],
-  },
-  {
-    title: 'Documentation',
-    links: [
-      { label: 'Getting Started Guide', href: '/docs' },
+      { label: 'Documentation', href: '/docs' },
       { label: 'API Reference', href: '/docs/api' },
-      { label: 'Canonical $1,000 Demo Script', href: '/runs/run_3' },
       { label: 'Deterministic Math Proofs', href: '/docs/arch' },
-      { label: 'GitHub Repository', href: 'https://github.com', external: true },
+      { label: 'Contact & Support', href: '/contact' },
     ],
   },
   {
-    title: 'Trust & Security',
+    title: 'Trust & Legal',
     links: [
-      { label: 'Zero-Surveillance Guarantee', href: '/evidence' },
-      { label: 'PayPal Sandbox Certified', href: '/payouts' },
-      { label: 'SOC-2 Type II Compliance', href: '/privacy' },
-      { label: 'MIT Open Source License', href: '/licence' },
-      { label: 'Tamper-Evident Ledger Audit', href: '/ledger' },
+      { label: 'Privacy Policy', href: '/privacy' },
+      { label: 'Terms of Use', href: '/terms' },
+      { label: 'Security Disclosures', href: '/security' },
+      { label: 'MIT License', href: '/licence' },
     ],
   },
-];
-
-const trustHighlights = [
-  { icon: Lock, label: 'Integer-Cents Arithmetic', desc: 'Strict 0-cent loss largest-remainder split.', accent: 'var(--accent)' },
-  { icon: CreditCard, label: 'PayPal Batch API v1', desc: 'Pay up to 15,000 members in one click.', accent: 'var(--accent)' },
-  { icon: Flame, label: 'Consistency Streak Bonus', desc: 'Deterministic rewards with freeze grants.', accent: 'var(--accent)' },
-  { icon: ShieldCheck, label: 'SHA-256 Audit Trail', desc: 'Cryptographically verifiable governance.', accent: 'var(--accent)' },
 ];
 
 export default function Footer() {
   return (
-    <footer style={{ background: 'var(--primary)', color: 'var(--background)' }}>
-
-      {/* ── Trust Highlights Strip ── */}
-      <div style={{ background: '#0B1F3A', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 text-xs">
-            {trustHighlights.map((item) => {
-              const Icon = item.icon;
-              return (
-                <div key={item.label} className="flex items-center gap-3">
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                    style={{ background: 'rgba(15, 157, 138, 0.15)', border: '1px solid rgba(15, 157, 138, 0.3)', color: '#0F9D8A' }}
-                  >
-                    <Icon size={15} />
-                  </div>
-                  <div>
-                    <p className="font-bold text-white">{item.label}</p>
-                    <p className="text-slate-400">{item.desc}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Main Links Grid ── */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12" style={{ background: '#07172B' }}>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8 mb-10">
-
+    <footer
+      className="relative z-10 w-full"
+      style={{
+        background: '#07172B',
+        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+        color: '#E2E8F0',
+      }}
+    >
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 lg:gap-12 mb-12">
           {/* Brand Column */}
-          <div className="col-span-2 lg:col-span-1">
-            <Link href="/" className="flex items-center gap-2 mb-3 group">
+          <div className="lg:col-span-2 space-y-4">
+            <Link href="/" className="inline-flex items-center gap-2.5 group">
               <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-white transition-transform duration-200 group-hover:scale-105"
-                style={{ background: 'linear-gradient(135deg, #0B1F3A, #0F9D8A)', border: '1px solid rgba(15, 157, 138, 0.4)', boxShadow: '0 2px 8px rgba(15, 157, 138, 0.25)' }}
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-white transition-transform duration-200 group-hover:scale-105"
+                style={{
+                  background: 'linear-gradient(135deg, #0B1F3A 0%, #0F9D8A 100%)',
+                  border: '1px solid rgba(15, 157, 138, 0.4)',
+                  boxShadow: '0 2px 10px rgba(15, 157, 138, 0.25)',
+                }}
               >
-                <Zap size={15} strokeWidth={2.5} className="text-white" />
+                <Zap size={16} strokeWidth={2.5} className="text-white" />
               </div>
-              <span className="text-white font-extrabold text-base tracking-tight">
+              <span className="text-white font-extrabold text-lg tracking-tight">
                 Micro<span style={{ color: '#0F9D8A' }}>Split</span>
               </span>
             </Link>
-            <p className="text-xs leading-relaxed mb-4 text-slate-300">
-              Enterprise revenue splitting and automated batch payouts for autonomous squads, open source collectives, and high-velocity teams.
+
+            <p className="text-sm text-slate-400 leading-relaxed max-w-sm">
+              Deterministic squad revenue attribution and automated batch payouts. Built for high-velocity developer teams and autonomous collectives.
             </p>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] text-slate-300" style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-[#0F9D8A] shadow-[0_0_6px_#0F9D8A]" />
-              All Systems Operational
+
+            <div
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium text-slate-300"
+              style={{
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+              }}
+            >
+              <span className="w-2 h-2 rounded-full bg-[#0F9D8A] shadow-[0_0_8px_#0F9D8A] animate-pulse" />
+              All Settlement Systems Operational
             </div>
           </div>
 
-          {/* Link Columns */}
+          {/* Links Columns */}
           {footerSections.map((section) => (
-            <div key={section.title}>
-              <h4 className="text-[11px] font-bold uppercase tracking-wider text-white/90 mb-3.5">
+            <div key={section.title} className="space-y-4">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200">
                 {section.title}
               </h4>
-              <ul className="space-y-2 text-xs">
+              <ul className="space-y-2.5 text-sm">
                 {section.links.map((link) => (
                   <li key={link.label}>
-                    {'external' in link && link.external ? (
-                      <a
-                        href={link.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="transition-colors flex items-center gap-1 text-slate-300 hover:text-[#0F9D8A]"
-                      >
-                        {link.label}
-                        <ExternalLink size={10} />
-                      </a>
-                    ) : (
-                      <Link
-                        href={link.href}
-                        className="transition-colors text-slate-300 hover:text-[#0F9D8A]"
-                      >
-                        {link.label}
-                      </Link>
-                    )}
+                    <Link
+                      href={link.href}
+                      className="text-slate-400 hover:text-[#0F9D8A] transition-colors duration-150 inline-flex items-center gap-1"
+                    >
+                      {link.label}
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -150,48 +102,37 @@ export default function Footer() {
           ))}
         </div>
 
-        {/* ── Bottom Bar ── */}
+        {/* Bottom Bar */}
         <div
-          className="pt-6 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-400"
+          className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400"
           style={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}
         >
-          <div className="flex items-center gap-2">
-            <Globe size={14} className="text-slate-400" />
-            <select
-              aria-label="Select Region / Language"
-              className="bg-transparent border rounded px-2 py-1 text-xs cursor-pointer focus:outline-none text-slate-300"
-              style={{ borderColor: 'rgba(255, 255, 255, 0.15)' }}
-              defaultValue="en-US"
-            >
-              <option value="en-US" className="bg-[#0B1F3A] text-white">English (United States)</option>
-              <option value="en-GB" className="bg-[#0B1F3A] text-white">English (United Kingdom)</option>
-              <option value="de-DE" className="bg-[#0B1F3A] text-white">Deutsch (Deutschland)</option>
-              <option value="ja-JP" className="bg-[#0B1F3A] text-white">日本語 (日本)</option>
-            </select>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-4 text-center">
-            {[
-              { label: 'Privacy Policy', href: '/privacy' },
-              { label: 'Terms of Use', href: '/terms' },
-              { label: 'Security Disclosures', href: '/security' },
-              { label: 'MIT License', href: '/licence' },
-            ].map((link, i) => (
-              <span key={link.label} className="flex items-center gap-4">
-                {i > 0 && <span className="text-slate-600">·</span>}
-                <Link
-                  href={link.href}
-                  className="transition-colors text-slate-400 hover:text-[#0F9D8A]"
-                >
-                  {link.label}
-                </Link>
-              </span>
-            ))}
-          </div>
-
-          <p className="text-slate-500">
-            © 2026 MicroSplit AI, Inc. All rights reserved.
+          <p className="text-slate-400 text-center sm:text-left">
+            &copy; 2026 MicroSplit AI, Inc. Zero-loss deterministic settlements.
           </p>
+
+          <div className="flex items-center gap-4 text-slate-400">
+            <Link href="/privacy" className="hover:text-[#0F9D8A] transition-colors">
+              Privacy
+            </Link>
+            <span>&bull;</span>
+            <Link href="/terms" className="hover:text-[#0F9D8A] transition-colors">
+              Terms
+            </Link>
+            <span>&bull;</span>
+            <Link href="/security" className="hover:text-[#0F9D8A] transition-colors">
+              Security
+            </Link>
+            <span>&bull;</span>
+            <a
+              href="https://github.com/Satyam2307/MicroSplit-AI"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-[#0F9D8A] transition-colors inline-flex items-center gap-1"
+            >
+              GitHub <ExternalLink size={11} />
+            </a>
+          </div>
         </div>
       </div>
     </footer>
