@@ -76,17 +76,17 @@ export default function PaymentCard() {
         <div
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl shadow-lg"
           style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            color: 'var(--primary)',
+            background: 'rgba(9, 18, 31, 0.88)',
+            border: '1px solid rgba(148, 163, 184, 0.25)',
+            color: '#E2E8F0',
           }}
         >
-          <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
+          <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center border border-emerald-400/30">
             <Check size={11} strokeWidth={3} />
           </span>
-          <span className="text-xs font-bold" style={{ color: 'var(--primary)' }}>Approved</span>
+          <span className="text-xs font-bold text-emerald-300">Approved</span>
           <span className="text-[10px] font-semibold text-slate-400">·</span>
-          <span className="text-[11px] font-semibold" style={{ color: 'var(--accent)' }}>Batch v1</span>
+          <span className="text-[11px] font-semibold text-teal-300">Batch v1</span>
         </div>
       </motion.div>
 
@@ -348,16 +348,17 @@ export default function PaymentCard() {
         <div
           className="p-3 rounded-xl shadow-xl w-full sm:w-auto"
           style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
+            background: 'rgba(9, 18, 31, 0.9)',
+            border: '1px solid rgba(148, 163, 184, 0.25)',
           }}
         >
           <div className="flex items-center gap-2 mb-1">
             <span
               className="px-2 py-0.5 rounded text-[10px] font-bold"
               style={{
-                background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
-                color: 'var(--accent)',
+                background: 'rgba(16, 185, 129, 0.18)',
+                color: '#D1FAE5',
+                border: '1px solid rgba(16, 185, 129, 0.35)',
               }}
             >
               Approved
@@ -365,9 +366,9 @@ export default function PaymentCard() {
             <span
               className="px-2 py-0.5 rounded text-[10px] font-bold"
               style={{
-                background: 'var(--surface)',
-                color: 'var(--primary)',
-                border: '1px solid var(--border)',
+                background: 'rgba(148, 163, 184, 0.12)',
+                color: '#E2E8F0',
+                border: '1px solid rgba(148, 163, 184, 0.25)',
               }}
             >
               Batch v1
@@ -375,7 +376,7 @@ export default function PaymentCard() {
           </div>
           <p
             className="text-[11px] font-semibold"
-            style={{ color: 'var(--primary)' }}
+            style={{ color: '#E2E8F0' }}
           >
             PayPal batch dispatched for 4 members
           </p>

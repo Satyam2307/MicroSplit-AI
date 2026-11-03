@@ -44,14 +44,14 @@ function HeroSection() {
         style={{ background: 'radial-gradient(ellipse, color-mix(in srgb, var(--accent) 6%, transparent) 0%, transparent 70%)', filter: 'blur(80px)' }}
       />
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-14 sm:pt-12 sm:pb-20">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-8 sm:pt-4 sm:pb-10">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
 
           {/* ── Left Column ── */}
           <div>
             <Reveal>
               <div
-                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full mb-7"
+                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full mb-4"
                 style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(11, 31, 58, 0.05)' }}
               >
                 <span className="w-2 h-2 rounded-full" style={{ background: 'var(--accent)', boxShadow: '0 0 8px color-mix(in srgb, var(--accent) 50%, transparent)' }} />
@@ -63,7 +63,7 @@ function HeroSection() {
 
             <Reveal delay={0.08}>
               <h1
-                className="text-4xl sm:text-5xl lg:text-[3.4rem] font-black leading-[1.08] tracking-tight mb-5 font-['Playfair_Display',serif]"
+                className="text-[2.8rem] sm:text-[3.5rem] lg:text-[3.1rem] font-black leading-[1.02] tracking-tight mb-4 font-['Playfair_Display',serif]"
                 style={{ color: 'var(--primary)' }}
               >
                 Split squad revenue,<br />
@@ -97,11 +97,13 @@ function HeroSection() {
                 </Link>
               </div>
             </Reveal>
-<div className="mt-12">
-      <SplitStage />
-    </div>
+
+            <div className="mt-1 max-w-[620px]">
+              <SplitStage />
+            </div>
+
             <Reveal delay={0.3}>
-              <div className="flex flex-wrap items-center gap-8 sm:gap-10 mt-10 pt-7" style={{ borderTop: '1px solid #E2E8F0' }}>
+              <div className="flex flex-wrap items-center gap-8 sm:gap-10 mt-8 pt-7" style={{ borderTop: '1px solid #E2E8F0' }}>
                 {[
                   { label: 'Deterministic', desc: 'Integer-cent math', color: 'var(--accent)' },
                   { label: 'SHA-256', desc: 'Audit trail', color: 'var(--primary)' },
