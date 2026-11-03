@@ -6,15 +6,14 @@ import { useGSAP } from "@gsap/react";
 
 type Member = { id: string; name: string; cents: number; chips: number };
 
-const POOL_CENTS = 500_000;
-
-// chips = how many bundles fly to each member (roughly proportional to share)
+// Match the live landing-page demo pool and the multi-scenario payout totals presented below it.
 const MEMBERS: Member[] = [
-  { id: "maya", name: "Maya Chen", cents: 237_374, chips: 12 },
-  { id: "sam", name: "Sam Patel", cents: 161_616, chips: 8 },
-  { id: "jordan", name: "Jordan Kim", cents: 60_606, chips: 3 },
-  { id: "alex", name: "Alex Rivera", cents: 40_404, chips: 2 },
+  { id: "maya", name: "Maya Chen", cents: 565_625, chips: 12 },
+  { id: "alex", name: "Alex Rivera", cents: 375_000, chips: 8 },
+  { id: "jordan", name: "Jordan Kim", cents: 187_500, chips: 4 },
+  { id: "sam", name: "Sam Patel", cents: 121_875, chips: 3 },
 ];
+const POOL_CENTS = MEMBERS.reduce((sum, m) => sum + m.cents, 0);
 
 // Mirror your own invariant: the split must equal the pool exactly.
 const TOTAL = MEMBERS.reduce((sum, m) => sum + m.cents, 0);
@@ -195,7 +194,7 @@ export default function SplitStage() {
     <section
       ref={stageRef}
       aria-label="Example split: a $5,000.00 pool paid out to four members"
-      className="relative mx-auto w-full max-w-4xl overflow-hidden rounded-2xl bg-[#0B1F3A] p-6 text-slate-100 md:p-10"
+      className="relative mx-auto w-full max-w-[620px] overflow-hidden rounded-2xl bg-[#0B1F3A] p-4 text-slate-100 md:p-6"
     >
       {/* Screen readers get the final result, not the animation. */}
       <p className="sr-only">
@@ -203,11 +202,11 @@ export default function SplitStage() {
         {fmt(TOTAL)}. 0 cents lost.
       </p>
 
-      <div className="grid gap-8 md:grid-cols-[14rem_1fr] md:items-center" aria-hidden="true">
+      <div className="grid gap-4 md:grid-cols-[12rem_1fr] md:items-center" aria-hidden="true">
         {/* Pool */}
         <div
           ref={poolRef}
-          className="relative h-44 overflow-hidden rounded-xl border border-white/15 md:h-56"
+          className="relative h-32 overflow-hidden rounded-xl border border-white/15 md:h-40"
         >
           <div ref={poolFillRef} className="absolute inset-0 origin-bottom bg-[#E2B04A]/25" />
           <div className="relative flex h-full flex-col justify-end gap-1 p-4">
@@ -222,7 +221,7 @@ export default function SplitStage() {
         </div>
 
         {/* Members */}
-        <ul className="space-y-5">
+        <ul className="space-y-3">
           {MEMBERS.map((m, i) => (
             <li key={m.id}>
               <div className="flex items-baseline justify-between gap-4">
@@ -263,7 +262,7 @@ export default function SplitStage() {
         />
       ))}
 
-      <div className="mt-8 flex flex-wrap items-center justify-between gap-4">
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
         <p
           ref={badgeRef}
           role="status"

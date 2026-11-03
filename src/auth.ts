@@ -3,6 +3,8 @@ import Credentials from "next-auth/providers/credentials";
 import { getPrisma } from "@/lib/prisma";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  secret: process.env.AUTH_SECRET ?? "dev-auth-secret-change-me",
+  trustHost: true,
   providers: [
     Credentials({
       id: "mock-github",
