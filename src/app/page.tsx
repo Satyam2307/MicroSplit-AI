@@ -1,5 +1,6 @@
 'use client';
 
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
@@ -25,6 +26,9 @@ import {
   WeightBar,
 } from '@/components/ui';
 import PaymentCard from '@/components/PaymentCard';
+import SquadShowcaseCarousel from '@/components/SquadShowcaseCarousel';
+import TelemetryHUDCards from '@/components/TelemetryHUDCards';
+import VaultCurtainTransition from '@/components/VaultCurtainTransition';
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    HERO — GuestVerify-inspired split layout
@@ -59,11 +63,11 @@ function HeroSection() {
 
             <Reveal delay={0.08}>
               <h1
-                className="text-4xl sm:text-5xl lg:text-[3.4rem] font-black leading-[1.08] tracking-tight mb-5"
+                className="text-4xl sm:text-5xl lg:text-[3.4rem] font-black leading-[1.08] tracking-tight mb-5 font-['Playfair_Display',serif]"
                 style={{ color: 'var(--primary)' }}
               >
                 Split squad revenue,<br />
-                <span style={{ color: 'var(--accent)' }}>with better judgment.</span>
+                <span className="italic font-normal" style={{ color: 'var(--accent)' }}>with better judgment.</span>
               </h1>
             </Reveal>
 
@@ -362,9 +366,24 @@ function CTASection() {
    PAGE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 export default function HomePage() {
+  const [curtainActive, setCurtainActive] = useState(false);
+
+  const handleTriggerCurtain = () => {
+    setCurtainActive(true);
+    setTimeout(() => {
+      setCurtainActive(false);
+    }, 1400);
+  };
+
   return (
     <>
+      <VaultCurtainTransition
+        isActive={curtainActive}
+        onComplete={() => setCurtainActive(false)}
+      />
       <HeroSection />
+      <SquadShowcaseCarousel />
+      <TelemetryHUDCards onTriggerAudit={handleTriggerCurtain} />
       <HowItWorksSection />
       <TrustStrip />
       <CTASection />

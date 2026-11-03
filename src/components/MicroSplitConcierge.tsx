@@ -7,10 +7,6 @@ import {
   Send,
   ShieldCheck,
   Bot,
-  Volume2,
-  VolumeX,
-  Mic,
-  MicOff,
   Phone,
   Mail,
   HelpCircle,
@@ -112,8 +108,6 @@ export default function MicroSplitConcierge() {
   ]);
   const [inputVal, setInputVal] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const [isListening, setIsListening] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
   // WhatsApp States
@@ -139,74 +133,6 @@ export default function MicroSplitConcierge() {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
   }, [messages, activeTab, isAiLoading]);
-
-  // Voice Synthesis (TTS)
-  const speakText = useCallback(
-    (text: string) => {
-      if (!voiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-      window.speechSynthesis.cancel();
-      const clean = text.replace(/[*_#`]/g, '');
-      const utterance = new SpeechSynthesisUtterance(clean);
-      if (language === 'hi') {
-        utterance.lang = 'hi-IN';
-      } else {
-        utterance.lang = 'en-IN';
-      }
-      utterance.rate = 1.05;
-      window.speechSynthesis.speak(utterance);
-    },
-    [voiceEnabled, language]
-  );
-
-  // Voice Recognition (STT)
-  const toggleSpeechRecognition = () => {
-    if (typeof window === 'undefined') return;
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRec) {
-      alert('Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.');
-      return;
-    }
-
-    if (isListening) {
-      setIsListening(false);
-      return;
-    }
-
-    try {
-      const recognition = new SpeechRec();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = language === 'hi' ? 'hi-IN' : 'en-IN';
-
-      recognition.onstart = () => {
-        setIsListening(true);
-      };
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      recognition.onresult = (event: any) => {
-        const transcript = event.results?.[0]?.[0]?.transcript;
-        if (transcript) {
-          setInputVal((prev) => (prev ? `${prev} ${transcript}` : transcript));
-        }
-        setIsListening(false);
-      };
-
-      recognition.onerror = () => {
-        setIsListening(false);
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
-      recognition.start();
-    } catch {
-      setIsListening(false);
-    }
-  };
 
   // Send Chat Message
   const handleSendMessage = async (textToSend?: string) => {
@@ -249,7 +175,6 @@ export default function MicroSplitConcierge() {
       };
 
       setMessages((prev) => [...prev, aiMsg]);
-      speakText(reply);
     } catch {
       const fallbackMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
@@ -357,19 +282,6 @@ export default function MicroSplitConcierge() {
             </div>
 
             <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setVoiceEnabled((prev) => !prev)}
-                className={`p-1.5 rounded-xl transition-all ${
-                  voiceEnabled
-                    ? 'text-teal-400 bg-teal-500/20 hover:bg-teal-500/30'
-                    : 'text-slate-400 hover:text-white hover:bg-white/10'
-                }`}
-                title={voiceEnabled ? 'Mute AI voice' : 'Enable AI voice responses'}
-                aria-label="Toggle voice output"
-              >
-                {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-              </button>
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
@@ -539,21 +451,7 @@ export default function MicroSplitConcierge() {
                 </div>
 
                 {/* Chat Input Bar */}
-                <div className="p-2.5 bg-[#08172b] border-t border-slate-800 flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={toggleSpeechRecognition}
-                    className={`p-2 rounded-xl transition-all cursor-pointer ${
-                      isListening
-                        ? 'bg-rose-600 text-white animate-pulse'
-                        : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'
-                    }`}
-                    title={isListening ? 'Listening... click to stop' : 'Click to speak'}
-                    aria-label="Voice input"
-                  >
-                    {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                  </button>
-
+                <div className="p-2.5 bg-[#08172b] border-t border-slate-800 flex items-center gap-2">
                   <input
                     type="text"
                     value={inputVal}
@@ -564,8 +462,8 @@ export default function MicroSplitConcierge() {
                         handleSendMessage();
                       }
                     }}
-                    placeholder={isListening ? 'Listening now... speak clearly' : PLACEHOLDERS[language]}
-                    className="flex-1 px-3 py-2 bg-slate-900/90 rounded-xl border border-slate-700 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-teal-500"
+                    placeholder={PLACEHOLDERS[language]}
+                    className="flex-1 px-3.5 py-2.5 bg-slate-900/90 rounded-xl border border-slate-700 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-teal-500"
                   />
 
                   <button

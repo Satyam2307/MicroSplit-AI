@@ -17,8 +17,11 @@ import {
   Menu,
   X,
   ArrowRight,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { showToast } from '@/components/Toast';
+import { useTheme } from './ThemeProvider';
 
 const navLinks = [
   { href: '/squads', label: 'Squads', icon: Users },
@@ -32,6 +35,7 @@ const navLinks = [
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { theme, toggleTheme } = useTheme();
   const { data: session, status } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -191,11 +195,11 @@ export default function Navbar() {
             </nav>
 
             {/* ─── RIGHT: Actions & CTAs (GuestVerify style) ─── */}
-            <div className="flex items-center gap-2 sm:gap-2.5 flex-shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
 
               {/* Status Indicator Pill */}
               <div
-                className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold"
+                className="hidden 2xl:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold"
                 style={{
                   background: 'rgba(15, 157, 138, 0.15)',
                   color: '#0F9D8A',
@@ -206,21 +210,8 @@ export default function Navbar() {
                 Online
               </div>
 
-              {/* Mode Pill */}
-              <div
-                className="hidden 2xl:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold"
-                style={{
-                  background: 'rgba(15, 157, 138, 0.15)',
-                  color: '#0F9D8A',
-                  border: '1px solid rgba(15, 157, 138, 0.3)',
-                }}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-[#0F9D8A]" />
-                0-Cent Loss
-              </div>
-
               {/* Search */}
-              <form onSubmit={handleSearchSubmit} className="relative hidden md:block">
+              <form onSubmit={handleSearchSubmit} className="relative hidden xl:block">
                 <Search
                   size={14}
                   className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10 text-slate-400"
@@ -230,26 +221,31 @@ export default function Navbar() {
                   placeholder="Search..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-8 text-xs font-medium rounded-full transition-all w-32 lg:w-40 text-white placeholder-slate-400 focus:w-48"
+                  className="h-8 text-xs font-medium rounded-full transition-all w-28 focus:w-36 text-white placeholder-slate-400"
                   style={{
-                    paddingLeft: '38px',
+                    paddingLeft: '34px',
                     paddingRight: '12px',
                     background: 'rgba(16, 44, 77, 0.8)',
                     border: '1px solid rgba(255, 255, 255, 0.15)',
                     outline: 'none',
                   }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--accent)';
-                    e.currentTarget.style.boxShadow = '0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent)';
-                    e.currentTarget.style.background = 'var(--primary)';
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--background) 12%, transparent)';
-                    e.currentTarget.style.boxShadow = 'none';
-                    e.currentTarget.style.background = 'color-mix(in srgb, var(--primary) 75%, transparent)';
-                  }}
                 />
               </form>
+
+              {/* Theme Toggle (Curtain Wipe) */}
+              <button
+                type="button"
+                onClick={toggleTheme}
+                aria-label="Toggle dark/light theme"
+                className="p-2 rounded-full transition-colors text-white hover:bg-white/10 flex items-center justify-center cursor-pointer"
+                title={theme === 'dark' ? 'Switch to Daylight Protocol' : 'Switch to Night Obsidian Protocol'}
+              >
+                {theme === 'dark' ? (
+                  <Sun size={17} className="text-amber-300 hover:rotate-45 transition-transform" />
+                ) : (
+                  <Moon size={17} className="text-teal-300 hover:-rotate-12 transition-transform" />
+                )}
+              </button>
 
               {/* Notification Bell */}
               <div className="relative" onClick={(e) => e.stopPropagation()}>

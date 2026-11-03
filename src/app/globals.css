@@ -68,6 +68,31 @@
   --foreground: var(--text-primary);
 }
 
+[data-theme="dark"] {
+  --bg-main: #030914;
+  --bg-secondary: #07172B;
+  --surface-card: #091a30;
+  --surface-teal-subtle: #0d2847;
+
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --text-on-dark: #FFFFFF;
+  --text-subtle-on-dark: #94A3B8;
+
+  --border-default: #1E293B;
+  --border-strong: #334155;
+  --border-teal-accent: #0F9D8A;
+
+  --primary: #0B1F3A;
+  --background: #030914;
+  --accent: #0F9D8A;
+  --text: #F8FAFC;
+  --surface: #091a30;
+  --border: #1E293B;
+  --foreground: #F8FAFC;
+}
+
 @theme inline {
   --color-primary: var(--primary);
   --color-background: var(--background);
