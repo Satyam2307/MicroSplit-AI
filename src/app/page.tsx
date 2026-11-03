@@ -1,5 +1,5 @@
 'use client';
-
+   import SplitStage from "@/components/SplitStage";
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { motion, useReducedMotion } from 'framer-motion';
@@ -97,7 +97,9 @@ function HeroSection() {
                 </Link>
               </div>
             </Reveal>
-
+<div className="mt-12">
+      <SplitStage />
+    </div>
             <Reveal delay={0.3}>
               <div className="flex flex-wrap items-center gap-8 sm:gap-10 mt-10 pt-7" style={{ borderTop: '1px solid #E2E8F0' }}>
                 {[
