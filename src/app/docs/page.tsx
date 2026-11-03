@@ -76,7 +76,7 @@ export default function DocsPage() {
               <h2 className="text-lg font-bold text-[#0B1F3A]">Create Your Squad</h2>
             </div>
             <p className="text-sm pl-10 text-slate-600">
-              Navigate to <Link href="/squads/new" className="text-[#0F9D8A] font-semibold hover:underline">Create Squad</Link>. Set your squad currency (USD, EUR, GBP, INR) and add member payout emails.
+              Navigate to <Link href="/squads/new" className="text-[#0F9D8A] font-semibold hover:underline">Create Squad</Link>. Set your squad currency (USD, EUR, GBP, or INR). Each member must enter and explicitly confirm their own PayPal email before payout; PayPal Sandbox payouts currently support USD only.
             </p>
           </div>
 

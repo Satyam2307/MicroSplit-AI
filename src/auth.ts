@@ -19,7 +19,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn: "/login",
   },
   callbacks: {
-    async signIn({ account, user }) {
+    async signIn({ account, user, profile }) {
       if (
         account?.provider !== "github" ||
         !account.providerAccountId ||
@@ -53,11 +53,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
 
       const prisma = getPrisma();
+      const githubUsername =
+        typeof profile?.login === "string" ? profile.login.trim().toLowerCase() : null;
       const linkedUser = await prisma.user.findUnique({
         where: { githubId: account.providerAccountId },
       });
 
       if (linkedUser) {
+        if (githubUsername && linkedUser.githubUsername !== githubUsername) {
+          await prisma.user.update({
+            where: { id: linkedUser.id },
+            data: { githubUsername },
+          });
+        }
         return true;
       }
 
@@ -69,6 +77,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       await prisma.user.create({
         data: {
           githubId: account.providerAccountId,
+          githubUsername,
           name: user.name?.trim() || email.split("@")[0],
           email,
           avatar: user.image,

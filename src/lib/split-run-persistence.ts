@@ -151,6 +151,45 @@ export interface SplitRunContributionDate {
   createdAt: Date;
 }
 
+export const SPLIT_ELIGIBLE_CONTRIBUTION_STATUSES = ["confirmed"] as const;
+
+export function isConfirmedContributionEligible(input: {
+  status: string;
+  memberId: string | null;
+  squadId: string;
+  requestedSquadId: string;
+  memberIds: readonly string[];
+}): boolean {
+  return (
+    (SPLIT_ELIGIBLE_CONTRIBUTION_STATUSES as readonly string[]).includes(
+      input.status
+    ) &&
+    input.memberId !== null &&
+    input.squadId === input.requestedSquadId &&
+    input.memberIds.includes(input.memberId)
+  );
+}
+
+export function getContributionActivityDate(input: {
+  createdAt: Date;
+  contributionDate: Date | null;
+  extractionLogId: string | null;
+}): Date | null {
+  if (input.contributionDate) return input.contributionDate;
+  return input.extractionLogId === null ? input.createdAt : null;
+}
+
+export function getConfirmedContributionWhere(
+  squadId: string,
+  memberIds: string[]
+): Prisma.ContributionWhereInput {
+  return {
+    memberId: { in: memberIds },
+    status: { in: [...SPLIT_ELIGIBLE_CONTRIBUTION_STATUSES] },
+    evidence: { is: { squadId } },
+  };
+}
+
 export interface SplitRunFreezeDate {
   memberId: string;
   date: Date;
@@ -529,14 +568,24 @@ export async function createPersistentSplitRun(
             select: { id: true, squadId: true, amountMinor: true, currency: true },
           });
         },
-        getContributionDates(squadId, memberIds) {
-          return tx.contribution.findMany({
-            where: {
-              memberId: { in: memberIds },
-              status: { in: ["confirmed", "pending"] },
-              evidence: { is: { squadId } },
+        async getContributionDates(squadId, memberIds) {
+          const contributions = await tx.contribution.findMany({
+            where: getConfirmedContributionWhere(squadId, memberIds),
+            select: {
+              memberId: true,
+              createdAt: true,
+              contributionDate: true,
+              extractionLogId: true,
             },
-            select: { memberId: true, createdAt: true },
+          });
+          return contributions.flatMap((contribution) => {
+            const activityDate = getContributionActivityDate(contribution);
+            return contribution.memberId && activityDate
+              ? [{
+                  memberId: contribution.memberId,
+                  createdAt: activityDate,
+                }]
+              : []
           });
         },
         getFreezeDates(membershipIds) {

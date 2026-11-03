@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPrisma } from '@/lib/prisma';
 import { requireSquadRole } from '@/lib/authorization';
+import { isValidPayPalEmail, maskPayPalEmail } from '@/lib/payout-safety';
 
 export async function GET(
   _request: NextRequest,
@@ -30,21 +31,46 @@ export async function GET(
     );
   }
 
+  const members = squad.memberships.map((membership) => {
+    const configured = Boolean(
+      membership.payoutReceiverConfirmedAt &&
+        isValidPayPalEmail(membership.payoutReceiver)
+    );
+    return {
+      ...membership,
+      payoutReceiver:
+        configured && membership.userId === access.value.userId
+          ? membership.payoutReceiver
+          : '',
+      payoutReceiverType: 'EMAIL',
+      payoutReceiverConfigured: configured,
+      payoutReceiverMasked: configured
+        ? maskPayPalEmail(membership.payoutReceiver)
+        : null,
+      payoutReceiverConfirmedAt:
+        membership.userId === access.value.userId
+          ? membership.payoutReceiverConfirmedAt
+          : null,
+      isCurrentUser: membership.userId === access.value.userId,
+    };
+  });
+  const { memberships: _memberships, revenueEvents, ...squadData } = squad;
+
   return NextResponse.json({
     success: true,
     data: {
       squad: {
-        ...squad,
-        memberCount: squad.memberships.length,
-        totalRevenue: squad.revenueEvents.reduce(
+        ...squadData,
+        memberCount: members.length,
+        totalRevenue: revenueEvents.reduce(
           (total, event) => total + event.amountMinor,
           0
         ),
         currentRole: access.value.membership.role,
       },
-      members: squad.memberships,
-      revenue: squad.revenueEvents,
-      users: squad.memberships.map((membership) => membership.user),
+      members,
+      revenue: revenueEvents,
+      users: members.map((membership) => membership.user),
     },
   });
 }

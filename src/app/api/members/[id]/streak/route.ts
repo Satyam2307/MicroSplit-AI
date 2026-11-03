@@ -36,16 +36,27 @@ export async function GET(
     prisma.contribution.findMany({
       where: {
         memberId: id,
-        status: { in: ['confirmed', 'pending'] },
+        status: 'confirmed',
+        OR: [
+          { extractionLogId: null },
+          { contributionDate: { not: null } },
+        ],
       },
-      select: { createdAt: true },
+      select: { createdAt: true, contributionDate: true, extractionLogId: true },
     }),
     prisma.freezeGrant.findMany({
       where: { memberId: { in: memberships.map((membership) => membership.id) } },
       select: { date: true },
     }),
   ]);
-  const contributionDates = contributions.map((contribution) => contribution.createdAt.toISOString());
+  const contributionDates = contributions.map(
+    (contribution) => {
+      const activityDate =
+        contribution.contributionDate ??
+        (contribution.extractionLogId === null ? contribution.createdAt : null);
+      return activityDate?.toISOString();
+    }
+  ).filter((date): date is string => date !== undefined);
   const freezeDates = freezeGrants.map((grant) => grant.date.toISOString().slice(0, 10));
 
   const streakResult = computeStreakFromDates({

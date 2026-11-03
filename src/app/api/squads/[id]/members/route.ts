@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPrisma } from '@/lib/prisma';
 import { requireSquadRole } from '@/lib/authorization';
+import {
+  isValidPayPalEmail,
+  maskPayPalEmail,
+} from '@/lib/payout-safety';
 
 const ASSIGNABLE_ROLES = ['approver', 'contributor', 'viewer'] as const;
 
@@ -40,12 +44,7 @@ export async function POST(
       );
     }
 
-    const receiver =
-      typeof body.payoutReceiver === 'string'
-        ? body.payoutReceiver.trim()
-        : typeof body.email === 'string'
-          ? body.email.trim().toLowerCase()
-          : '';
+    const receiver = '';
     const user = body.userId
       ? await getPrisma().user.findUnique({ where: { id: body.userId } })
       : receiver
@@ -64,8 +63,9 @@ export async function POST(
         squadId,
         userId: user.id,
         role,
-        payoutReceiver: receiver || user.email,
+        payoutReceiver: receiver,
         payoutReceiverType: receiverType,
+        payoutReceiverConfirmedAt: null,
         timezone,
         focusSessionsOptIn: Boolean(body.focusSessionsOptIn),
       },
@@ -74,7 +74,15 @@ export async function POST(
       },
     });
 
-    return NextResponse.json({ success: true, data: membership }, { status: 201 });
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...membership,
+        payoutReceiver: '',
+        payoutReceiverConfigured: false,
+        isCurrentUser: membership.userId === access.value.userId,
+      },
+    }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to add member';
     return NextResponse.json({ success: false, error: message }, { status: 409 });
@@ -96,7 +104,90 @@ export async function GET(
     },
     orderBy: { id: 'asc' },
   });
-  return NextResponse.json({ success: true, data: members });
+  return NextResponse.json({
+    success: true,
+    data: members.map((member) => {
+      const configured = Boolean(
+        member.payoutReceiverConfirmedAt &&
+          isValidPayPalEmail(member.payoutReceiver)
+      );
+      return {
+        ...member,
+        payoutReceiver:
+          configured && member.userId === access.value.userId
+            ? member.payoutReceiver
+            : "",
+        payoutReceiverMasked:
+          configured ? maskPayPalEmail(member.payoutReceiver) : null,
+        payoutReceiverConfigured: configured,
+        payoutReceiverConfirmedAt:
+          member.userId === access.value.userId
+            ? member.payoutReceiverConfirmedAt
+            : null,
+        isCurrentUser: member.userId === access.value.userId,
+      };
+    }),
+  });
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id: squadId } = await params;
+  const access = await requireSquadRole(squadId);
+  if (!access.ok) return access.response;
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { success: false, error: 'Request body must be valid JSON' },
+      { status: 400 }
+    );
+  }
+  if (
+    typeof body !== 'object' ||
+    body === null ||
+    Array.isArray(body) ||
+    !('payoutReceiver' in body) ||
+    typeof body.payoutReceiver !== 'string'
+  ) {
+    return NextResponse.json(
+      { success: false, error: 'payoutReceiver must be a string' },
+      { status: 400 }
+    );
+  }
+
+  const receiver = body.payoutReceiver.trim();
+  if (receiver !== '' && !isValidPayPalEmail(receiver)) {
+    return NextResponse.json(
+      { success: false, error: 'Enter a valid PayPal email address' },
+      { status: 400 }
+    );
+  }
+
+  const membership = await getPrisma().membership.update({
+    where: { id: access.value.membership.id },
+    data: {
+      payoutReceiver: receiver,
+      payoutReceiverType: 'EMAIL',
+      payoutReceiverConfirmedAt: receiver ? new Date() : null,
+    },
+    select: {
+      payoutReceiver: true,
+      payoutReceiverConfirmedAt: true,
+    },
+  });
+
+  return NextResponse.json({
+    success: true,
+    data: {
+      payoutReceiver: membership.payoutReceiver,
+      payoutReceiverConfigured: Boolean(membership.payoutReceiverConfirmedAt),
+    },
+  });
 }
 
 export async function DELETE(

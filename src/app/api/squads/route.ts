@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
           create: {
             userId: owner.id,
             role: "owner",
-            payoutReceiver: owner.email,
+            payoutReceiver: "",
             payoutReceiverType: "EMAIL",
             timezone,
           },

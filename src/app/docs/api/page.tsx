@@ -82,6 +82,40 @@ export default function ApiDocsPage() {
           <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm">
             <div className="flex items-center gap-3 mb-2">
               <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800">POST</span>
+              <code className="text-sm font-bold text-[#0B1F3A]">/api/split-runs/{'{id}'}/payout</code>
+            </div>
+            <p className="text-xs text-slate-600 mb-4">
+              Submits one persisted, approved USD split to PayPal Sandbox. Only squad owners and approvers can submit; each member must explicitly confirm a valid PayPal email first. A unique payout claim is retained if provider confirmation is uncertain.
+            </p>
+            <div className="flex items-start gap-2 text-xs text-slate-600">
+              <ShieldCheck size={14} className="text-[#0F9D8A] mt-0.5 flex-shrink-0" />
+              <span>Never use this endpoint for live funds. Submission is Sandbox-only and is protected against duplicate claims.</span>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-100 text-blue-800">GET</span>
+              <code className="text-sm font-bold text-[#0B1F3A]">/api/payouts</code>
+            </div>
+            <p className="text-xs text-slate-600 mb-4">
+              Returns persisted payout batches for squads where the signed-in user is an owner or approver. Recipient emails are masked.
+            </p>
+          </div>
+
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800">POST</span>
+              <code className="text-sm font-bold text-[#0B1F3A]">/api/payouts/{'{id}'}/reconcile</code>
+            </div>
+            <p className="text-xs text-slate-600 mb-4">
+              Explicitly retrieves and persists the current PayPal Sandbox batch and item statuses for an authorized squad reviewer.
+            </p>
+          </div>
+
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800">POST</span>
               <code className="text-sm font-bold text-[#0B1F3A]">/api/contact</code>
             </div>
             <p className="text-xs text-slate-600 mb-4">
