@@ -51,7 +51,7 @@ function HeroSection() {
           <div>
             <Reveal>
               <div
-                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full mb-7"
+                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full mb-6 -translate-y-0.5"
                 style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(11, 31, 58, 0.05)' }}
               >
                 <span className="w-2 h-2 rounded-full" style={{ background: 'var(--accent)', boxShadow: '0 0 8px color-mix(in srgb, var(--accent) 50%, transparent)' }} />
@@ -97,7 +97,7 @@ function HeroSection() {
                 </Link>
               </div>
             </Reveal>
-<div className="mt-12">
+<div className="mt-8 md:mt-10 -translate-y-0.5">
       <SplitStage />
     </div>
             <Reveal delay={0.3}>
