@@ -61,6 +61,7 @@ export async function GET(
       success: true,
       data: {
         ...toSplitRunDTO(run),
+        currentRole: access.value.membership.role,
         approvals: approvals.map((approval) => ({
           id: approval.id,
           runId: approval.runId,

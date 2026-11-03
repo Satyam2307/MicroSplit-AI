@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   XCircle,
+  CreditCard,
   ChevronDown,
   FileText,
   Shield,
@@ -27,6 +28,8 @@ import type {
   SplitRunEvidenceDTO,
 } from '@/lib/split-run-types';
 import { formatMoney } from '@/lib/money';
+
+type RunView = SplitRunDTO & { currentRole?: string };
 
 const statusPipeline: Record<
   string,
@@ -66,11 +69,14 @@ const statusPipeline: Record<
 
 function RunDetailContent({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [run, setRun] = useState<SplitRunDTO | null>(null);
+  const [run, setRun] = useState<RunView | null>(null);
   const [approvals, setApprovals] = useState<SplitRunApprovalDTO[]>([]);
   const [evidence, setEvidence] = useState<SplitRunEvidenceDTO[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [expandedLine, setExpandedLine] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [isSubmittingAction, setIsSubmittingAction] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,6 +103,65 @@ function RunDetailContent({ params }: { params: Promise<{ id: string }> }) {
       cancelled = true;
     };
   }, [id]);
+
+  const submitReviewDecision = async (decision: 'approved' | 'disputed') => {
+    if (!run) return;
+    setIsSubmittingAction(true);
+    setActionError(null);
+    setActionNotice(null);
+    try {
+      const response = await fetch(`/api/split-runs/${encodeURIComponent(run.id)}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Unable to save review decision');
+      }
+      setRun((current) =>
+        current ? { ...current, status: result.data.runStatus } : current
+      );
+      setApprovals((current) => [...current, result.data.approval]);
+      setActionNotice(
+        decision === 'approved'
+          ? 'The split snapshot was approved and persisted.'
+          : 'The split snapshot was disputed and payouts are blocked.'
+      );
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Unable to save review decision');
+    } finally {
+      setIsSubmittingAction(false);
+    }
+  };
+
+  const submitPayout = async () => {
+    if (!run) return;
+    const confirmed = window.confirm(
+      `Submit the persisted ${formatMoney(run.poolMinor, run.currency)} split to PayPal Sandbox? This sends payouts to the members' confirmed PayPal destinations.`
+    );
+    if (!confirmed) return;
+
+    setIsSubmittingAction(true);
+    setActionError(null);
+    setActionNotice(null);
+    try {
+      const response = await fetch(`/api/split-runs/${encodeURIComponent(run.id)}/payout`, {
+        method: 'POST',
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Unable to submit Sandbox payout');
+      }
+      setActionNotice(
+        `Sandbox payout batch ${result.data.paypalBatchId || result.data.senderBatchId} was submitted. Refresh status from the Payouts page to reconcile items.`
+      );
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Unable to submit Sandbox payout');
+    } finally {
+      setIsSubmittingAction(false);
+    }
+  };
 
   const pipeline = run ? statusPipeline[run.status] || statusPipeline.draft : statusPipeline.draft;
 
@@ -153,15 +218,64 @@ function RunDetailContent({ params }: { params: Promise<{ id: string }> }) {
                 {new Date(run.createdAt).toLocaleDateString()}
               </p>
             </div>
-            <div
-              className="text-xs flex items-center gap-2"
-              style={{ color: 'var(--muted)' }}
-            >
-              <Shield size={14} />
-              Approval and payout actions will be enabled in a later stage.
+            <div className="flex flex-col items-start sm:items-end gap-2">
+              {(run.currentRole === 'owner' || run.currentRole === 'approver') &&
+                (run.status === 'pending_approval' || run.status === 'disputed') && (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void submitReviewDecision('approved')}
+                      disabled={isSubmittingAction}
+                      className="btn-3d btn-3d-sm text-xs disabled:opacity-50"
+                    >
+                      <CheckCircle2 size={13} />
+                      Approve split
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void submitReviewDecision('disputed')}
+                      disabled={isSubmittingAction}
+                      className="btn-secondary text-xs disabled:opacity-50"
+                    >
+                      <XCircle size={13} />
+                      Dispute
+                    </button>
+                  </div>
+                )}
+              {(run.currentRole === 'owner' || run.currentRole === 'approver') &&
+                run.status === 'approved' && (
+                  <button
+                    type="button"
+                    onClick={() => void submitPayout()}
+                    disabled={isSubmittingAction}
+                    className="btn-3d btn-3d-sm text-xs disabled:opacity-50"
+                  >
+                    <CreditCard size={13} />
+                    {isSubmittingAction ? 'Submitting...' : 'Submit Sandbox payout'}
+                  </button>
+                )}
+              {run.currentRole !== 'owner' && run.currentRole !== 'approver' && (
+                <div className="text-xs flex items-center gap-2" style={{ color: 'var(--muted)' }}>
+                  <Shield size={14} />
+                  Review and payout actions are restricted to squad owners and approvers.
+                </div>
+              )}
             </div>
           </div>
         </Reveal>
+
+        {(actionError || actionNotice) && (
+          <div
+            role={actionError ? 'alert' : 'status'}
+            className="mb-6 rounded-lg px-4 py-3 text-sm"
+            style={{
+              background: actionError ? 'var(--primary-subtle)' : 'var(--accent-subtle)',
+              color: actionError ? 'var(--primary)' : 'var(--accent)',
+            }}
+          >
+            {actionError || actionNotice}
+          </div>
+        )}
 
         {/* Pipeline */}
         <Reveal delay={0.1}>

@@ -105,6 +105,11 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
         if (!active) return;
         setSquad(squadResult.data.squad);
         setMembers(squadResult.data.members || []);
+        setPayoutReceiverInput(
+          squadResult.data.members?.find(
+            (member: MockMembership) => member.isCurrentUser
+          )?.payoutReceiver ?? ''
+        );
         setRevenue(squadResult.data.revenue || []);
         setUsers(squadResult.data.users || []);
         setRuns(runsResult.data || []);
@@ -136,6 +141,9 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
   const [newMemberOptIn, setNewMemberOptIn] = useState(true);
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [memberError, setMemberError] = useState<string | null>(null);
+  const [payoutReceiverInput, setPayoutReceiverInput] = useState('');
+  const [payoutReceiverError, setPayoutReceiverError] = useState<string | null>(null);
+  const [isSavingPayoutReceiver, setIsSavingPayoutReceiver] = useState(false);
 
   // Record revenue form state
   const [revAmount, setRevAmount] = useState('1000.00');
@@ -170,7 +178,6 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
           role: newMemberRole,
           timezone: newMemberTimezone,
           focusSessionsOptIn: newMemberOptIn,
-          payoutReceiver: newMemberEmail.trim(),
         }),
       });
 
@@ -208,6 +215,51 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
       setMemberError(err instanceof Error ? err.message : 'Error adding member');
     } finally {
       setIsAddingMember(false);
+    }
+  };
+
+  const handleSavePayoutReceiver = async () => {
+    setIsSavingPayoutReceiver(true);
+    setPayoutReceiverError(null);
+    try {
+      const response = await fetch(`/api/squads/${squad.id}/members`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payoutReceiver: payoutReceiverInput }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Unable to save payout destination');
+      }
+
+      const receiver = result.data.payoutReceiver as string;
+      setMembers((current) =>
+        current.map((member) =>
+          member.isCurrentUser
+            ? {
+                ...member,
+                payoutReceiver: receiver,
+                payoutReceiverConfigured: result.data.payoutReceiverConfigured,
+                payoutReceiverMasked: result.data.payoutReceiverConfigured
+                  ? `${receiver.slice(0, 1)}***@${receiver.split('@')[1]}`
+                  : null,
+              }
+            : member
+        )
+      );
+      showToast({
+        type: 'success',
+        title: 'Payout destination saved',
+        message: result.data.payoutReceiverConfigured
+          ? 'Your PayPal email is confirmed for future payouts.'
+          : 'Your payout destination has been cleared.',
+      });
+    } catch (error) {
+      setPayoutReceiverError(
+        error instanceof Error ? error.message : 'Unable to save payout destination'
+      );
+    } finally {
+      setIsSavingPayoutReceiver(false);
     }
   };
 
@@ -761,8 +813,36 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
                           </span>
                         </div>
                         <p className="text-xs text-[var(--text)] mt-0.5">
-                          {mem.payoutReceiver} ({mem.payoutReceiverType})
+                          {mem.payoutReceiverConfigured
+                            ? mem.payoutReceiverMasked || 'Payout destination configured'
+                            : 'Payout destination not configured'}
                         </p>
+                        {mem.isCurrentUser && (
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <input
+                              type="email"
+                              value={payoutReceiverInput}
+                              onChange={(event) => setPayoutReceiverInput(event.target.value)}
+                              placeholder="PayPal email"
+                              aria-label="Your PayPal payout email"
+                              className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void handleSavePayoutReceiver()}
+                              disabled={isSavingPayoutReceiver}
+                              className="btn-3d btn-3d-sm text-xs disabled:opacity-50"
+                              style={{ padding: '8px 14px' }}
+                            >
+                              {isSavingPayoutReceiver ? 'Saving...' : 'Save destination'}
+                            </button>
+                            {payoutReceiverError && (
+                              <p role="alert" className="w-full text-xs text-[var(--primary)]">
+                                {payoutReceiverError}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-3 text-xs">

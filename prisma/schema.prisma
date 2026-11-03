@@ -53,14 +53,15 @@ model Squad {
 }
 
 model Membership {
-  id                 String  @id @default(cuid())
-  squadId            String  @map("squad_id")
-  userId             String  @map("user_id")
-  role               String  @default("contributor") // owner | approver | contributor | viewer
-  payoutReceiver     String  @map("payout_receiver") // PayPal email or phone
-  payoutReceiverType String  @default("EMAIL") @map("payout_receiver_type") // EMAIL | PHONE
-  timezone           String  @default("UTC")
-  focusSessionsOptIn Boolean @default(false) @map("focus_sessions_opt_in")
+  id                        String    @id @default(cuid())
+  squadId                   String    @map("squad_id")
+  userId                    String    @map("user_id")
+  role                      String    @default("contributor") // owner | approver | contributor | viewer
+  payoutReceiver            String    @map("payout_receiver") // PayPal email or phone
+  payoutReceiverType        String    @default("EMAIL") @map("payout_receiver_type") // EMAIL | PHONE
+  payoutReceiverConfirmedAt DateTime? @map("payout_receiver_confirmed_at")
+  timezone                  String    @default("UTC")
+  focusSessionsOptIn        Boolean   @default(false) @map("focus_sessions_opt_in")
 
   squad         Squad          @relation(fields: [squadId], references: [id], onDelete: Cascade)
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -106,21 +107,21 @@ model SplitRule {
 
 // ─── Evidence & Contributions ────────────────────────────────
 model Evidence {
-  id         String   @id @default(cuid())
-  squadId    String   @map("squad_id")
-  uploaderId String   @map("uploader_id")
-  reviewedById String? @map("reviewed_by_id")
-  reviewedAt DateTime? @map("reviewed_at")
-  kind       String // text | pdf | image | audio | csv | link
-  fileName   String?  @map("file_name")
-  fileUrl    String?  @map("file_url")
-  storageKey String?  @unique @map("storage_key")
-  idempotencyKey String? @map("idempotency_key")
-  sha256     String?
-  mimeType   String?  @map("mime_type")
-  sizeBytes  Int?     @map("size_bytes")
-  status     String   @default("pending") // pending is legacy; new records use uploading, pending_review, confirmed, rejected, or extraction states
-  createdAt  DateTime @default(now()) @map("created_at")
+  id             String    @id @default(cuid())
+  squadId        String    @map("squad_id")
+  uploaderId     String    @map("uploader_id")
+  reviewedById   String?   @map("reviewed_by_id")
+  reviewedAt     DateTime? @map("reviewed_at")
+  kind           String // text | pdf | image | audio | csv | link
+  fileName       String?   @map("file_name")
+  fileUrl        String?   @map("file_url")
+  storageKey     String?   @unique @map("storage_key")
+  idempotencyKey String?   @map("idempotency_key")
+  sha256         String?
+  mimeType       String?   @map("mime_type")
+  sizeBytes      Int?      @map("size_bytes")
+  status         String    @default("pending") // pending is legacy; new records use uploading, pending_review, confirmed, rejected, or extraction states
+  createdAt      DateTime  @default(now()) @map("created_at")
 
   squad         Squad          @relation(fields: [squadId], references: [id], onDelete: Cascade)
   uploader      User           @relation(fields: [uploaderId], references: [id])
@@ -227,34 +228,47 @@ model Approval {
 
 // ─── Payouts ─────────────────────────────────────────────────
 model PayoutBatch {
-  id            String   @id @default(cuid())
-  runId         String   @map("run_id")
-  senderBatchId String   @unique @map("sender_batch_id")
-  paypalBatchId String?  @map("paypal_batch_id")
-  status        String   @default("created") // created | processing | success | denied | canceled
-  totalMinor    Int      @default(0) @map("total_minor")
-  createdAt     DateTime @default(now()) @map("created_at")
+  id                    String    @id @default(cuid())
+  runId                 String    @map("run_id")
+  senderBatchId         String    @unique @map("sender_batch_id")
+  paypalBatchId         String?   @map("paypal_batch_id")
+  status                String    @default("created") // created | submitting | submission_unknown | processing | success | denied | canceled | completed_with_issues
+  totalMinor            Int       @default(0) @map("total_minor")
+  submissionAttemptedAt DateTime? @map("submission_attempted_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
 
   run   SplitRun     @relation(fields: [runId], references: [id])
   items PayoutItem[]
 
+  @@unique([runId])
   @@map("payout_batches")
 }
 
 model PayoutItem {
-  id            String  @id @default(cuid())
-  batchId       String  @map("batch_id")
-  lineId        String  @map("line_id")
-  senderItemId  String  @unique @map("sender_item_id")
-  paypalItemId  String? @map("paypal_item_id")
-  amountMinor   Int     @map("amount_minor")
-  status        String  @default("created") // created | pending | success | failed | unclaimed | returned | blocked
-  failureReason String? @map("failure_reason")
+  id             String  @id @default(cuid())
+  batchId        String  @map("batch_id")
+  lineId         String  @map("line_id")
+  senderItemId   String  @unique @map("sender_item_id")
+  paypalItemId   String? @map("paypal_item_id")
+  recipientEmail String  @default("") @map("recipient_email")
+  amountMinor    Int     @map("amount_minor")
+  status         String  @default("created") // created | pending | success | failed | unclaimed | returned | blocked
+  failureReason  String? @map("failure_reason")
 
   batch PayoutBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
   line  SplitLine   @relation(fields: [lineId], references: [id])
 
   @@map("payout_items")
+}
+
+model PayPalWebhookEvent {
+  id            String   @id @default(cuid())
+  paypalEventId String   @unique @map("paypal_event_id")
+  eventType     String   @map("event_type")
+  processedAt   DateTime @default(now()) @map("processed_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("paypal_webhook_events")
 }
 
 // ─── Ledger (append-only with hash chain) ────────────────────
