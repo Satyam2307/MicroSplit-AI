@@ -1,22 +1,17 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { use } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
   CheckCircle2,
-  AlertTriangle,
   XCircle,
+  CreditCard,
   ChevronDown,
   FileText,
   Shield,
-  CreditCard,
-  MessageSquare,
-  Clock,
-  Zap,
-  Send,
   Flame,
 } from 'lucide-react';
 import {
@@ -26,10 +21,15 @@ import {
   StatusChip,
   WeightBar,
   ProgressPipeline,
-  ConfidenceMeter,
 } from '@/components/ui';
-import { mockSplitRuns, mockApprovals, mockContributions, mockEvidence } from '@/lib/mock-data';
-import { formatMoney, percentOfPool } from '@/lib/money';
+import type {
+  SplitRunApprovalDTO,
+  SplitRunDTO,
+  SplitRunEvidenceDTO,
+} from '@/lib/split-run-types';
+import { formatMoney } from '@/lib/money';
+
+type RunView = SplitRunDTO & { currentRole?: string };
 
 const statusPipeline: Record<
   string,
@@ -67,131 +67,120 @@ const statusPipeline: Record<
   ],
 };
 
-import { showToast } from '@/components/Toast';
-
 function RunDetailContent({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const initialRun = mockSplitRuns.find((r) => r.id === id) || mockSplitRuns[0];
-  const [run, setRun] = useState(initialRun);
-  const [approvals, setApprovals] = useState(
-    mockApprovals.filter((a) => a.runId === initialRun.id)
-  );
+  const [run, setRun] = useState<RunView | null>(null);
+  const [approvals, setApprovals] = useState<SplitRunApprovalDTO[]>([]);
+  const [evidence, setEvidence] = useState<SplitRunEvidenceDTO[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [expandedLine, setExpandedLine] = useState<string | null>(null);
-  const [disputeNote, setDisputeNote] = useState('');
-  const [showDisputeForm, setShowDisputeForm] = useState(false);
-  const [isApproving, setIsApproving] = useState(false);
-  const [isPaying, setIsPaying] = useState(false);
-  const [isDisputing, setIsDisputing] = useState(false);
-  const [payoutResult, setPayoutResult] = useState<{ batchHeader?: { payout_batch_id?: string; batch_status?: string } } | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [isSubmittingAction, setIsSubmittingAction] = useState(false);
 
-  const pipeline = statusPipeline[run.status] || statusPipeline.draft;
+  useEffect(() => {
+    let cancelled = false;
+    async function loadRun() {
+      try {
+        const response = await fetch(`/api/split-runs/${encodeURIComponent(id)}`);
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || 'Unable to load split run');
+        }
+        if (cancelled) return;
+        setRun(result.data);
+        setApprovals(result.data.approvals ?? []);
+        setEvidence(result.data.evidence ?? []);
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(error instanceof Error ? error.message : 'Unable to load split run');
+        }
+      }
+    }
 
-  const handleApprove = async () => {
-    setIsApproving(true);
+    void loadRun();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  const submitReviewDecision = async (decision: 'approved' | 'disputed') => {
+    if (!run) return;
+    setIsSubmittingAction(true);
+    setActionError(null);
+    setActionNotice(null);
     try {
-      const res = await fetch(`/api/split-runs/${run.id}/approve`, {
+      const response = await fetch(`/api/split-runs/${encodeURIComponent(run.id)}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          decision: 'approved',
-          approverId: 'usr_1',
-          approverName: 'Alex Rivera',
-          note: 'Approved for payout processing',
-        }),
+        body: JSON.stringify({ decision }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to approve');
-
-      setRun((prev) => ({ ...prev, status: 'approved' }));
-      setApprovals((prev) => [
-        ...prev,
-        {
-          id: `apr_${Date.now()}`,
-          runId: run.id,
-          approverId: 'usr_1',
-          approverName: 'Alex Rivera',
-          decision: 'approved',
-          note: 'Approved for payout processing',
-          createdAt: new Date().toISOString(),
-        },
-      ]);
-      showToast({
-        type: 'success',
-        title: 'Split Run Approved',
-        message: 'The run is approved and ready for PayPal batch payout.',
-      });
-    } catch (err: unknown) {
-      showToast({
-        type: 'error',
-        title: 'Approval Failed',
-        message: err instanceof Error ? err.message : 'Error approving run',
-      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Unable to save review decision');
+      }
+      setRun((current) =>
+        current ? { ...current, status: result.data.runStatus } : current
+      );
+      setApprovals((current) => [...current, result.data.approval]);
+      setActionNotice(
+        decision === 'approved'
+          ? 'The split snapshot was approved and persisted.'
+          : 'The split snapshot was disputed and payouts are blocked.'
+      );
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Unable to save review decision');
     } finally {
-      setIsApproving(false);
+      setIsSubmittingAction(false);
     }
   };
 
-  const handleDispute = async () => {
-    if (!disputeNote.trim()) return;
-    setIsDisputing(true);
-    try {
-      const res = await fetch(`/api/split-runs/${run.id}/approve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          decision: 'disputed',
-          approverId: 'usr_1',
-          approverName: 'Alex Rivera',
-          note: disputeNote.trim(),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to dispute');
+  const submitPayout = async () => {
+    if (!run) return;
+    const confirmed = window.confirm(
+      `Submit the persisted ${formatMoney(run.poolMinor, run.currency)} split to PayPal Sandbox? This sends payouts to the members' confirmed PayPal destinations.`
+    );
+    if (!confirmed) return;
 
-      setRun((prev) => ({ ...prev, status: 'disputed' }));
-      setShowDisputeForm(false);
-      showToast({
-        type: 'error',
-        title: 'Run Flagged as Disputed',
-        message: 'Dispute recorded in tamper-evident ledger.',
-      });
-    } catch (err: unknown) {
-      showToast({
-        type: 'error',
-        title: 'Dispute Failed',
-        message: err instanceof Error ? err.message : 'Error submitting dispute',
-      });
-    } finally {
-      setIsDisputing(false);
-    }
-  };
-
-  const handleSendPayout = async () => {
-    setIsPaying(true);
+    setIsSubmittingAction(true);
+    setActionError(null);
+    setActionNotice(null);
     try {
-      const res = await fetch(`/api/split-runs/${run.id}/payout`, {
+      const response = await fetch(`/api/split-runs/${encodeURIComponent(run.id)}/payout`, {
         method: 'POST',
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to execute payout');
-
-      setRun((prev) => ({ ...prev, status: 'paid' }));
-      setPayoutResult(data.data);
-      showToast({
-        type: 'success',
-        title: 'PayPal Payout Batch Created!',
-        message: `Batch ID: ${data.data?.batchHeader?.payout_batch_id || 'PAYPAL_BATCH_SUCCESS'}. Dispatched via PayPal v1 API.`,
-      });
-    } catch (err: unknown) {
-      showToast({
-        type: 'error',
-        title: 'Payout Execution Failed',
-        message: err instanceof Error ? err.message : 'Error dispatching payout',
-      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Unable to submit Sandbox payout');
+      }
+      setActionNotice(
+        `Sandbox payout batch ${result.data.paypalBatchId || result.data.senderBatchId} was submitted. Refresh status from the Payouts page to reconcile items.`
+      );
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Unable to submit Sandbox payout');
     } finally {
-      setIsPaying(false);
+      setIsSubmittingAction(false);
     }
   };
+
+  const pipeline = run ? statusPipeline[run.status] || statusPipeline.draft : statusPipeline.draft;
+
+  if (loadError || !run) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--background)' }}>
+        <Card elevated padding="lg" className="max-w-lg w-full text-center">
+          <p className="font-semibold" style={{ color: 'var(--text)' }}>
+            {loadError || 'Loading split run...'}
+          </p>
+          {loadError && (
+            <Link href="/squads" className="btn-secondary mt-4 inline-flex">
+              Back to squads
+            </Link>
+          )}
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pb-16" style={{ background: 'var(--background)' }}>
@@ -225,70 +214,67 @@ function RunDetailContent({ params }: { params: Promise<{ id: string }> }) {
                 />
               </div>
               <p className="text-sm" style={{ color: 'var(--muted)' }}>
-                Run {run.id} &bull; Rule v{run.ruleVersion} &bull;{' '}
+                Run {run.id} &bull; Rule v{run.ruleVersion} &bull; Calculation #{run.calculationVersion} &bull;{' '}
                 {new Date(run.createdAt).toLocaleDateString()}
               </p>
             </div>
-            <div className="flex gap-3">
-              {run.status === 'pending_approval' && (
-                <>
+            <div className="flex flex-col items-start sm:items-end gap-2">
+              {(run.currentRole === 'owner' || run.currentRole === 'approver') &&
+                (run.status === 'pending_approval' || run.status === 'disputed') && (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void submitReviewDecision('approved')}
+                      disabled={isSubmittingAction}
+                      className="btn-3d btn-3d-sm text-xs disabled:opacity-50"
+                    >
+                      <CheckCircle2 size={13} />
+                      Approve split
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void submitReviewDecision('disputed')}
+                      disabled={isSubmittingAction}
+                      className="btn-secondary text-xs disabled:opacity-50"
+                    >
+                      <XCircle size={13} />
+                      Dispute
+                    </button>
+                  </div>
+                )}
+              {(run.currentRole === 'owner' || run.currentRole === 'approver') &&
+                run.status === 'approved' && (
                   <button
                     type="button"
-                    onClick={handleApprove}
-                    disabled={isApproving}
-                    className="btn-3d btn-3d-sm"
-                    style={{
-                      background: 'var(--primary)',
-                      boxShadow: '0 4px 0 var(--primary), 0 8px 16px color-mix(in srgb, var(--accent) 25%, transparent)',
-                    }}
+                    onClick={() => void submitPayout()}
+                    disabled={isSubmittingAction}
+                    className="btn-3d btn-3d-sm text-xs disabled:opacity-50"
                   >
-                    <CheckCircle2 size={14} />
-                    {isApproving ? 'Approving...' : 'Approve'}
+                    <CreditCard size={13} />
+                    {isSubmittingAction ? 'Submitting...' : 'Submit Sandbox payout'}
                   </button>
-                  <button
-                    type="button"
-                    className="btn-secondary text-sm py-2 px-4"
-                    style={{ borderColor: 'var(--primary)', color: 'var(--primary)' }}
-                    onClick={() => setShowDisputeForm(!showDisputeForm)}
-                  >
-                    <AlertTriangle size={14} />
-                    Dispute
-                  </button>
-                </>
-              )}
-              {run.status === 'approved' && (
-                <button
-                  type="button"
-                  onClick={handleSendPayout}
-                  disabled={isPaying}
-                  className="btn-3d btn-3d-sm btn-3d-mint"
-                  style={{ background: 'var(--accent)', color: 'var(--primary)' }}
-                >
-                  <Send size={14} />
-                  {isPaying ? 'Dispatching PayPal...' : 'Send payout'}
-                </button>
+                )}
+              {run.currentRole !== 'owner' && run.currentRole !== 'approver' && (
+                <div className="text-xs flex items-center gap-2" style={{ color: 'var(--muted)' }}>
+                  <Shield size={14} />
+                  Review and payout actions are restricted to squad owners and approvers.
+                </div>
               )}
             </div>
           </div>
         </Reveal>
 
-        {/* Payout Success Banner if available */}
-        {payoutResult && (
-          <Reveal>
-            <div className="mb-6 p-4 rounded-xl bg-[var(--accent-subtle)] border border-[var(--border)] flex items-center justify-between">
-              <div>
-                <p className="text-sm font-bold text-[var(--accent)]">
-                  ✓ PayPal Payout Batch Processed Successfully
-                </p>
-                <p className="text-xs text-[var(--text)] mt-0.5 font-mono">
-                  Batch ID: {payoutResult.batchHeader?.payout_batch_id || 'PAYPAL_BATCH_2026'} • Status: {payoutResult.batchHeader?.batch_status || 'PENDING'}
-                </p>
-              </div>
-              <Link href="/payouts" className="text-xs font-bold text-[var(--primary)] hover:underline">
-                View Payouts Ledger →
-              </Link>
-            </div>
-          </Reveal>
+        {(actionError || actionNotice) && (
+          <div
+            role={actionError ? 'alert' : 'status'}
+            className="mb-6 rounded-lg px-4 py-3 text-sm"
+            style={{
+              background: actionError ? 'var(--primary-subtle)' : 'var(--accent-subtle)',
+              color: actionError ? 'var(--primary)' : 'var(--accent)',
+            }}
+          >
+            {actionError || actionNotice}
+          </div>
         )}
 
         {/* Pipeline */}
@@ -297,46 +283,6 @@ function RunDetailContent({ params }: { params: Promise<{ id: string }> }) {
             <ProgressPipeline stages={pipeline} />
           </Card>
         </Reveal>
-
-        {/* Dispute form */}
-        <AnimatePresence>
-          {showDisputeForm && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden mb-6"
-            >
-              <Card padding="lg" className="border-2 border-[var(--background)] bg-[var(--background)]">
-                <h3 className="text-base font-bold mb-3 flex items-center gap-2 text-[var(--primary)]">
-                  <AlertTriangle size={16} />
-                  File a dispute
-                </h3>
-                <textarea
-                  className="input-field mb-3"
-                  rows={3}
-                  placeholder="Explain the issue with this split..."
-                  value={disputeNote}
-                  onChange={(e) => setDisputeNote(e.target.value)}
-                />
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={handleDispute}
-                    disabled={isDisputing || !disputeNote.trim()}
-                    className="btn-3d btn-3d-sm"
-                    style={{ background: 'var(--primary)', boxShadow: '0 4px 0 var(--primary)' }}
-                  >
-                    {isDisputing ? 'Submitting...' : 'Submit dispute'}
-                  </button>
-                  <button className="btn-ghost" onClick={() => setShowDisputeForm(false)}>
-                    Cancel
-                  </button>
-                </div>
-              </Card>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Split Lines */}
@@ -356,7 +302,7 @@ function RunDetailContent({ params }: { params: Promise<{ id: string }> }) {
                     const pct = (line.amountMinor / run.poolMinor) * 100;
                     // Find related evidence
                     const evidenceRefs = line.rationale.evidence_refs || [];
-                    const relatedEvidence = mockEvidence.filter((e) =>
+                    const relatedEvidence = evidence.filter((e) =>
                       evidenceRefs.includes(e.id)
                     );
 
@@ -397,7 +343,7 @@ function RunDetailContent({ params }: { params: Promise<{ id: string }> }) {
                                 </div>
                                 <MoneyChip
                                   amount={formatMoney(line.amountMinor)}
-                                  status="paid"
+                                  status="default"
                                   size="sm"
                                 />
                               </div>
@@ -493,12 +439,17 @@ function RunDetailContent({ params }: { params: Promise<{ id: string }> }) {
                 <div
                   className="px-6 py-3 flex items-center justify-between text-sm"
                   style={{
-                    background: 'var(--accent-subtle)',
+                    background: run.isConserved ? 'var(--accent-subtle)' : 'var(--primary-subtle)',
                     borderTop: '1px solid var(--border)',
                   }}
                 >
-                  <span className="font-semibold" style={{ color: 'var(--accent)' }}>
-                    ✓ Sum matches pool exactly
+                  <span
+                    className="font-semibold"
+                    style={{ color: run.isConserved ? 'var(--accent)' : 'var(--primary)' }}
+                  >
+                    {run.isConserved
+                      ? '✓ Sum matches pool exactly'
+                      : 'Stored lines do not match the run total'}
                   </span>
                   <span className="font-bold tabular-nums" style={{ color: 'var(--accent)' }}>
                     {formatMoney(run.lines.reduce((s, l) => s + l.amountMinor, 0))} / {formatMoney(run.poolMinor)}

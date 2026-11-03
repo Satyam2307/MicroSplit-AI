@@ -1,37 +1,38 @@
 // POST /api/squads/:id/revenue – Record revenue event
 import { NextRequest, NextResponse } from 'next/server';
-import { mockRevenueEvents } from '@/lib/mock-data';
-import { createLedgerEntry, type LedgerEntry } from '@/lib/ledger';
+import { createLedgerEntry } from '@/lib/ledger';
 import { mockLedgerEvents } from '@/lib/mock-data';
+import { getPrisma } from '@/lib/prisma';
+import { requireSquadRole } from '@/lib/authorization';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: squadId } = await params;
+  const access = await requireSquadRole(squadId, ['owner', 'approver']);
+  if (!access.ok) return access.response;
+
   try {
     const body = await request.json();
     const { amountMinor, currency = 'USD', source, description } = body;
 
-    if (!amountMinor || amountMinor <= 0) {
+    if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0 || typeof source !== 'string') {
       return NextResponse.json(
-        { success: false, error: 'amountMinor must be a positive integer' },
+        { success: false, error: 'amountMinor must be a positive integer and source is required' },
         { status: 400 }
       );
     }
 
-    const event = {
-      id: `rev_${Date.now()}`,
-      squadId,
-      amountMinor: Math.round(amountMinor),
-      currency,
-      source: source || 'manual',
-      description: description || '',
-      status: 'active',
-      createdAt: new Date().toISOString(),
-    };
-
-    mockRevenueEvents.push(event);
+    const event = await getPrisma().revenueEvent.create({
+      data: {
+        squadId,
+        amountMinor,
+        currency: typeof currency === 'string' ? currency : 'USD',
+        source,
+        description: typeof description === 'string' ? description : null,
+      },
+    });
 
     // Write ledger event
     const prevHash = mockLedgerEvents.length > 0

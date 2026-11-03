@@ -26,15 +26,12 @@ import {
 } from 'lucide-react';
 import { Reveal, Card, MoneyChip } from '@/components/ui';
 import {
-  mockSquads,
-  mockMemberships,
-  mockUsers,
-  mockRevenueEvents,
-  mockSplitRuns,
   type MockMembership,
   type MockRevenueEvent,
   type MockUser,
+  type MockSquad,
 } from '@/lib/mock-data';
+import type { SplitRunDTO } from '@/lib/split-run-types';
 import { formatMoney } from '@/lib/money';
 import { getCurrencySymbol } from '@/lib/currency';
 import { showToast } from '@/components/Toast';
@@ -71,44 +68,64 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
 
   // Local state for dynamic interactivity
-  const initialSquad = mockSquads.find((s) => s.id === id) || {
+  const initialSquad: MockSquad & { currentRole?: string } = {
     id,
-    name: 'Collaborative Squad',
-    ownerId: 'usr_1',
+    name: '',
+    ownerId: '',
     currency: 'USD',
-    createdAt: new Date().toISOString(),
-    memberCount: 1,
+    createdAt: '',
+    memberCount: 0,
     totalRevenue: 0,
   };
   const [squad, setSquad] = useState(initialSquad);
-  const [users, setUsers] = useState<MockUser[]>(mockUsers);
-  const [members, setMembers] = useState<MockMembership[]>(
-    mockMemberships.filter((m) => m.squadId === squad.id)
-  );
-  const [revenue, setRevenue] = useState<MockRevenueEvent[]>(
-    mockRevenueEvents.filter((r) => r.squadId === squad.id)
-  );
+  const [users, setUsers] = useState<MockUser[]>([]);
+  const [members, setMembers] = useState<MockMembership[]>([]);
+  const [revenue, setRevenue] = useState<MockRevenueEvent[]>([]);
+  const [runs, setRuns] = useState<SplitRunDTO[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'revenue' | 'splits'>('overview');
 
   // Fetch latest squad data from backend API
   useEffect(() => {
-    fetch(`/api/squads/${id}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.success && data.data?.squad) {
-          setSquad(data.data.squad);
-          if (Array.isArray(data.data.members)) {
-            setMembers(data.data.members);
-          }
-          if (Array.isArray(data.data.revenue)) {
-            setRevenue(data.data.revenue);
-          }
-          if (Array.isArray(data.data.users)) {
-            setUsers(data.data.users);
-          }
+    let active = true;
+    Promise.all([
+      fetch(`/api/squads/${id}`),
+      fetch(`/api/split-runs?squadId=${encodeURIComponent(id)}`),
+    ])
+      .then(async ([squadResponse, runsResponse]) => {
+        const squadResult = await squadResponse.json();
+        if (!squadResponse.ok || !squadResult.success || !squadResult.data?.squad) {
+          throw new Error(squadResult.error || 'Unable to load squad');
+        }
+        const runsResult = await runsResponse.json();
+        if (!runsResponse.ok || !runsResult.success) {
+          throw new Error(runsResult.error || 'Unable to load split runs');
+        }
+        if (!active) return;
+        setSquad(squadResult.data.squad);
+        setMembers(squadResult.data.members || []);
+        setPayoutReceiverInput(
+          squadResult.data.members?.find(
+            (member: MockMembership) => member.isCurrentUser
+          )?.payoutReceiver ?? ''
+        );
+        setRevenue(squadResult.data.revenue || []);
+        setUsers(squadResult.data.users || []);
+        setRuns(runsResult.data || []);
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setLoadError(error instanceof Error ? error.message : 'Unable to load squad');
         }
       })
-      .catch(() => {});
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, [id]);
 
   // Modals state
@@ -119,11 +136,14 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
   // Add member form state
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberEmail, setNewMemberEmail] = useState('');
-  const [newMemberRole, setNewMemberRole] = useState<'contributor' | 'approver' | 'viewer' | 'owner'>('contributor');
+  const [newMemberRole, setNewMemberRole] = useState<'contributor' | 'approver' | 'viewer'>('contributor');
   const [newMemberTimezone, setNewMemberTimezone] = useState('Asia/Kolkata');
   const [newMemberOptIn, setNewMemberOptIn] = useState(true);
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [memberError, setMemberError] = useState<string | null>(null);
+  const [payoutReceiverInput, setPayoutReceiverInput] = useState('');
+  const [payoutReceiverError, setPayoutReceiverError] = useState<string | null>(null);
+  const [isSavingPayoutReceiver, setIsSavingPayoutReceiver] = useState(false);
 
   // Record revenue form state
   const [revAmount, setRevAmount] = useState('1000.00');
@@ -131,11 +151,6 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
   const [revDesc, setRevDesc] = useState('SaaS Monthly Subscription Pool');
   const [isRecordingRev, setIsRecordingRev] = useState(false);
   const [revError, setRevError] = useState<string | null>(null);
-
-  // Split runs for this squad
-  const runs = mockSplitRuns.filter(
-    (r) => r.squadId === squad.id || revenue.some((rev) => rev.id === r.revenueEventId)
-  );
 
   // Current Indian Time (IST)
   const indianTime = getTimeInTimezone('Asia/Kolkata');
@@ -163,7 +178,6 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
           role: newMemberRole,
           timezone: newMemberTimezone,
           focusSessionsOptIn: newMemberOptIn,
-          payoutReceiver: newMemberEmail.trim(),
         }),
       });
 
@@ -172,14 +186,11 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
         throw new Error(data.error || 'Failed to add member');
       }
 
-      const createdMem = data.data.membership;
+      const createdMem = data.data;
       const createdUser = data.data.user;
 
       if (createdUser) {
         setUsers((prev) => [...prev.filter((u) => u.id !== createdUser.id), createdUser]);
-        if (!mockUsers.some((u) => u.id === createdUser.id)) {
-          mockUsers.push(createdUser);
-        }
       }
 
       // Ensure membership has memberName directly
@@ -204,6 +215,51 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
       setMemberError(err instanceof Error ? err.message : 'Error adding member');
     } finally {
       setIsAddingMember(false);
+    }
+  };
+
+  const handleSavePayoutReceiver = async () => {
+    setIsSavingPayoutReceiver(true);
+    setPayoutReceiverError(null);
+    try {
+      const response = await fetch(`/api/squads/${squad.id}/members`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payoutReceiver: payoutReceiverInput }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Unable to save payout destination');
+      }
+
+      const receiver = result.data.payoutReceiver as string;
+      setMembers((current) =>
+        current.map((member) =>
+          member.isCurrentUser
+            ? {
+                ...member,
+                payoutReceiver: receiver,
+                payoutReceiverConfigured: result.data.payoutReceiverConfigured,
+                payoutReceiverMasked: result.data.payoutReceiverConfigured
+                  ? `${receiver.slice(0, 1)}***@${receiver.split('@')[1]}`
+                  : null,
+              }
+            : member
+        )
+      );
+      showToast({
+        type: 'success',
+        title: 'Payout destination saved',
+        message: result.data.payoutReceiverConfigured
+          ? 'Your PayPal email is confirmed for future payouts.'
+          : 'Your payout destination has been cleared.',
+      });
+    } catch (error) {
+      setPayoutReceiverError(
+        error instanceof Error ? error.message : 'Unable to save payout destination'
+      );
+    } finally {
+      setIsSavingPayoutReceiver(false);
     }
   };
 
@@ -315,6 +371,18 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
     }
   };
 
+  if (isLoading) {
+    return <div className="min-h-screen p-8 text-center text-[var(--text)]">Loading squad…</div>;
+  }
+
+  if (loadError || !squad.name) {
+    return (
+      <div className="min-h-screen p-8 text-center text-rose-700" role="alert">
+        {loadError || 'Squad not found'}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen pb-20" style={{ background: 'var(--background)' }}>
       {/* Top Banner / Breadcrumb */}
@@ -422,7 +490,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
               { label: 'Total Revenue Pool', value: formatMoney(squad.totalRevenue), color: 'var(--accent)', badge: `${squad.currency} Active Pool` },
               { label: 'Verified Members', value: members.length.toString(), color: 'var(--primary)', badge: 'Active' },
               { label: 'Revenue Inflow Events', value: revenue.length.toString(), color: 'var(--accent)', badge: 'Audited' },
-              { label: 'Executed Split Runs', value: runs.length.toString(), color: 'var(--accent)', badge: 'Deterministic' },
+              { label: 'Split Runs', value: runs.length.toString(), color: 'var(--accent)', badge: 'Deterministic' },
             ].map((stat) => (
               <Card key={stat.label} padding="md" elevated>
                 <div className="flex items-center justify-between mb-1">
@@ -629,10 +697,10 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
                 <div className="px-6 py-4 flex items-center justify-between border-b border-[var(--text)]">
                   <div>
                     <h2 className="text-base font-bold text-[var(--primary)]">
-                      Executed Split Runs
+                      Split Runs
                     </h2>
                     <p className="text-xs text-[var(--text)]">
-                      Cryptographic zero-cent-loss payout executions.
+                      Persisted deterministic allocations with auditable details.
                     </p>
                   </div>
                   <Link
@@ -645,7 +713,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
                 <div className="divide-y divide-[var(--text)]">
                   {runs.length === 0 ? (
                     <div className="p-8 text-center text-sm text-[var(--text)]">
-                      No split runs executed for this squad yet.
+                      No split runs created for this squad yet.
                     </div>
                   ) : (
                     runs.map((run) => (
@@ -658,15 +726,15 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
                             <span
                               className="text-[10px] font-bold px-1.5 py-0.5 rounded"
                               style={{
-                                background: run.status === 'executed' ? 'var(--background)' : 'var(--background)',
-                                color: run.status === 'executed' ? 'var(--accent)' : 'var(--accent)',
+                                background: 'var(--background)',
+                                color: 'var(--accent)',
                               }}
                             >
                               {run.status.toUpperCase()}
                             </span>
                           </div>
                           <p className="text-xs text-[var(--text)] mt-0.5">
-                            Rule: v{run.ruleVersion} • {new Date(run.createdAt).toLocaleDateString()}
+                            Rule: v{run.ruleVersion} • Calculation #{run.calculationVersion} • {new Date(run.createdAt).toLocaleDateString()}
                           </p>
                         </div>
                         <div className="flex items-center gap-4">
@@ -675,7 +743,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
                               {formatMoney(run.poolMinor)}
                             </p>
                             <p className="text-[11px] text-[var(--text)]">
-                              {run.lines.length} lines settled
+                              {run.lines.length} split lines
                             </p>
                           </div>
                           <Link
@@ -745,8 +813,36 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
                           </span>
                         </div>
                         <p className="text-xs text-[var(--text)] mt-0.5">
-                          {mem.payoutReceiver} ({mem.payoutReceiverType})
+                          {mem.payoutReceiverConfigured
+                            ? mem.payoutReceiverMasked || 'Payout destination configured'
+                            : 'Payout destination not configured'}
                         </p>
+                        {mem.isCurrentUser && (
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <input
+                              type="email"
+                              value={payoutReceiverInput}
+                              onChange={(event) => setPayoutReceiverInput(event.target.value)}
+                              placeholder="PayPal email"
+                              aria-label="Your PayPal payout email"
+                              className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void handleSavePayoutReceiver()}
+                              disabled={isSavingPayoutReceiver}
+                              className="btn-3d btn-3d-sm text-xs disabled:opacity-50"
+                              style={{ padding: '8px 14px' }}
+                            >
+                              {isSavingPayoutReceiver ? 'Saving...' : 'Save destination'}
+                            </button>
+                            {payoutReceiverError && (
+                              <p role="alert" className="w-full text-xs text-[var(--primary)]">
+                                {payoutReceiverError}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-3 text-xs">
@@ -838,10 +934,10 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
             <div className="px-6 py-4 flex items-center justify-between border-b border-[var(--text)]">
               <div>
                 <h2 className="text-base font-bold text-[var(--primary)]">
-                  Executed Split Runs ({runs.length})
+                  Split Runs ({runs.length})
                 </h2>
                 <p className="text-xs text-[var(--text)]">
-                  Audited deterministic split runs with PayPal batch items.
+                  Persisted deterministic split calculations for this squad.
                 </p>
               </div>
               <Link
@@ -866,15 +962,15 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
                         <span
                           className="text-xs font-bold px-2 py-0.5 rounded"
                           style={{
-                            background: run.status === 'executed' ? 'var(--background)' : 'var(--background)',
-                            color: run.status === 'executed' ? 'var(--accent)' : 'var(--accent)',
+                            background: 'var(--background)',
+                            color: 'var(--accent)',
                           }}
                         >
                           {run.status.toUpperCase()}
                         </span>
                       </div>
                       <p className="text-xs text-[var(--text)] mt-1">
-                        Rule: v{run.ruleVersion} • Executed {new Date(run.createdAt).toLocaleString()}
+                        Rule: v{run.ruleVersion} • Calculation #{run.calculationVersion} • Created {new Date(run.createdAt).toLocaleString()}
                       </p>
                     </div>
                     <div className="flex items-center gap-4">
@@ -883,7 +979,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
                           {formatMoney(run.poolMinor)}
                         </p>
                         <p className="text-xs text-[var(--text)]">
-                          {run.lines.length} lines settled
+                          {run.lines.length} split lines
                         </p>
                       </div>
                       <Link
@@ -946,7 +1042,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
                     className="input-field text-sm w-full"
                   />
                   <p className="text-[11px] text-[var(--text)] mt-1">
-                    This exact name will be displayed in the squad roster and split sheets.
+                    Collaborators must already have a MicroSplit account. Ask them to sign in with GitHub before adding them to your squad.
                   </p>
                 </div>
 

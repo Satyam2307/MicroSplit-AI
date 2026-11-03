@@ -1,13 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { Zap, GitBranch, Mail, ArrowRight } from 'lucide-react';
 import { Reveal } from '@/components/ui';
+import { signInWithGitHub, signInWithDemo } from '@/app/actions/auth';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState('contributor');
+  const [role, setRole] = useState('owner');
 
   return (
     <div
@@ -47,23 +47,26 @@ export default function LoginPage() {
             Sign in to manage your squads and splits
           </p>
 
-          {/* GitHub button */}
-          <button
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl font-semibold text-sm mb-4 transition-all text-white"
-            style={{ background: 'var(--primary)' }}
-          >
-            <GitBranch size={18} />
-            Continue with GitHub
-          </button>
+          {/* GitHub button (Mockup demo flow) */}
+          <form action={signInWithGitHub}>
+            <button
+              type="submit"
+              className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl font-semibold text-sm mb-4 transition-all text-white cursor-pointer"
+              style={{ background: 'var(--primary)' }}
+            >
+              <GitBranch size={18} />
+              Continue with GitHub
+            </button>
+          </form>
 
           <div className="flex items-center gap-3 my-6">
-            <div className="flex-1 h-px bg-[var(--text)]" />
+            <div className="flex-1 h-px bg-[var(--text)] opacity-20" />
             <span className="text-xs font-medium text-[var(--text)]">or</span>
-            <div className="flex-1 h-px bg-[var(--text)]" />
+            <div className="flex-1 h-px bg-[var(--text)] opacity-20" />
           </div>
 
-          {/* Email login */}
-          <div className="space-y-4">
+          {/* Email / Role login */}
+          <form action={signInWithDemo} className="space-y-4">
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider block mb-2 text-[var(--text)]">
                 Email
@@ -75,8 +78,9 @@ export default function LoginPage() {
                 />
                 <input
                   type="email"
+                  name="email"
                   className="input-field w-full text-sm font-medium"
-                  placeholder="you@example.com"
+                  placeholder="alex@microsplit.demo"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   style={{ paddingLeft: '44px' }}
@@ -89,6 +93,7 @@ export default function LoginPage() {
                 Demo Role
               </label>
               <select
+                name="role"
                 className="input-field w-full text-sm font-medium"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
@@ -100,15 +105,15 @@ export default function LoginPage() {
               </select>
             </div>
 
-            <Link
-              href="/squads"
-              className="btn-primary w-full justify-center mt-2 text-white"
+            <button
+              type="submit"
+              className="btn-primary w-full justify-center mt-2 text-white flex items-center gap-2 cursor-pointer"
               style={{ background: 'var(--accent)' }}
             >
-              Sign in
+              <span>Sign in</span>
               <ArrowRight size={16} />
-            </Link>
-          </div>
+            </button>
+          </form>
 
           <p className="text-xs text-center mt-6 text-[var(--text)]">
             Demo mode — no real authentication required

@@ -1,30 +1,81 @@
 'use client';
 
-import { Reveal, Card, MoneyChip, StatusChip } from '@/components/ui';
-import { mockUsers, mockSplitRuns, mockPayoutBatches } from '@/lib/mock-data';
+import { useEffect, useState } from 'react';
+import { Reveal, Card, MoneyChip } from '@/components/ui';
 import { formatMoney } from '@/lib/money';
+import { useSession } from 'next-auth/react';
 import {
-  User,
-  DollarSign,
-  FileText,
+  AlertTriangle,
   CheckCircle2,
   Clock,
   Download,
-  Flame,
 } from 'lucide-react';
 import StreakHeatmap from '@/components/StreakHeatmap';
 import FocusSessionWidget from '@/components/FocusSessionWidget';
 
+interface StatementLine {
+  id: string;
+  runId: string;
+  runStatus: string;
+  createdAt: string;
+  poolMinor: number;
+  amountMinor: number;
+  currency: string;
+  squadName: string;
+  contributionSummary: string;
+  payoutStatus: string;
+}
+
 export default function StatementsPage() {
-  // Show statement for first user
-  const member = mockUsers[1]; // Maya Chen
-  const lines = mockSplitRuns.flatMap((r) =>
-    r.lines.filter((l) => l.memberId === member.id).map((l) => ({ ...l, run: r }))
-  );
-  const payoutItems = mockPayoutBatches.flatMap((b) =>
-    b.items.filter((i) => lines.some((l) => l.id === i.lineId))
-  );
-  const totalEarned = lines.reduce((s, l) => s + l.amountMinor, 0);
+  const { data: session, status } = useSession();
+  const [lines, setLines] = useState<StatementLine[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const member = {
+    id: session?.user.id ?? '',
+    name: session?.user.name || 'Member',
+    email: session?.user.email || '',
+  };
+  useEffect(() => {
+    if (status !== 'authenticated' || !member.id) return;
+    let active = true;
+    fetch('/api/statements')
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || 'Unable to load your statement');
+        }
+        if (active) setLines(Array.isArray(result.data) ? result.data : []);
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setLoadError(error instanceof Error ? error.message : 'Unable to load your statement');
+        }
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [member.id, status]);
+
+  const totalEarned = lines.reduce((sum, line) => sum + line.amountMinor, 0);
+
+  if (status === 'loading' || !member.id) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--background)' }}>
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>Loading your statement...</p>
+      </div>
+    );
+  }
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--background)' }}>
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>Loading your statement...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--background)' }}>
@@ -70,7 +121,7 @@ export default function StatementsPage() {
               </div>
               <div className="text-center p-4 rounded-xl bg-[var(--background)]">
                 <p className="text-2xl font-black text-[var(--accent)]">
-                  100 <span className="text-xs">days</span>
+                  0 <span className="text-xs">days</span>
                 </p>
                 <p className="text-xs font-semibold mt-1 text-[var(--accent)]">Verified streak</p>
               </div>
@@ -90,8 +141,8 @@ export default function StatementsPage() {
         <Reveal delay={0.12}>
           <StreakHeatmap
             memberName={member.name}
-            streakDays={100}
-            freezeDaysUsed={1}
+            streakDays={0}
+            freezeDaysUsed={0}
             streakCapDays={100}
             timezone="America/Los_Angeles"
           />
@@ -99,7 +150,7 @@ export default function StatementsPage() {
 
         {/* Opt-in Focus Sessions Component */}
         <Reveal delay={0.14}>
-          <FocusSessionWidget memberId={member.id} initialOptIn={true} />
+          <FocusSessionWidget memberId={member.id} initialOptIn={false} />
         </Reveal>
 
         {/* Earnings table */}
@@ -110,33 +161,44 @@ export default function StatementsPage() {
             </div>
             <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
               {lines.map((line) => {
-                const payout = payoutItems.find((p) => p.lineId === line.id);
+                const isPaid = line.payoutStatus === 'success';
+                const needsAttention = [
+                  'failed',
+                  'unclaimed',
+                  'returned',
+                  'blocked',
+                ].includes(line.payoutStatus);
                 return (
                   <div key={line.id} className="px-6 py-4 flex items-center gap-4">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
                       style={{
-                        background: payout?.status === 'success' ? 'var(--accent-subtle)' : 'var(--accent-subtle)',
-                        color: payout?.status === 'success' ? 'var(--accent)' : 'var(--accent)',
+                        background: needsAttention ? 'var(--primary-subtle)' : 'var(--accent-subtle)',
+                        color: isPaid ? 'var(--accent)' : needsAttention ? 'var(--primary)' : 'var(--muted)',
                       }}>
-                      {payout?.status === 'success' ? <CheckCircle2 size={14} /> : <Clock size={14} />}
+                      {isPaid ? <CheckCircle2 size={14} /> : needsAttention ? <AlertTriangle size={14} /> : <Clock size={14} />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
-                        {line.rationale.contribution_summary}
+                        {line.contributionSummary}
                       </p>
                       <p className="text-xs" style={{ color: 'var(--muted-light)' }}>
-                        {(line.rationale.rule_type || 'fixed_percentage').replace('_', ' ')} &bull; {new Date(line.run.createdAt).toLocaleDateString()}
+                        {line.squadName} · {line.runStatus.replaceAll('_', ' ')} · {new Date(line.createdAt).toLocaleDateString()}
                       </p>
                     </div>
                     <MoneyChip
-                      amount={formatMoney(line.amountMinor)}
-                      status={payout?.status === 'success' ? 'paid' : 'pending'}
+                      amount={formatMoney(line.amountMinor, line.currency)}
+                      status={isPaid ? 'paid' : needsAttention ? 'failed' : 'pending'}
                       size="sm"
                     />
                   </div>
                 );
               })}
             </div>
+            {loadError && (
+              <p role="alert" className="px-6 py-4 text-sm text-[var(--primary)]">
+                {loadError}
+              </p>
+            )}
           </Card>
         </Reveal>
       </div>

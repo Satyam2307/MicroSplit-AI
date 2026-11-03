@@ -72,6 +72,9 @@ export interface MockMembership {
   role: string;
   payoutReceiver: string;
   payoutReceiverType: string;
+  payoutReceiverConfigured?: boolean;
+  payoutReceiverMasked?: string | null;
+  isCurrentUser?: boolean;
   timezone: string;
   focusSessionsOptIn: boolean;
   streakDays?: number;
@@ -289,50 +292,6 @@ export const mockSplitRuns: MockSplitRun[] = [
   },
 ];
 
-// ─── Mock Payout Batches ─────────────────────────────────────
-export interface MockPayoutBatch {
-  id: string;
-  runId: string;
-  senderBatchId: string;
-  paypalBatchId: string;
-  status: string;
-  totalMinor: number;
-  createdAt: string;
-  items: MockPayoutItem[];
-}
-
-export interface MockPayoutItem {
-  id: string;
-  batchId: string;
-  lineId: string;
-  senderItemId: string;
-  paypalItemId: string;
-  amountMinor: number;
-  recipientName: string;
-  recipientEmail: string;
-  status: string;
-  failureReason: string | null;
-}
-
-export const mockPayoutBatches: MockPayoutBatch[] = [
-  {
-    id: 'bat_1',
-    runId: 'run_1',
-    senderBatchId: 'run_1_20241110T120000Z',
-    paypalBatchId: 'PAYPAL_BATCH_5X8K9M2',
-    status: 'success',
-    totalMinor: 500000,
-    createdAt: '2024-11-10T12:00:00Z',
-    items: [
-      { id: 'pi_1', batchId: 'bat_1', lineId: 'ln_1', senderItemId: 'run_1_usr_1', paypalItemId: 'PP_ITEM_001', amountMinor: 65000, recipientName: 'Alex Rivera', recipientEmail: 'alex@paypal.demo', status: 'success', failureReason: null },
-      { id: 'pi_2', batchId: 'bat_1', lineId: 'ln_2', senderItemId: 'run_1_usr_2', paypalItemId: 'PP_ITEM_002', amountMinor: 237374, recipientName: 'Maya Chen', recipientEmail: 'maya@paypal.demo', status: 'success', failureReason: null },
-      { id: 'pi_3', batchId: 'bat_1', lineId: 'ln_3', senderItemId: 'run_1_usr_3', paypalItemId: 'PP_ITEM_003', amountMinor: 60606, recipientName: 'Jordan Kim', recipientEmail: 'jordan@paypal.demo', status: 'failed', failureReason: 'RECEIVER_UNREGISTERED' },
-      { id: 'pi_4', batchId: 'bat_1', lineId: 'ln_4', senderItemId: 'run_1_usr_4', paypalItemId: 'PP_ITEM_004', amountMinor: 137020, recipientName: 'Sam Patel', recipientEmail: 'sam@paypal.demo', status: 'success', failureReason: null },
-    ],
-  },
-];
-
-
 // ─── Mock Ledger Events ──────────────────────────────────────
 function buildMockLedger(): LedgerEntry[] {
   const events: LedgerEntry[] = [];
@@ -342,11 +301,6 @@ function buildMockLedger(): LedgerEntry[] {
     { type: 'revenue_recorded', refId: 'rev_1', amount: 500000, payload: { squad: 'Vortex Design Studio', source: 'Acme Corp payment' } },
     { type: 'split_created', refId: 'run_1', amount: 500000, payload: { members: 4, rule: 'weighted_points' } },
     { type: 'split_approved', refId: 'run_1', amount: 500000, payload: { approver: 'Jordan Kim', decision: 'approved' } },
-    { type: 'payout_created', refId: 'bat_1', amount: 500000, payload: { batch: 'run_1_20241110T120000Z', items: 4 } },
-    { type: 'payout_item_status', refId: 'pi_1', amount: 65000, payload: { recipient: 'Alex Rivera', status: 'success' } },
-    { type: 'payout_item_status', refId: 'pi_2', amount: 237374, payload: { recipient: 'Maya Chen', status: 'success' } },
-    { type: 'payout_item_status', refId: 'pi_3', amount: 60606, payload: { recipient: 'Jordan Kim', status: 'failed', reason: 'RECEIVER_UNREGISTERED' } },
-    { type: 'payout_item_status', refId: 'pi_4', amount: 137020, payload: { recipient: 'Sam Patel', status: 'success' } },
     { type: 'revenue_recorded', refId: 'rev_2', amount: 350000, payload: { squad: 'Vortex Design Studio', source: 'TechFlow UI kit' } },
     { type: 'split_created', refId: 'run_2', amount: 350000, payload: { members: 4, rule: 'fixed_percentage' } },
     { type: 'revenue_recorded', refId: 'rev_3', amount: 1200000, payload: { squad: 'OSS Contributors Fund', source: 'GitHub Sponsors Q4' } },

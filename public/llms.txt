@@ -18,6 +18,13 @@
 - Focus Evidence: https://microsplit.ai/evidence
 - Member Statements: https://microsplit.ai/statements
 - Contact & Support: https://microsplit.ai/contact
+- Documentation Hub: https://microsplit.ai/docs
+- API Reference: https://microsplit.ai/docs/api
+- Deterministic Math Proofs: https://microsplit.ai/docs/arch
+- Privacy Policy: https://microsplit.ai/privacy
+- Security Architecture: https://microsplit.ai/security
+- Terms of Use: https://microsplit.ai/terms
+- MIT License: https://microsplit.ai/licence
 
 ## Contact & Security
 - Support Email: support@microsplit.ai

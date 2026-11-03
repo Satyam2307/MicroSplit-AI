@@ -4,20 +4,25 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "next build --webpack",
+    "build": "prisma generate && next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test tests/consistency-streak.test.ts"
+    "test": "node --experimental-strip-types --test tests/consistency-streak.test.ts tests/authorization-policy.test.ts tests/split-run-persistence.test.ts tests/evidence-workflow.test.ts tests/payout-safety.test.ts tests/paypal-client.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.31.0",
+    "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
+    "@supabase/supabase-js": "^2.118.0",
     "crypto-js": "^4.2.0",
     "date-fns": "^4.4.0",
+    "dotenv": "^18.0.9",
     "framer-motion": "^14.7.1",
     "lucide-react": "^1.62.0",
     "next": "16.4.3",
-    "prisma": "^8.0.0-rc.27",
+    "next-auth": "^5.0.0-beta.32",
+    "pg": "^8.23.1",
+    "prisma": "^7.10.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "recharts": "^3.10.1",

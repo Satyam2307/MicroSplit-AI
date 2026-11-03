@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
+import { signOut, useSession } from 'next-auth/react';
 import {
   Users,
   Zap,
@@ -31,10 +32,18 @@ const navLinks = [
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const profileName = session?.user?.name || session?.user?.email || 'User';
+  const profileInitials = profileName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
 
   // Close menus on route change
   useEffect(() => {
@@ -305,78 +314,72 @@ export default function Navbar() {
                 <ArrowRight size={13} />
               </Link>
 
-              {/* User Avatar & Menu */}
-              <div className="relative" onClick={(e) => e.stopPropagation()}>
-                <button
-                  type="button"
-                  onClick={() => { setUserMenuOpen(!userMenuOpen); setNotifOpen(false); }}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-transform hover:scale-105"
-                  style={{
-                    background: 'linear-gradient(135deg, var(--accent), var(--primary))',
-                    color: 'var(--background)',
-                    border: '1.5px solid color-mix(in srgb, var(--accent) 30%, transparent)',
-                  }}
-                  aria-label="User profile menu"
-                >
-                  AR
-                </button>
+              {status === 'authenticated' && session?.user ? (
+                <div className="relative" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    onClick={() => { setUserMenuOpen(!userMenuOpen); setNotifOpen(false); }}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-transform hover:scale-105"
+                    style={{
+                      background: 'linear-gradient(135deg, var(--accent), var(--primary))',
+                      color: 'var(--background)',
+                      border: '1.5px solid color-mix(in srgb, var(--accent) 30%, transparent)',
+                    }}
+                    aria-label="User profile menu"
+                  >
+                    {profileInitials}
+                  </button>
 
-                <AnimatePresence>
-                  {userMenuOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                      transition={{ duration: 0.15 }}
-                      className="absolute right-0 mt-2 w-56 rounded-2xl overflow-hidden z-50 shadow-2xl"
-                      style={{ background: 'var(--background)', border: '1px solid var(--text)' }}
-                    >
-                      <div className="px-4 py-3 bg-[var(--background)] border-b border-[var(--text)]">
-                        <p className="text-xs font-bold text-[var(--primary)]">Alex Rivera</p>
-                        <p className="text-[11px] text-[var(--text)]">alex@paypal.demo</p>
-                        <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-[var(--background)] text-[var(--accent)]">
-                          Squad Owner
-                        </span>
-                      </div>
-                      <div className="py-1">
-                        <Link
-                          href="/squads"
-                          className="px-4 py-2 text-xs font-medium text-[var(--primary)] hover:bg-[var(--background)] flex items-center justify-between"
-                          onClick={() => setUserMenuOpen(false)}
-                        >
-                          <span>Manage Squads</span>
-                          <span className="text-[10px] text-[var(--text)]">3 active</span>
-                        </Link>
-                        <Link
-                          href="/statements"
-                          className="px-4 py-2 text-xs font-medium text-[var(--primary)] hover:bg-[var(--background)] flex items-center justify-between"
-                          onClick={() => setUserMenuOpen(false)}
-                        >
-                          <span>My Payout Statement</span>
-                          <span className="text-[10px] font-bold text-[var(--accent)]">100d streak</span>
-                        </Link>
-                        <Link
-                          href="/payouts"
-                          className="px-4 py-2 text-xs font-medium text-[var(--primary)] hover:bg-[var(--background)] flex items-center justify-between"
-                          onClick={() => setUserMenuOpen(false)}
-                        >
-                          <span>PayPal Batch Console</span>
-                          <span className="text-[10px] text-emerald-600 font-bold">API v1</span>
-                        </Link>
-                      </div>
-                      <div className="pt-1 pb-1 border-t border-[var(--text)]">
-                        <Link
-                          href="/login"
-                          className="px-4 py-2 text-xs font-semibold text-[var(--primary)] hover:bg-rose-50 block"
-                          onClick={() => setUserMenuOpen(false)}
-                        >
-                          Switch Account
-                        </Link>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+                  <AnimatePresence>
+                    {userMenuOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 mt-2 w-56 rounded-2xl overflow-hidden z-50 shadow-2xl"
+                        style={{ background: 'var(--background)', border: '1px solid var(--text)' }}
+                      >
+                        <div className="px-4 py-3 bg-[var(--background)] border-b border-[var(--text)]">
+                          <p className="text-xs font-bold text-[var(--primary)]">{profileName}</p>
+                          {session.user.email && (
+                            <p className="text-[11px] text-[var(--text)]">{session.user.email}</p>
+                          )}
+                          <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-[var(--background)] text-[var(--accent)]">
+                            Demo account
+                          </span>
+                        </div>
+                        <div className="py-1">
+                          <Link
+                            href="/squads"
+                            className="px-4 py-2 text-xs font-medium text-[var(--primary)] hover:bg-[var(--background)] block"
+                            onClick={() => setUserMenuOpen(false)}
+                          >
+                            Manage Squads
+                          </Link>
+                        </div>
+                        <div className="pt-1 pb-1 border-t border-[var(--text)]">
+                          <button
+                            type="button"
+                            className="px-4 py-2 text-xs font-semibold text-[var(--primary)] hover:bg-rose-50 block w-full text-left"
+                            onClick={() => void signOut({ redirectTo: '/login' })}
+                          >
+                            Sign out
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              ) : (
+                <Link
+                  href="/login"
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold text-white"
+                  style={{ background: 'var(--accent)' }}
+                >
+                  Sign in
+                </Link>
+              )}
 
               {/* Mobile Menu Hamburger */}
               <button
