@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import WhatsAppButton from "@/components/WhatsAppButton";
+import MicroSplitConcierge from "@/components/MicroSplitConcierge";
 import Analytics from "@/components/Analytics";
 import ToastContainer from "@/components/Toast";
 import { Suspense } from "react";
@@ -82,17 +82,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
         <link rel="icon" href="/icon" sizes="32x32" type="image/png" />
         <link rel="apple-touch-icon" href="/apple-icon" sizes="180x180" type="image/png" />
       </head>
-      <body className="min-h-full flex flex-col overflow-x-hidden" style={{ background: "var(--background)" }}>
+      <body className="min-h-full flex flex-col overflow-x-hidden relative" style={{ background: "var(--background)" }}>
         <Suspense fallback={<div className="h-[64px]" style={{ background: "var(--primary)", borderBottom: "1px solid color-mix(in srgb, var(--background) 8%, transparent)" }} />}>
           <Navbar />
         </Suspense>
         <main className="flex-1 w-full max-w-full overflow-x-hidden">{children}</main>
         <Footer />
-        <WhatsAppButton />
+        <MicroSplitConcierge />
         <Analytics />
         <ToastContainer />
       </body>
