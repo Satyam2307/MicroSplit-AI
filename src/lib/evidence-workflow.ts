@@ -166,11 +166,26 @@ export function validateEvidenceBytes(
 export function canTransitionEvidenceStatus(from: string, to: string): boolean {
   const transitions: Record<string, readonly string[]> = {
     uploading: ["pending_review", "deletion_pending"],
-    pending_review: ["confirmed", "rejected", "deletion_pending"],
-    extraction_pending: ["extraction_completed", "extraction_failed"],
-    rejected: ["deletion_pending"],
-    extraction_failed: ["deletion_pending"],
-    deletion_pending: ["uploading", "pending_review", "rejected"],
+    pending_review: [
+      "confirmed",
+      "rejected",
+      "extraction_processing",
+      "deletion_pending",
+    ],
+    extraction_pending: ["extraction_processing", "extraction_failed"],
+    extraction_processing: ["extraction_completed", "extraction_failed"],
+    extraction_completed: ["extraction_processing", "deletion_pending"],
+    extraction_failed: ["extraction_processing", "deletion_pending"],
+    confirmed: ["extraction_processing", "deletion_pending"],
+    rejected: ["extraction_processing", "deletion_pending"],
+    deletion_pending: [
+      "uploading",
+      "pending_review",
+      "rejected",
+      "extraction_completed",
+      "extraction_failed",
+      "confirmed",
+    ],
   };
   return transitions[from]?.includes(to) ?? false;
 }
@@ -186,6 +201,7 @@ export async function downloadEvidenceFile(
     "pending_review",
     "confirmed",
     "rejected",
+    "extraction_processing",
     "extraction_pending",
     "extraction_completed",
     "extraction_failed",

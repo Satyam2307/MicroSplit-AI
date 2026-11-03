@@ -6,6 +6,9 @@ import {
 } from "../src/lib/consistency-streak.ts";
 import {
   createSplitRunInTransaction,
+  getConfirmedContributionWhere,
+  getContributionActivityDate,
+  isConfirmedContributionEligible,
   parseCreateSplitRunInput,
   toSplitRunDTO,
 } from "../src/lib/split-run-persistence.ts";
@@ -18,6 +21,7 @@ import type {
   SplitRunRevenueRecord,
   SplitRunTransaction,
 } from "../src/lib/split-run-persistence.ts";
+import { normalizeContributionDate } from "../src/lib/evidence-extraction.ts";
 
 const requestInput: CreateSplitRunInput = {
   squadId: "squad-1",
@@ -200,11 +204,72 @@ test("deterministic engine conserves the total amount for many pools", () => {
         { memberId: "user-b", weight: 33, streakDays: 8 },
       ],
     });
+
     assert.equal(
       result.lines.reduce((sum, line) => sum + line.finalAmountMinor, 0),
       poolMinor
     );
   }
+});
+
+test("only confirmed, resolved contributions from the requested squad are split-eligible", () => {
+  assert.deepEqual(getConfirmedContributionWhere("squad-1", ["user-a"]), {
+    memberId: { in: ["user-a"] },
+    status: { in: ["confirmed"] },
+    evidence: { is: { squadId: "squad-1" } },
+  });
+  const base = {
+    memberId: "user-a",
+    squadId: "squad-1",
+    requestedSquadId: "squad-1",
+    memberIds: ["user-a"],
+  };
+  assert.equal(isConfirmedContributionEligible({ ...base, status: "confirmed" }), true);
+  assert.equal(isConfirmedContributionEligible({ ...base, status: "pending" }), false);
+  assert.equal(isConfirmedContributionEligible({ ...base, status: "rejected" }), false);
+  assert.equal(
+    isConfirmedContributionEligible({ ...base, memberId: null, status: "confirmed" }),
+    false
+  );
+  assert.equal(
+    isConfirmedContributionEligible({
+      ...base,
+      squadId: "other-squad",
+      status: "confirmed",
+    }),
+    false
+  );
+});
+
+test("unknown extracted contribution dates do not become streak activity dates", () => {
+  const createdAt = new Date("2026-03-05T12:00:00.000Z");
+  const contributionDate = new Date("2026-03-02T00:00:00.000Z");
+  const unresolvedDate = normalizeContributionDate("10/11/2026").date;
+  assert.equal(unresolvedDate, null);
+  assert.equal(
+    getContributionActivityDate({
+      createdAt,
+      contributionDate: unresolvedDate ? new Date(`${unresolvedDate}T00:00:00.000Z`) : null,
+      extractionLogId: "ai-log-1",
+    }),
+    null
+  );
+  assert.equal(
+    getContributionActivityDate({
+      createdAt,
+      contributionDate,
+      extractionLogId: "ai-log-1",
+    }),
+    contributionDate
+  );
+  assert.equal(
+    getContributionActivityDate({
+      createdAt,
+      contributionDate: null,
+      extractionLogId: null,
+    }),
+    createdAt
+  );
 });
 
 test("retrieved run DTO uses the stored snapshot and persisted split lines", () => {

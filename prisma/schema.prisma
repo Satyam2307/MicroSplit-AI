@@ -11,23 +11,25 @@ datasource db {
 
 // ─── Users & Auth ────────────────────────────────────────────
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  avatar    String?
-  githubId  String?  @unique @map("github_id")
-  role      String   @default("contributor") // global role: admin | contributor
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(cuid())
+  name           String
+  email          String   @unique
+  avatar         String?
+  githubId       String?  @unique @map("github_id")
+  githubUsername String?  @unique @map("github_username")
+  role           String   @default("contributor") // global role: admin | contributor
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  ownedSquads       Squad[]
-  memberships       Membership[]
-  evidence          Evidence[]
-  evidenceReviewed  Evidence[] @relation("EvidenceReviewer")
-  contributions     Contribution[]
-  approvals         Approval[]
-  freezeGrantsGiven FreezeGrant[]
-  auditLogs         AuditLog[]
+  ownedSquads           Squad[]
+  memberships           Membership[]
+  evidence              Evidence[]
+  evidenceReviewed      Evidence[]     @relation("EvidenceReviewer")
+  contributions         Contribution[]
+  contributionsReviewed Contribution[] @relation("ContributionReviewer")
+  approvals             Approval[]
+  freezeGrantsGiven     FreezeGrant[]
+  auditLogs             AuditLog[]
 
   @@map("users")
 }
@@ -133,22 +135,35 @@ model Evidence {
 }
 
 model Contribution {
-  id         String   @id @default(cuid())
-  evidenceId String   @map("evidence_id")
-  memberId   String   @map("member_id")
-  activity   String // "code_commit", "design", "review", "hours", etc.
-  quantity   Float
-  unit       String // "commits", "hours", "screens", "tasks"
-  period     String? // "2024-01" or date range
-  confidence Float    @default(0.0)
-  flagsJson  String?  @map("flags_json") @db.Text // conflict flags
-  status     String   @default("pending") // pending | confirmed | edited | rejected
-  createdAt  DateTime @default(now()) @map("created_at")
+  id                  String    @id @default(cuid())
+  evidenceId          String    @map("evidence_id")
+  memberId            String?   @map("member_id")
+  extractionLogId     String?   @map("extraction_log_id")
+  reviewedById        String?   @map("reviewed_by_id")
+  memberIdentifier    String?   @map("member_identifier")
+  identityMatchStatus String    @default("unresolved") @map("identity_match_status")
+  activity            String // Existing business activity category
+  contributionType    String?   @map("contribution_type")
+  description         String?   @db.Text
+  sourceReference     String?   @map("source_reference") @db.Text
+  contributionDate    DateTime? @map("contribution_date") @db.Date
+  quantity            Float?
+  unit                String?
+  period              String? // "2024-01" or date range
+  confidence          Float     @default(0.0)
+  flagsJson           String?   @map("flags_json") @db.Text // conflict flags
+  status              String    @default("pending") // pending | confirmed | edited | rejected
+  reviewedAt          DateTime? @map("reviewed_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
 
-  evidence   Evidence    @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
-  member     User        @relation(fields: [memberId], references: [id])
-  splitLines SplitLine[]
+  evidence      Evidence    @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  member        User?       @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  extractionLog AILog?      @relation(fields: [extractionLogId], references: [id], onDelete: SetNull)
+  reviewedBy    User?       @relation("ContributionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  splitLines    SplitLine[]
 
+  @@index([evidenceId, status])
+  @@index([memberId, status])
   @@map("contributions")
 }
 
@@ -258,17 +273,23 @@ model LedgerEvent {
 
 // ─── AI Extraction Logs ──────────────────────────────────────
 model AILog {
-  id            String   @id @default(cuid())
-  evidenceId    String   @map("evidence_id")
-  modelName     String   @map("model_name")
-  promptVersion String   @map("prompt_version")
-  inputHash     String   @map("input_hash")
-  outputJson    String?  @map("output_json") @db.Text
-  status        String   @default("pending") // pending | success | failed
-  createdAt     DateTime @default(now()) @map("created_at")
+  id            String    @id @default(cuid())
+  evidenceId    String    @map("evidence_id")
+  attempt       Int       @default(1)
+  modelName     String    @map("model_name")
+  promptVersion String    @map("prompt_version")
+  inputHash     String    @map("input_hash")
+  outputJson    String?   @map("output_json") @db.Text
+  status        String    @default("pending") // pending | processing | success | failed
+  errorCategory String?   @map("error_category")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  completedAt   DateTime? @map("completed_at")
 
-  evidence Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  evidence      Evidence       @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  contributions Contribution[]
 
+  @@unique([evidenceId, attempt])
+  @@index([evidenceId, createdAt])
   @@map("ai_logs")
 }
 

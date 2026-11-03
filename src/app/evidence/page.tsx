@@ -16,6 +16,12 @@ import {
 } from 'lucide-react';
 import { Reveal, Card, StatusChip } from '@/components/ui';
 import type { MockFocusSession } from '@/lib/mock-data';
+import {
+  DATE_INTERPRETATION_WARNING_PREFIX,
+  getContributionDateWarning,
+  getContributionWarnings,
+  getExtractionDisplayStatus,
+} from '@/lib/evidence-extraction-display';
 
 type EvidenceRecord = {
   id: string;
@@ -31,6 +37,51 @@ type EvidenceRecord = {
   createdAt: string;
   uploader: { name: string | null };
   reviewedBy: { name: string | null } | null;
+  aiLogs: ExtractionAttempt[];
+};
+
+type ExtractionAttempt = {
+  id: string;
+  attempt: number;
+  modelName: string;
+  promptVersion: string;
+  outputJson: string | null;
+  status: string;
+  errorCategory: string | null;
+  createdAt: string;
+  completedAt: string | null;
+  contributions: ExtractedContribution[];
+};
+
+type ExtractedContribution = {
+  id: string;
+  memberId: string | null;
+  memberIdentifier: string | null;
+  identityMatchStatus: string;
+  activity: string;
+  contributionType: string | null;
+  description: string | null;
+  sourceReference: string | null;
+  contributionDate: string | null;
+  confidence: number;
+  flagsJson: string | null;
+  status: string;
+  reviewedAt: string | null;
+  member: { id: string; name: string | null } | null;
+  reviewedBy: { name: string | null } | null;
+};
+
+type EvidenceMember = {
+  userId: string;
+  user: { id: string; name: string | null; email: string };
+};
+
+type ContributionDraft = {
+  memberId: string;
+  contributionType: string;
+  description: string;
+  sourceReference: string;
+  contributionDate: string;
 };
 
 type EvidenceSquad = {
@@ -63,6 +114,7 @@ const statusConfig: Record<string, { variant: 'mint' | 'amber' | 'rose' | 'viole
   confirmed: { variant: 'mint', label: 'Confirmed' },
   rejected: { variant: 'muted', label: 'Rejected' },
   extraction_pending: { variant: 'violet', label: 'Extraction pending' },
+  extraction_processing: { variant: 'violet', label: 'Extracting' },
   extraction_completed: { variant: 'mint', label: 'Extraction completed' },
   extraction_failed: { variant: 'rose', label: 'Extraction failed' },
 };
@@ -110,6 +162,12 @@ export default function EvidencePage() {
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [extractingId, setExtractingId] = useState<string | null>(null);
+  const [reviewingContributionId, setReviewingContributionId] = useState<string | null>(null);
+  const [squadMembers, setSquadMembers] = useState<EvidenceMember[]>([]);
+  const [contributionDrafts, setContributionDrafts] = useState<
+    Record<string, ContributionDraft>
+  >({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadKeysRef = useRef(new Map<string, string>());
 
@@ -195,6 +253,33 @@ export default function EvidencePage() {
     };
   }, [selectedSquadId]);
 
+  useEffect(() => {
+    if (!selectedSquadId) {
+      return;
+    }
+
+    let cancelled = false;
+    async function loadSquadMembers() {
+      try {
+        const response = await fetch(`/api/squads/${selectedSquadId}/members`);
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || 'Unable to load squad members');
+        }
+        if (!cancelled) setSquadMembers(result.data as EvidenceMember[]);
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(error instanceof Error ? error.message : 'Unable to load squad members');
+        }
+      }
+    }
+
+    void loadSquadMembers();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSquadId]);
+
   const squadEvidence = evidence.filter((item) => item.squadId === selectedSquadId);
   const filtered = filterStatus === 'all'
     ? squadEvidence
@@ -203,6 +288,20 @@ export default function EvidencePage() {
   const selectedSquad = squads.find((squad) => squad.id === selectedSquadId);
   const canReviewEvidence =
     selectedSquad?.currentRole === 'owner' || selectedSquad?.currentRole === 'approver';
+  const canExtractEvidence = ['owner', 'approver', 'contributor'].includes(
+    selectedSquad?.currentRole ?? ''
+  );
+
+  const refreshEvidence = async () => {
+    const response = await fetch(
+      `/api/evidence?squadId=${encodeURIComponent(selectedSquadId)}`
+    );
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || 'Unable to refresh evidence');
+    }
+    setEvidence(result.data as EvidenceRecord[]);
+  };
 
   const uploadFiles = async (files: FileList | File[]) => {
     const queuedFiles = Array.from(files);
@@ -342,6 +441,104 @@ export default function EvidencePage() {
     }
   };
 
+  const handleExtractEvidence = async (id: string) => {
+    setExtractingId(id);
+    setLoadError(null);
+    setUploadMessage(null);
+    try {
+      const response = await fetch(`/api/evidence/${id}`, { method: 'POST' });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Unable to extract evidence');
+      }
+      const hasWarnings =
+        Array.isArray(result.data?.contributions) &&
+        result.data.contributions.some(
+          (contribution: { uncertainties?: unknown }) =>
+            Array.isArray(contribution.uncertainties) &&
+            contribution.uncertainties.some(
+              (warning: unknown) =>
+                typeof warning === 'string' &&
+                warning.startsWith(DATE_INTERPRETATION_WARNING_PREFIX)
+            )
+        );
+      setUploadMessage(
+        hasWarnings
+          ? 'Extraction completed with warnings. Review and correct flagged proposal dates before confirming.'
+          : `Extraction completed for ${evidence.find((item) => item.id === id)?.fileName ?? 'evidence'}. All contribution matches are proposals for human review.`
+      );
+      await refreshEvidence();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Unable to extract evidence');
+      try {
+        await refreshEvidence();
+      } catch (refreshError) {
+        setLoadError(
+          refreshError instanceof Error
+            ? refreshError.message
+            : 'Unable to refresh evidence after extraction'
+        );
+      }
+    } finally {
+      setExtractingId(null);
+    }
+  };
+
+  const handleContributionReview = async (
+    contribution: ExtractedContribution,
+    status: 'pending' | 'confirmed' | 'rejected'
+  ) => {
+    const draft = contributionDrafts[contribution.id];
+    setReviewingContributionId(contribution.id);
+    setLoadError(null);
+    try {
+      const response = await fetch(
+        `/api/evidence/contributions/${contribution.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status,
+            memberId: draft
+              ? draft.memberId || null
+              : contribution.memberId,
+            contributionType: draft?.contributionType || contribution.contributionType,
+            description: draft?.description ?? contribution.description,
+            sourceReference: draft?.sourceReference ?? contribution.sourceReference,
+            contributionDate: draft
+              ? draft.contributionDate || null
+              : contribution.contributionDate
+                ? new Date(contribution.contributionDate).toISOString().slice(0, 10)
+                : null,
+          }),
+        }
+      );
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Unable to save contribution review');
+      }
+      setContributionDrafts((current) => {
+        const next = { ...current };
+        delete next[contribution.id];
+        return next;
+      });
+      setUploadMessage(
+        status === 'confirmed'
+          ? 'Contribution confirmed. It is now eligible for future split calculations.'
+          : status === 'rejected'
+            ? 'Contribution proposal rejected.'
+            : 'Corrections saved. The proposal remains pending and is not split-eligible until confirmed.'
+      );
+      await refreshEvidence();
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : 'Unable to save contribution review'
+      );
+    } finally {
+      setReviewingContributionId(null);
+    }
+  };
+
   const handleApproveSession = (id: string) => {
     setSessions(sessions.map((s) => (s.id === id ? { ...s, status: 'approved' as const } : s)));
   };
@@ -403,7 +600,10 @@ export default function EvidencePage() {
                     Squad
                     <select
                       value={selectedSquadId}
-                      onChange={(event) => setSelectedSquadId(event.target.value)}
+                      onChange={(event) => {
+                        setSquadMembers([]);
+                        setSelectedSquadId(event.target.value);
+                      }}
                       onClick={(event) => event.stopPropagation()}
                       className="ml-3 rounded-lg border px-3 py-2"
                       style={{
@@ -498,7 +698,15 @@ export default function EvidencePage() {
         <Reveal delay={0.15}>
           <div className="flex items-center gap-3 mb-6 overflow-x-auto pb-2">
             <Filter size={16} style={{ color: 'var(--muted)' }} />
-            {['all', 'pending_review', 'confirmed', 'rejected'].map((status) => (
+            {[
+              'all',
+              'pending_review',
+              'extraction_processing',
+              'extraction_completed',
+              'extraction_failed',
+              'confirmed',
+              'rejected',
+            ].map((status) => (
               <button
                 key={status}
                 className="text-sm font-semibold px-4 py-2 rounded-xl transition-all whitespace-nowrap"
@@ -534,10 +742,18 @@ export default function EvidencePage() {
           )}
           {filtered.map((evi, idx) => {
             const isExpanded = expandedId === evi.id;
+            const displayStatus = getExtractionDisplayStatus(
+              evi.status,
+              evi.aiLogs[0]?.contributions ?? []
+            );
             const sc = statusConfig[evi.status] ?? {
               variant: 'muted' as const,
               label: evi.status,
             };
+            const displayedStatusConfig =
+              displayStatus === 'Extraction completed with warnings'
+                ? { variant: 'amber' as const, label: displayStatus }
+                : { ...sc, label: displayStatus };
 
             return (
               <Reveal key={evi.id} delay={idx * 0.05}>
@@ -573,7 +789,10 @@ export default function EvidencePage() {
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <StatusChip label={sc.label} variant={sc.variant} />
+                      <StatusChip
+                        label={displayedStatusConfig.label}
+                        variant={displayedStatusConfig.variant}
+                      />
                       <motion.div
                         animate={{ rotate: isExpanded ? 180 : 0 }}
                         transition={{ duration: 0.2 }}
@@ -635,7 +854,389 @@ export default function EvidencePage() {
                                 </button>
                               </>
                             )}
+                            {canExtractEvidence &&
+                              [
+                                'pending_review',
+                                'confirmed',
+                                'rejected',
+                                'extraction_pending',
+                                'extraction_failed',
+                                'extraction_completed',
+                              ].includes(evi.status) && (
+                                <button
+                                  className="btn-secondary text-sm py-2 px-4"
+                                  disabled={extractingId === evi.id}
+                                  onClick={() => void handleExtractEvidence(evi.id)}
+                                  aria-label={`Run AI Extraction for ${evi.fileName ?? 'evidence'}`}
+                                >
+                                  {extractingId === evi.id
+                                    ? 'Extracting…'
+                                    : evi.aiLogs.length > 0
+                                      ? 'Run AI Extraction Again'
+                                      : 'Run AI Extraction'}
+                                </button>
+                              )}
                           </div>
+                          {evi.aiLogs.length > 0 && (
+                            <section className="pt-4 space-y-4" aria-label="AI extraction history">
+                              <div className="rounded-xl border p-3" style={{ borderColor: 'var(--border)' }}>
+                                <p className="text-xs font-bold" style={{ color: 'var(--text)' }}>
+                                  AI extraction creates proposals only
+                                </p>
+                                <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                                  Review and correct each item before confirmation. Gemini does not approve contributions or calculate payouts.
+                                </p>
+                              </div>
+                              {evi.aiLogs.map((attempt) => {
+                                let summary: string | null = null;
+                                try {
+                                  const output: unknown = attempt.outputJson
+                                    ? JSON.parse(attempt.outputJson)
+                                    : null;
+                                  if (
+                                    output &&
+                                    typeof output === 'object' &&
+                                    'summary' in output &&
+                                    typeof output.summary === 'string'
+                                  ) {
+                                    summary = output.summary;
+                                  }
+                                } catch {
+                                  summary = null;
+                                }
+                                const hasDateWarning = attempt.contributions.some((contribution) =>
+                                  getContributionDateWarning(contribution.flagsJson)
+                                );
+                                return (
+                                  <div key={attempt.id} className="space-y-3">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <p className="text-xs font-semibold" style={{ color: 'var(--text)' }}>
+                                        Attempt {attempt.attempt} · {attempt.modelName} ·{' '}
+                                        {attempt.status === 'success' && hasDateWarning
+                                          ? 'completed with warnings'
+                                          : attempt.status}
+                                      </p>
+                                      <p className="text-[11px]" style={{ color: 'var(--muted)' }}>
+                                        {new Date(attempt.createdAt).toLocaleString()}
+                                        {attempt.errorCategory ? ` · ${attempt.errorCategory}` : ''}
+                                      </p>
+                                    </div>
+                                    {summary && (
+                                      <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                                        {summary}
+                                      </p>
+                                    )}
+                                    {attempt.contributions.map((contribution) => {
+                                      const draft = contributionDrafts[contribution.id];
+                                      const uncertainties = getContributionWarnings(
+                                        contribution.flagsJson
+                                      ).filter(
+                                        (warning) =>
+                                          !warning.startsWith(
+                                            DATE_INTERPRETATION_WARNING_PREFIX
+                                          )
+                                      );
+                                      const dateWarning = getContributionDateWarning(
+                                        contribution.flagsJson
+                                      );
+                                      const currentType =
+                                        draft?.contributionType ??
+                                        contribution.contributionType ??
+                                        'other';
+                                      return (
+                                        <div
+                                          key={contribution.id}
+                                          className="rounded-xl border p-4 space-y-3"
+                                          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+                                        >
+                                          <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <p className="text-xs font-semibold" style={{ color: 'var(--text)' }}>
+                                              {contribution.member?.name ??
+                                                contribution.memberIdentifier ??
+                                                'Unresolved member'}{' '}
+                                              · {contribution.status}
+                                            </p>
+                                            <p className="text-[11px]" style={{ color: 'var(--muted)' }}>
+                                              {Math.round(contribution.confidence * 100)}% model confidence · {contribution.identityMatchStatus}
+                                            </p>
+                                          </div>
+                                          <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                                            {contribution.description}
+                                          </p>
+                                          {dateWarning && (
+                                            <p
+                                              className="flex items-start gap-2 rounded-lg border p-3 text-xs"
+                                              role="alert"
+                                              style={{
+                                                borderColor: 'var(--border)',
+                                                background: 'var(--accent-subtle)',
+                                                color: 'var(--text)',
+                                              }}
+                                            >
+                                              <AlertTriangle
+                                                size={15}
+                                                aria-hidden="true"
+                                                className="mt-0.5 shrink-0"
+                                              />
+                                              <span>{dateWarning}</span>
+                                            </p>
+                                          )}
+                                          {contribution.sourceReference && (
+                                            <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                                              Source: {contribution.sourceReference}
+                                            </p>
+                                          )}
+                                          {uncertainties.length > 0 && (
+                                            <ul className="list-disc pl-5 text-xs" style={{ color: 'var(--muted)' }}>
+                                              {uncertainties.map((uncertainty, index) => (
+                                                <li key={`${contribution.id}-uncertainty-${index}`}>
+                                                  {uncertainty}
+                                                </li>
+                                              ))}
+                                            </ul>
+                                          )}
+                                          {canReviewEvidence && contribution.status === 'pending' && (
+                                            <div className="grid gap-2 sm:grid-cols-2">
+                                              <label className="text-xs" style={{ color: 'var(--muted)' }}>
+                                                Assign squad member
+                                                <select
+                                                  value={
+                                                    draft?.memberId ??
+                                                    contribution.memberId ??
+                                                    ''
+                                                  }
+                                                  onChange={(event) =>
+                                                    setContributionDrafts((current) => ({
+                                                      ...current,
+                                                      [contribution.id]: {
+                                                        memberId: event.target.value,
+                                                        contributionType: currentType,
+                                                        description:
+                                                          draft?.description ??
+                                                          contribution.description ??
+                                                          '',
+                                                        sourceReference:
+                                                          draft?.sourceReference ??
+                                                          contribution.sourceReference ??
+                                                          '',
+                                                        contributionDate:
+                                                          draft?.contributionDate ??
+                                                          (contribution.contributionDate
+                                                            ? new Date(contribution.contributionDate)
+                                                                .toISOString()
+                                                                .slice(0, 10)
+                                                            : ''),
+                                                      },
+                                                    }))
+                                                  }
+                                                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                                                  style={{ background: 'var(--surface)', color: 'var(--text)', borderColor: 'var(--border)' }}
+                                                >
+                                                  <option value="">Unresolved</option>
+                                                  {squadMembers.map((member) => (
+                                                    <option key={member.userId} value={member.userId}>
+                                                      {member.user.name ?? member.user.email}
+                                                    </option>
+                                                  ))}
+                                                </select>
+                                              </label>
+                                              <label className="text-xs" style={{ color: 'var(--muted)' }}>
+                                                Contribution type
+                                                <select
+                                                  value={currentType}
+                                                  onChange={(event) =>
+                                                    setContributionDrafts((current) => ({
+                                                      ...current,
+                                                      [contribution.id]: {
+                                                        memberId:
+                                                          draft?.memberId ??
+                                                          contribution.memberId ??
+                                                          '',
+                                                        contributionType: event.target.value,
+                                                        description:
+                                                          draft?.description ??
+                                                          contribution.description ??
+                                                          '',
+                                                        sourceReference:
+                                                          draft?.sourceReference ??
+                                                          contribution.sourceReference ??
+                                                          '',
+                                                        contributionDate:
+                                                          draft?.contributionDate ??
+                                                          (contribution.contributionDate
+                                                            ? new Date(contribution.contributionDate)
+                                                                .toISOString()
+                                                                .slice(0, 10)
+                                                            : ''),
+                                                      },
+                                                    }))
+                                                  }
+                                                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                                                  style={{ background: 'var(--surface)', color: 'var(--text)', borderColor: 'var(--border)' }}
+                                                >
+                                                  {['code', 'design', 'research', 'documentation', 'testing', 'management', 'other'].map((type) => (
+                                                    <option key={type} value={type}>{type}</option>
+                                                  ))}
+                                                </select>
+                                              </label>
+                                              <label className="text-xs sm:col-span-2" style={{ color: 'var(--muted)' }}>
+                                                Corrected contribution description
+                                                <textarea
+                                                  value={draft?.description ?? contribution.description ?? ''}
+                                                  onChange={(event) =>
+                                                    setContributionDrafts((current) => ({
+                                                      ...current,
+                                                      [contribution.id]: {
+                                                        memberId:
+                                                          draft?.memberId ??
+                                                          contribution.memberId ??
+                                                          '',
+                                                        contributionType: currentType,
+                                                        description: event.target.value,
+                                                        sourceReference:
+                                                          draft?.sourceReference ??
+                                                          contribution.sourceReference ??
+                                                          '',
+                                                        contributionDate:
+                                                          draft?.contributionDate ??
+                                                          (contribution.contributionDate
+                                                            ? new Date(contribution.contributionDate)
+                                                                .toISOString()
+                                                                .slice(0, 10)
+                                                            : ''),
+                                                      },
+                                                    }))
+                                                  }
+                                                  rows={2}
+                                                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                                                  style={{ background: 'var(--surface)', color: 'var(--text)', borderColor: 'var(--border)' }}
+                                                />
+                                              </label>
+                                              <label className="text-xs" style={{ color: 'var(--muted)' }}>
+                                                Source reference
+                                                <input
+                                                  value={draft?.sourceReference ?? contribution.sourceReference ?? ''}
+                                                  onChange={(event) =>
+                                                    setContributionDrafts((current) => ({
+                                                      ...current,
+                                                      [contribution.id]: {
+                                                        memberId:
+                                                          draft?.memberId ??
+                                                          contribution.memberId ??
+                                                          '',
+                                                        contributionType: currentType,
+                                                        description:
+                                                          draft?.description ??
+                                                          contribution.description ??
+                                                          '',
+                                                        sourceReference: event.target.value,
+                                                        contributionDate:
+                                                          draft?.contributionDate ??
+                                                          (contribution.contributionDate
+                                                            ? new Date(contribution.contributionDate)
+                                                                .toISOString()
+                                                                .slice(0, 10)
+                                                            : ''),
+                                                      },
+                                                    }))
+                                                  }
+                                                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                                                  style={{ background: 'var(--surface)', color: 'var(--text)', borderColor: 'var(--border)' }}
+                                                />
+                                              </label>
+                                              <label className="text-xs" style={{ color: 'var(--muted)' }}>
+                                                Contribution date
+                                                <input
+                                                  type="date"
+                                                  value={
+                                                    draft?.contributionDate ??
+                                                    (contribution.contributionDate
+                                                      ? new Date(contribution.contributionDate)
+                                                          .toISOString()
+                                                          .slice(0, 10)
+                                                      : '')
+                                                  }
+                                                  onChange={(event) =>
+                                                    setContributionDrafts((current) => ({
+                                                      ...current,
+                                                      [contribution.id]: {
+                                                        memberId:
+                                                          draft?.memberId ??
+                                                          contribution.memberId ??
+                                                          '',
+                                                        contributionType: currentType,
+                                                        description:
+                                                          draft?.description ??
+                                                          contribution.description ??
+                                                          '',
+                                                        sourceReference:
+                                                          draft?.sourceReference ??
+                                                          contribution.sourceReference ??
+                                                          '',
+                                                        contributionDate: event.target.value,
+                                                      },
+                                                    }))
+                                                  }
+                                                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                                                  style={{ background: 'var(--surface)', color: 'var(--text)', borderColor: 'var(--border)' }}
+                                                />
+                                              </label>
+                                              <div className="flex flex-wrap items-end gap-2 sm:col-span-2">
+                                                {draft && (
+                                                  <button
+                                                    className="btn-secondary text-sm py-2 px-4"
+                                                    disabled={
+                                                      reviewingContributionId === contribution.id
+                                                    }
+                                                    onClick={() =>
+                                                      void handleContributionReview(
+                                                        contribution,
+                                                        'pending'
+                                                      )
+                                                    }
+                                                  >
+                                                    {reviewingContributionId === contribution.id
+                                                      ? 'Saving…'
+                                                      : 'Save corrections'}
+                                                  </button>
+                                                )}
+                                                <button
+                                                  className="btn-3d btn-3d-sm"
+                                                  disabled={reviewingContributionId === contribution.id}
+                                                  onClick={() =>
+                                                    void handleContributionReview(contribution, 'confirmed')
+                                                  }
+                                                >
+                                                  {reviewingContributionId === contribution.id
+                                                    ? 'Saving…'
+                                                    : 'Confirm contribution'}
+                                                </button>
+                                                <button
+                                                  className="btn-secondary text-sm py-2 px-4"
+                                                  disabled={reviewingContributionId === contribution.id}
+                                                  onClick={() =>
+                                                    void handleContributionReview(contribution, 'rejected')
+                                                  }
+                                                >
+                                                  Reject proposal
+                                                </button>
+                                              </div>
+                                            </div>
+                                          )}
+                                          {contribution.reviewedAt && (
+                                            <p className="text-[11px]" style={{ color: 'var(--muted)' }}>
+                                              Reviewed by {contribution.reviewedBy?.name ?? 'Squad approver'} on{' '}
+                                              {new Date(contribution.reviewedAt).toLocaleString()}
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              })}
+                            </section>
+                          )}
                         </div>
                       </motion.div>
                     )}
