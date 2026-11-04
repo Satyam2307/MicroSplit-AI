@@ -443,13 +443,15 @@ export default function SplitsNewPage() {
                       >
                         <Info size={16} className="mt-0.5 shrink-0 text-amber-500" />
                         <span>
-                          Record an active revenue event for this squad before running a split.
+                          {selectedSquadId
+                            ? 'Record an active revenue event for this squad before running a split.'
+                            : 'Create a squad first, then record a revenue event for it.'}
                           <br />
                           <Link
-                            href={selectedSquadId ? `/squads/${selectedSquadId}` : '/squads'}
+                            href={selectedSquadId ? `/squads/${selectedSquadId}` : '/squads/new'}
                             className="font-semibold text-amber-600 underline underline-offset-2"
                           >
-                            + Record revenue event
+                            {selectedSquadId ? '+ Record revenue event' : '+ Create squad'}
                           </Link>
                         </span>
                       </div>
