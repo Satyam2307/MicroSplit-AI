@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { getCurrencySymbol } from '@/lib/currency';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -17,6 +18,10 @@ import {
   Flame,
   CheckCircle2,
   Sliders,
+  ChevronDown,
+  Building2,
+  CircleDollarSign,
+  Users,
 } from 'lucide-react';
 import { Reveal, Card, WeightBar, MoneyChip } from '@/components/ui';
 import { formatMoney } from '@/lib/money';
@@ -303,56 +308,151 @@ export default function SplitsNewPage() {
             {/* Squad & Pool */}
             <Reveal delay={0.1}>
               <Card padding="lg">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="mb-5 flex items-center gap-3">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[var(--accent-subtle)] text-[var(--accent)]">
+                    <Users size={18} />
+                  </span>
                   <div>
-                    <label className="block text-sm font-bold mb-2" style={{ color: 'var(--text)' }}>
-                      Squad Workspace
-                    </label>
-                    <select
-                      value={selectedSquadId}
-                      onChange={(e) => setSelectedSquadId(e.target.value)}
-                      className="input-field font-medium"
+                    <h2 className="text-base font-bold leading-tight text-[var(--text)]">
+                      Squad &amp; revenue
+                    </h2>
+                    <p className="text-xs text-[var(--muted)]">
+                      Choose who is being paid and which revenue is split.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  {/* Squad Workspace */}
+                  <div>
+                    <label
+                      htmlFor="squad-workspace"
+                      className="mb-2 flex items-baseline justify-between text-sm font-bold text-[var(--text)]"
                     >
-                      {squads.map((squad) => (
-                        <option key={squad.id} value={squad.id}>
-                          {squad.name} ({squad.currency})
-                        </option>
-                      ))}
-                    </select>
+                      Squad Workspace
+                      <span className="text-xs font-medium text-[var(--muted)]">Required</span>
+                    </label>
+                    <div className="group relative">
+                      <Building2
+                        size={18}
+                        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+                      />
+                      <select
+                        id="squad-workspace"
+                        value={selectedSquadId}
+                        onChange={(e) => setSelectedSquadId(e.target.value)}
+                        disabled={squads.length === 0}
+                        className="h-[52px] w-full appearance-none rounded-xl border-[1.5px] border-[var(--border)] bg-[var(--background)] pl-11 pr-11 text-[15px] font-medium text-[var(--text)] transition hover:border-[var(--accent)] focus:border-[var(--accent)] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)] disabled:cursor-not-allowed disabled:border-dashed disabled:opacity-70"
+                      >
+                        {squads.length === 0 && <option value="">No squads yet</option>}
+                        {squads.map((squad) => (
+                          <option key={squad.id} value={squad.id}>
+                            {squad.name} ({squad.currency})
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        size={18}
+                        className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)] transition-transform group-focus-within:rotate-180 group-focus-within:text-[var(--accent)]"
+                      />
+                    </div>
+
                     {loadError && <p className="text-xs text-red-600 mt-2">{loadError}</p>}
+
                     {!loadError && squads.length === 0 && (
-                      <p className="text-xs mt-2 text-[var(--muted)]">
-                        Create a squad and add members before configuring a split.
-                      </p>
+                      <div
+                        role="status"
+                        className="mt-2.5 flex items-start gap-2 rounded-xl border border-[color-mix(in_srgb,#f59e0b_40%,transparent)] bg-[color-mix(in_srgb,#f59e0b_12%,transparent)] px-3 py-2.5 text-[13px] text-[var(--text)]"
+                      >
+                        <Info size={16} className="mt-0.5 shrink-0 text-amber-500" />
+                        <span>
+                          Create a squad and add members before configuring a split.
+                          <br />
+                          <Link href="/squads/new" className="font-semibold text-amber-600 underline underline-offset-2">
+                            + Create squad
+                          </Link>
+                        </span>
+                      </div>
+                    )}
+
+                    {selectedSquad.id && (
+                      <div className="mt-2.5 flex flex-wrap gap-2">
+                        <span className="inline-flex items-center rounded-full bg-[var(--accent-subtle)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)]">
+                          {memberSplits.length} {memberSplits.length === 1 ? 'member' : 'members'}
+                        </span>
+                        <span className="inline-flex items-center rounded-full bg-[var(--accent-subtle)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)]">
+                          {selectedSquad.currency}
+                        </span>
+                      </div>
                     )}
                   </div>
 
+                  {/* Revenue Event */}
                   <div>
-                    <label className="block text-sm font-bold mb-2 text-[var(--primary)]">
-                      Revenue Event ({selectedSquad.currency})
-                    </label>
-                    <select
-                      value={selectedRevenueEventId}
-                      onChange={(event) => setSelectedRevenueEventId(event.target.value)}
-                      className="input-field font-medium"
-                      disabled={revenueEvents.length === 0}
+                    <label
+                      htmlFor="revenue-event"
+                      className="mb-2 flex items-baseline justify-between text-sm font-bold text-[var(--text)]"
                     >
-                      {revenueEvents.map((event) => (
-                        <option key={event.id} value={event.id}>
-                          {event.description || 'Revenue event'} — {getCurrencySymbol(event.currency)}
-                          {(event.amountMinor / 100).toFixed(2)}
-                        </option>
-                      ))}
-                    </select>
+                      Revenue Event ({selectedSquad.currency})
+                      <span className="text-xs font-medium text-[var(--muted)]">Required</span>
+                    </label>
+                    <div className="group relative">
+                      <CircleDollarSign
+                        size={18}
+                        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+                      />
+                      <select
+                        id="revenue-event"
+                        value={selectedRevenueEventId}
+                        onChange={(event) => setSelectedRevenueEventId(event.target.value)}
+                        disabled={revenueEvents.length === 0}
+                        className="h-[52px] w-full appearance-none rounded-xl border-[1.5px] border-[var(--border)] bg-[var(--background)] pl-11 pr-11 text-[15px] font-medium text-[var(--text)] transition hover:border-[var(--accent)] focus:border-[var(--accent)] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)] disabled:cursor-not-allowed disabled:border-dashed disabled:opacity-70"
+                      >
+                        {revenueEvents.length === 0 && (
+                          <option value="">
+                            {selectedSquadId ? 'No active revenue events' : 'Select a squad first'}
+                          </option>
+                        )}
+                        {revenueEvents.map((event) => (
+                          <option key={event.id} value={event.id}>
+                            {event.description || 'Revenue event'} — {getCurrencySymbol(event.currency)}
+                            {(event.amountMinor / 100).toFixed(2)}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        size={18}
+                        className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)] transition-transform group-focus-within:rotate-180 group-focus-within:text-[var(--accent)]"
+                      />
+                    </div>
+
                     {selectedRevenueEvent ? (
-                      <p className="text-xs mt-2 text-[var(--muted)]">
-                        Pool: {getCurrencySymbol(selectedRevenueEvent.currency)}
-                        {(poolAmount / 100).toFixed(2)}
-                      </p>
+                      <div className="mt-2.5 flex flex-wrap gap-2">
+                        <span className="inline-flex items-center rounded-full bg-[var(--accent-subtle)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)]">
+                          {getCurrencySymbol(selectedRevenueEvent.currency)}
+                          {(poolAmount / 100).toFixed(2)} to split
+                        </span>
+                        <span className="inline-flex items-center rounded-full bg-[var(--accent-subtle)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)]">
+                          Active
+                        </span>
+                      </div>
                     ) : (
-                      <p className="text-xs mt-2 text-[var(--muted)]">
-                        Record an active revenue event for this squad before running a split.
-                      </p>
+                      <div
+                        role="status"
+                        className="mt-2.5 flex items-start gap-2 rounded-xl border border-[color-mix(in_srgb,#f59e0b_40%,transparent)] bg-[color-mix(in_srgb,#f59e0b_12%,transparent)] px-3 py-2.5 text-[13px] text-[var(--text)]"
+                      >
+                        <Info size={16} className="mt-0.5 shrink-0 text-amber-500" />
+                        <span>
+                          Record an active revenue event for this squad before running a split.
+                          <br />
+                          <Link
+                            href={selectedSquadId ? `/squads/${selectedSquadId}` : '/squads'}
+                            className="font-semibold text-amber-600 underline underline-offset-2"
+                          >
+                            + Record revenue event
+                          </Link>
+                        </span>
+                      </div>
                     )}
                   </div>
                 </div>
