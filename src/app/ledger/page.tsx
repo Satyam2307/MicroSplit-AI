@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState,useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   BookOpen,
@@ -21,7 +21,7 @@ import { Reveal, Card, StatusChip, MoneyChip } from '@/components/ui';
 import { mockLedgerEvents } from '@/lib/mock-data';
 import { verifyLedgerChain, type LedgerEntry } from '@/lib/ledger';
 import { formatMoney } from '@/lib/money';
-
+import LedgerChainViz, { type VerifyStatus } from '@/components/LedgerChainViz';
 const typeIcons: Record<string, React.ReactNode> = {
   revenue_recorded: <DollarSign size={14} />,
   split_created: <GitFork size={14} />,
@@ -50,7 +50,10 @@ export default function LedgerPage() {
   const [filterType, setFilterType] = useState<string>('all');
   const [page, setPage] = useState(1);
   const pageSize = 10;
-
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const filtered =
     filterType === 'all'
       ? mockLedgerEvents
@@ -73,6 +76,15 @@ export default function LedgerPage() {
     'all',
     ...Array.from(new Set(mockLedgerEvents.map((e) => e.type))),
   ];
+  const vizStatus: VerifyStatus = isVerifying
+    ? 'verifying'
+    : verifyResult
+      ? verifyResult.valid
+        ? 'valid'
+        : 'invalid'
+            : 'idle';
+
+  if (!mounted) return null;
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--background)' }}>
@@ -150,7 +162,18 @@ export default function LedgerPage() {
             </Card>
           </Reveal>
         )}
-
+{/* Chain animation */}
+<div className="mb-6">
+  <LedgerChainViz
+    blocks={mockLedgerEvents.map((e) => ({
+      id: e.id,
+      type: e.type,
+      hash: e.hash,
+    }))}
+    status={vizStatus}
+    brokenIndex={verifyResult && !verifyResult.valid ? (verifyResult.brokenAt ?? null) : null}
+  />
+</div>
         {/* Filter bar */}
         <Reveal delay={0.1}>
           <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2">
