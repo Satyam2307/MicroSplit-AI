@@ -547,7 +547,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex flex-wrap items-center gap-2.5">
+           <div className="flex flex-wrap lg:flex-nowrap shrink-0 items-center gap-2.5">
               <button
                 type="button"
                 onClick={() => setShowRecordRevenueModal(true)}
