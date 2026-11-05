@@ -40,7 +40,7 @@ export default function Navbar() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const isDark = !mounted || theme === 'dark';
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -58,6 +58,15 @@ export default function Navbar() {
     setMobileOpen(false);
     setUserMenuOpen(false);
     setNotifOpen(false);
+  }, [pathname]);
+
+  // After login (client-side redirect), re-fetch the session on route change
+  // so the header doesn't stay on the stale "Sign in" state until a refresh.
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      void update();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   // Close dropdowns on outside click
@@ -314,7 +323,9 @@ export default function Navbar() {
                 <ArrowRight size={13} />
               </Link>
 
-              {status === 'authenticated' && session?.user ? (
+              {!mounted || status === 'loading' ? (
+  <div className="w-8 h-8" />
+) : status === 'authenticated' && session?.user ? (
                 <div className="relative" onClick={(e) => e.stopPropagation()}>
                   <button
                     type="button"
