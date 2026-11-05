@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Zap, GitBranch, Mail, ArrowRight } from 'lucide-react';
+import { Zap, Mail, ArrowRight } from 'lucide-react';
 import { Reveal } from '@/components/ui';
-import { signInWithGitHub, signInWithDemo } from '@/app/actions/auth';
+import { signInWithDemo } from '@/app/actions/auth';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -47,34 +47,17 @@ export default function LoginPage() {
             Sign in to manage your squads and splits
           </p>
 
-          {/* GitHub button (Mockup demo flow) */}
-          <form action={signInWithGitHub}>
-            <button
-              type="submit"
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl font-semibold text-sm mb-4 transition-all text-white cursor-pointer"
-              style={{ background: 'var(--primary)' }}
-            >
-              <GitBranch size={18} />
-              Continue with GitHub
-            </button>
-          </form>
-
-          <div className="flex items-center gap-3 my-6">
-            <div className="flex-1 h-px bg-[var(--text)] opacity-20" />
-            <span className="text-xs font-medium text-[var(--text)]">or</span>
-            <div className="flex-1 h-px bg-[var(--text)] opacity-20" />
-          </div>
-
           {/* Email / Role login */}
           <form action={signInWithDemo} className="space-y-4">
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider block mb-2 text-[var(--text)]">
                 Email
               </label>
-              <div className="relative flex items-center">
+              <div className="relative">
                 <Mail
                   size={16}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10 text-[var(--text)]"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+                  style={{ color: 'var(--text)', opacity: 0.5 }}
                 />
                 <input
                   type="email"
