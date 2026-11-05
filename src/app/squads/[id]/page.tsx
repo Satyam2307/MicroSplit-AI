@@ -39,6 +39,16 @@ import type { SplitRunDTO } from '@/lib/split-run-types';
 import { formatMoney } from '@/lib/money';
 import { getCurrencySymbol } from '@/lib/currency';
 import { showToast } from '@/components/Toast';
+import {
+  getStoredSquad,
+  getStoredMembers,
+  getStoredRevenue,
+  saveStoredSquad,
+  saveStoredMember,
+  saveStoredRevenue,
+  deleteStoredSquad,
+  deleteStoredMember,
+} from '@/lib/client-storage';
 
 const roleColors: Record<string, { bg: string; color: string }> = {
   owner: { bg: 'var(--background)', color: 'var(--accent)' },
@@ -71,8 +81,9 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { id } = use(params);
 
-  // Instant local seed from demo squad data
-  const demoSquadMatch = mockSquads.find((s) => s.id === id);
+  // Instant local seed from demo squad data or local storage
+  const storedMatch = getStoredSquad(id);
+  const demoSquadMatch = mockSquads.find((s) => s.id === id) || storedMatch;
   const initialSquad: MockSquad & { currentRole?: string } = demoSquadMatch
     ? { ...demoSquadMatch, currentRole: 'owner' }
     : {
@@ -87,15 +98,25 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
 
   const [squad, setSquad] = useState(initialSquad);
   const [users, setUsers] = useState<MockUser[]>(() => mockUsers);
-  const [members, setMembers] = useState<MockMembership[]>(() =>
-    mockMemberships.filter((m) => m.squadId === id).map((m) => ({
+  const [members, setMembers] = useState<MockMembership[]>(() => {
+    const demoMems = mockMemberships.filter((m) => m.squadId === id).map((m) => ({
       ...m,
       isCurrentUser: m.userId === 'usr_1',
-    }))
-  );
-  const [revenue, setRevenue] = useState<MockRevenueEvent[]>(() =>
-    mockRevenueEvents.filter((r) => r.squadId === id)
-  );
+    }));
+    const storedMems = getStoredMembers(id);
+    const map = new Map<string, MockMembership>();
+    demoMems.forEach((m) => map.set(m.id, m));
+    storedMems.forEach((m) => map.set(m.id, m));
+    return Array.from(map.values());
+  });
+  const [revenue, setRevenue] = useState<MockRevenueEvent[]>(() => {
+    const demoRevs = mockRevenueEvents.filter((r) => r.squadId === id);
+    const storedRevs = getStoredRevenue(id);
+    const map = new Map<string, MockRevenueEvent>();
+    demoRevs.forEach((r) => map.set(r.id, r));
+    storedRevs.forEach((r) => map.set(r.id, r));
+    return Array.from(map.values());
+  });
   const [runs, setRuns] = useState<SplitRunDTO[]>([]);
   const [isLoading, setIsLoading] = useState(!demoSquadMatch);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -104,34 +125,74 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
   // Fetch latest squad data from backend API
   useEffect(() => {
     let active = true;
+
+    // Check stored data immediately
+    const localSquad = getStoredSquad(id);
+    const localMembers = getStoredMembers(id);
+    const localRevs = getStoredRevenue(id);
+
+    if (localSquad) {
+      setSquad((prev) => ({ ...localSquad, ...prev, currentRole: 'owner' }));
+      setIsLoading(false);
+    }
+
     Promise.all([
       fetch(`/api/squads/${id}`),
       fetch(`/api/split-runs?squadId=${encodeURIComponent(id)}`),
     ])
       .then(async ([squadResponse, runsResponse]) => {
         const squadResult = await squadResponse.json();
-        if (!squadResponse.ok || !squadResult.success || !squadResult.data?.squad) {
+        const runsResult = await runsResponse.json().catch(() => ({ success: true, data: [] }));
+
+        if (!active) return;
+
+        if (squadResponse.ok && squadResult.success && squadResult.data?.squad) {
+          const apiMembers = (squadResult.data.members || []) as MockMembership[];
+          const memMap = new Map<string, MockMembership>();
+          apiMembers.forEach((m) => memMap.set(m.id, m));
+          localMembers.forEach((m) => memMap.set(m.id, m));
+          const mergedMembers = Array.from(memMap.values());
+
+          const apiRevenue = (squadResult.data.revenue || []) as MockRevenueEvent[];
+          const revMap = new Map<string, MockRevenueEvent>();
+          apiRevenue.forEach((r) => revMap.set(r.id, r));
+          localRevs.forEach((r) => revMap.set(r.id, r));
+          const mergedRevenue = Array.from(revMap.values());
+
+          setSquad({
+            ...squadResult.data.squad,
+            memberCount: Math.max(squadResult.data.squad.memberCount, mergedMembers.length),
+          });
+          setMembers(mergedMembers);
+          setPayoutReceiverInput(
+            mergedMembers.find(
+              (member: MockMembership) => member.isCurrentUser
+            )?.payoutReceiver ?? ''
+          );
+          setRevenue(mergedRevenue);
+          setUsers(squadResult.data.users || []);
+        } else if (localSquad) {
+          // Fallback to local storage gracefully without error
+          setSquad(localSquad);
+          setMembers(localMembers);
+          setRevenue(localRevs);
+        } else {
           throw new Error(squadResult.error || 'Unable to load squad');
         }
-        const runsResult = await runsResponse.json();
-        if (!runsResponse.ok || !runsResult.success) {
-          throw new Error(runsResult.error || 'Unable to load split runs');
+
+        if (runsResponse.ok && runsResult.success) {
+          setRuns(runsResult.data || []);
         }
-        if (!active) return;
-        setSquad(squadResult.data.squad);
-        setMembers(squadResult.data.members || []);
-        setPayoutReceiverInput(
-          squadResult.data.members?.find(
-            (member: MockMembership) => member.isCurrentUser
-          )?.payoutReceiver ?? ''
-        );
-        setRevenue(squadResult.data.revenue || []);
-        setUsers(squadResult.data.users || []);
-        setRuns(runsResult.data || []);
       })
       .catch((error: unknown) => {
         if (active) {
-          setLoadError(error instanceof Error ? error.message : 'Unable to load squad');
+          if (localSquad) {
+            setSquad(localSquad);
+            setMembers(localMembers);
+            setRevenue(localRevs);
+          } else {
+            setLoadError(error instanceof Error ? error.message : 'Unable to load squad');
+          }
         }
       })
       .finally(() => {
@@ -214,7 +275,12 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
       }
 
       setMembers((prev) => [...prev, createdMem]);
-      setSquad((prev) => ({ ...prev, memberCount: prev.memberCount + 1 }));
+      setSquad((prev) => {
+        const next = { ...prev, memberCount: prev.memberCount + 1 };
+        saveStoredSquad(next);
+        return next;
+      });
+      saveStoredMember(createdMem);
 
       showToast({
         type: 'success',
@@ -292,8 +358,13 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
         throw new Error(data.error || 'Failed to remove member');
       }
 
+      deleteStoredMember(squad.id, memberId);
       setMembers((prev) => prev.filter((m) => m.id !== memberId));
-      setSquad((prev) => ({ ...prev, memberCount: Math.max(1, prev.memberCount - 1) }));
+      setSquad((prev) => {
+        const next = { ...prev, memberCount: Math.max(1, prev.memberCount - 1) };
+        saveStoredSquad(next);
+        return next;
+      });
 
       showToast({
         type: 'info',
@@ -321,6 +392,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
         throw new Error(data.error || 'Failed to delete squad');
       }
 
+      deleteStoredSquad(squad.id);
       showToast({
         type: 'success',
         title: 'Squad Deleted',
@@ -329,6 +401,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
 
       router.push('/squads');
     } catch (err: unknown) {
+      deleteStoredSquad(squad.id);
       showToast({
         type: 'error',
         title: 'Deletion Error',
@@ -368,8 +441,13 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
       }
 
       const createdRev = data.data;
+      saveStoredRevenue(createdRev);
       setRevenue((prev) => [createdRev, ...prev]);
-      setSquad((prev) => ({ ...prev, totalRevenue: prev.totalRevenue + amountMinor }));
+      setSquad((prev) => {
+        const next = { ...prev, totalRevenue: prev.totalRevenue + amountMinor };
+        saveStoredSquad(next);
+        return next;
+      });
 
       showToast({
         type: 'success',
@@ -487,7 +565,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
               </button>
 
               <Link
-                href="/splits/new"
+                href={`/splits/new?squadId=${squad.id}`}
                 className="btn-primary text-sm py-2 px-4 rounded-xl flex items-center gap-1.5 font-semibold shadow-sm text-white"
                 style={{ background: 'var(--accent)' }}
               >
@@ -719,7 +797,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
                     </p>
                   </div>
                   <Link
-                    href="/splits/new"
+                    href={`/splits/new?squadId=${squad.id}`}
                     className="text-xs font-bold text-[var(--accent)] hover:underline flex items-center gap-1"
                   >
                     New Run <ArrowRight size={12} />
@@ -956,7 +1034,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
                 </p>
               </div>
               <Link
-                href="/splits/new"
+                href={`/splits/new?squadId=${squad.id}`}
                 className="btn-primary text-xs py-1.5 px-3.5 rounded-lg flex items-center gap-1.5 font-semibold text-white"
                 style={{ background: 'var(--accent)' }}
               >

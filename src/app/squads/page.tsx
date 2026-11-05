@@ -24,6 +24,12 @@ import {
 import { Reveal, Card, MoneyChip } from '@/components/ui';
 import { formatMoney } from '@/lib/money';
 import { showToast } from '@/components/Toast';
+import {
+  getStoredSquads,
+  saveStoredSquad,
+  saveStoredMember,
+  deleteStoredSquad,
+} from '@/lib/client-storage';
 
 interface SquadListItem {
   id: string;
@@ -77,6 +83,8 @@ export default function SquadsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newSquadName, setNewSquadName] = useState('');
   const [newSquadCurrency, setNewSquadCurrency] = useState('USD');
+  const [newOwnerName, setNewOwnerName] = useState('Alex Rivera');
+  const [newOwnerEmail, setNewOwnerEmail] = useState('alex@microsplit.demo');
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -89,13 +97,47 @@ export default function SquadsPage() {
 
   useEffect(() => {
     let active = true;
+
+    // Load any locally stored custom squads immediately
+    const stored = getStoredSquads().map((s) => ({
+      id: s.id,
+      name: s.name,
+      ownerId: s.ownerId,
+      currency: s.currency,
+      memberCount: s.memberCount || 1,
+      totalRevenue: s.totalRevenue || 0,
+      currentRole: 'owner',
+      owner: { name: (s as any).owner?.name || 'Owner' },
+    }));
+
+    if (stored.length > 0) {
+      setSquads((prev) => {
+        const map = new Map<string, SquadListItem>();
+        stored.forEach((s) => map.set(s.id, s));
+        prev.forEach((s) => {
+          if (!map.has(s.id)) map.set(s.id, s);
+        });
+        return Array.from(map.values());
+      });
+    }
+
     fetch('/api/squads')
       .then(async (response) => {
         const result = await response.json();
         if (!response.ok || !result.success) {
           throw new Error(result.error || 'Unable to load squads');
         }
-        if (active) setSquads(result.data);
+        if (active) {
+          const apiSquads = (result.data || []) as SquadListItem[];
+          setSquads(() => {
+            const map = new Map<string, SquadListItem>();
+            stored.forEach((s) => map.set(s.id, s));
+            apiSquads.forEach((s) => {
+              if (!map.has(s.id)) map.set(s.id, s);
+            });
+            return Array.from(map.values());
+          });
+        }
       })
       .catch((err: unknown) => {
         if (active) {
@@ -125,6 +167,8 @@ export default function SquadsPage() {
         body: JSON.stringify({
           name: newSquadName.trim(),
           currency: newSquadCurrency,
+          ownerName: newOwnerName.trim(),
+          ownerEmail: newOwnerEmail.trim(),
         }),
       });
 
@@ -133,11 +177,16 @@ export default function SquadsPage() {
         throw new Error(data.error || 'Failed to create squad');
       }
 
-      setSquads((prev) => [...prev.filter((s) => s.id !== data.data.id), data.data]);
+      saveStoredSquad(data.data);
+      if (data.membership) {
+        saveStoredMember(data.membership);
+      }
+
+      setSquads((prev) => [data.data, ...prev.filter((s) => s.id !== data.data.id)]);
       showToast({
         type: 'success',
         title: 'Squad Workspace Created!',
-        message: `${newSquadName} created with sole owner. Add teammates anytime.`,
+        message: `${newSquadName} created with ${newOwnerName || 'owner'} as lead. Add teammates anytime.`,
       });
 
       setShowCreateModal(false);
@@ -152,6 +201,9 @@ export default function SquadsPage() {
 
   const handleDeleteSquad = async (squadId: string, squadName: string) => {
     if (!confirm(`Are you sure you want to permanently delete squad "${squadName}"?`)) return;
+
+    deleteStoredSquad(squadId);
+    setSquads((prev) => prev.filter((s) => s.id !== squadId));
 
     try {
       const res = await fetch(`/api/squads/${squadId}`, {
@@ -370,7 +422,7 @@ export default function SquadsPage() {
                       Workspace <ArrowRight size={13} />
                     </Link>
                     <Link
-                      href="/splits/new"
+                      href={`/splits/new?squadId=${squad.id}`}
                       className="text-xs font-bold px-2.5 py-1.5 rounded-md transition-colors flex items-center gap-1"
                       style={{ background: 'var(--background)', color: 'var(--accent)' }}
                       onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--background)'; }}
@@ -457,6 +509,31 @@ export default function SquadsPage() {
                   />
                 </div>
 
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold mb-1" style={{ color: 'var(--text)' }}>Owner Name</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Alex Rivera or Satyam"
+                      value={newOwnerName}
+                      onChange={(e) => setNewOwnerName(e.target.value)}
+                      className="input-field text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold mb-1" style={{ color: 'var(--text)' }}>Owner Email</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="e.g. owner@microsplit.demo"
+                      value={newOwnerEmail}
+                      onChange={(e) => setNewOwnerEmail(e.target.value)}
+                      className="input-field text-sm"
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-bold mb-1" style={{ color: 'var(--text)' }}>Currency</label>
                   <select
@@ -465,6 +542,7 @@ export default function SquadsPage() {
                     className="input-field text-sm font-medium"
                   >
                     <option value="USD">USD ($) - US Dollar</option>
+                    <option value="INR">INR (₹) - Indian Rupee</option>
                     <option value="EUR">EUR (€) - Euro</option>
                     <option value="GBP">GBP (£) - British Pound</option>
                     <option value="CAD">CAD ($) - Canadian Dollar</option>
@@ -472,7 +550,7 @@ export default function SquadsPage() {
                 </div>
 
                 <div className="p-3 rounded-xl border border-[var(--border)] text-xs" style={{ background: 'var(--background)', color: 'var(--text)' }}>
-                  Lead / Admin: <strong style={{ color: 'var(--primary)' }}>Alex Rivera (You)</strong>. You can invite additional contributors and approvers once created.
+                  Lead / Admin: <strong style={{ color: 'var(--primary)' }}>{newOwnerName || 'Owner'}</strong> ({newOwnerEmail || 'email'}). You can invite additional contributors and approvers once created.
                 </div>
 
                 <div className="pt-2 flex justify-end gap-2">

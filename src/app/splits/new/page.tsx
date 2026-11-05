@@ -27,7 +27,12 @@ import { Reveal, Card, WeightBar, MoneyChip } from '@/components/ui';
 import { formatMoney } from '@/lib/money';
 import { calculateConsistencySplit } from '@/lib/consistency-streak';
 import { showToast } from '@/components/Toast';
-import { mockSquads } from '@/lib/mock-data';
+import { mockSquads, mockMemberships, mockRevenueEvents } from '@/lib/mock-data';
+import {
+  getStoredSquads,
+  getStoredMembers,
+  getStoredRevenue,
+} from '@/lib/client-storage';
 
 type RuleType = 'fixed_percentage' | 'weighted_points' | 'tiered' | 'milestone';
 interface SquadOption {
@@ -66,10 +71,17 @@ interface MemberSplit {
 
 export default function SplitsNewPage() {
   const router = useRouter();
-  const [squads, setSquads] = useState<SquadOption[]>(() =>
-    mockSquads.map((s) => ({ id: s.id, name: s.name, currency: s.currency }))
-  );
-  const [selectedSquadId, setSelectedSquadId] = useState('sqd_1');
+  const [squads, setSquads] = useState<SquadOption[]>(() => {
+    const demo = mockSquads.map((s) => ({ id: s.id, name: s.name, currency: s.currency }));
+    const local = getStoredSquads().map((s) => ({ id: s.id, name: s.name, currency: s.currency }));
+    const map = new Map<string, SquadOption>();
+    local.forEach((s) => map.set(s.id, s));
+    demo.forEach((s) => {
+      if (!map.has(s.id)) map.set(s.id, s);
+    });
+    return Array.from(map.values());
+  });
+  const [selectedSquadId, setSelectedSquadId] = useState('');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [revenueEvents, setRevenueEvents] = useState<RevenueEventOption[]>([]);
   const [selectedRevenueEventId, setSelectedRevenueEventId] = useState('');
@@ -93,17 +105,48 @@ export default function SplitsNewPage() {
 
   useEffect(() => {
     let cancelled = false;
+
     async function loadSquads() {
       try {
-        const response = await fetch('/api/squads');
-        const result = await response.json();
-        if (!response.ok || !result.success) {
-          throw new Error(result.error || 'Unable to load squads');
+        const queryParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const targetSquadId = queryParams?.get('squadId');
+
+        const localSquads = getStoredSquads().map((s) => ({ id: s.id, name: s.name, currency: s.currency }));
+
+        let availableSquads: SquadOption[] = [];
+        try {
+          const response = await fetch('/api/squads');
+          const result = await response.json();
+          if (response.ok && result.success && Array.isArray(result.data)) {
+            availableSquads = result.data as SquadOption[];
+          }
+        } catch {
+          // Ignore network errors and rely on local squads
         }
+
         if (cancelled) return;
-        const availableSquads = result.data as SquadOption[];
-        setSquads(availableSquads);
-        setSelectedSquadId((current) => current || availableSquads[0]?.id || '');
+
+        const map = new Map<string, SquadOption>();
+        // Add local squads first so newly created squads are at the top
+        localSquads.forEach((s) => map.set(s.id, s));
+        availableSquads.forEach((s) => {
+          if (!map.has(s.id)) map.set(s.id, s);
+        });
+        mockSquads.forEach((s) => {
+          if (!map.has(s.id)) map.set(s.id, { id: s.id, name: s.name, currency: s.currency });
+        });
+
+        const combinedSquads = Array.from(map.values());
+        setSquads(combinedSquads);
+
+        if (targetSquadId) {
+          setSelectedSquadId(targetSquadId);
+        } else {
+          setSelectedSquadId((current) => {
+            if (current && combinedSquads.some((s) => s.id === current)) return current;
+            return combinedSquads[0]?.id || 'sqd_1';
+          });
+        }
       } catch (error) {
         if (!cancelled) {
           setLoadError(error instanceof Error ? error.message : 'Unable to load squads');
@@ -120,42 +163,127 @@ export default function SplitsNewPage() {
   useEffect(() => {
     if (!selectedSquadId) return;
     let cancelled = false;
+
     async function loadMembers() {
       try {
+        const queryParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const targetRevId = queryParams?.get('revId');
+
+        // Fetch from API
         const [membersResponse, squadResponse] = await Promise.all([
-          fetch(`/api/squads/${encodeURIComponent(selectedSquadId)}/members`),
-          fetch(`/api/squads/${encodeURIComponent(selectedSquadId)}`),
+          fetch(`/api/squads/${encodeURIComponent(selectedSquadId)}/members`).catch(() => null),
+          fetch(`/api/squads/${encodeURIComponent(selectedSquadId)}`).catch(() => null),
         ]);
-        const [membersResult, squadResult] = await Promise.all([
-          membersResponse.json(),
-          squadResponse.json(),
-        ]);
-        if (!membersResponse.ok || !membersResult.success) {
-          throw new Error(membersResult.error || 'Unable to load squad members');
-        }
-        if (!squadResponse.ok || !squadResult.success) {
-          throw new Error(squadResult.error || 'Unable to load squad revenue');
-        }
+
+        const membersResult = membersResponse ? await membersResponse.json().catch(() => ({})) : {};
+        const squadResult = squadResponse ? await squadResponse.json().catch(() => ({})) : {};
+
+        const storedMembers = getStoredMembers(selectedSquadId);
+        const storedRevenue = getStoredRevenue(selectedSquadId);
+
         if (cancelled) return;
-        const members = membersResult.data as SquadMember[];
-        const activeRevenue = squadResult.data.revenue.filter(
-          (event: RevenueEventOption & { status: string }) => event.status === 'active'
-        ) as RevenueEventOption[];
+
+        // Build member list
+        const apiMembers: SquadMember[] = (membersResult.success && Array.isArray(membersResult.data))
+          ? membersResult.data
+          : [];
+
+        const memberMap = new Map<string, SquadMember>();
+        apiMembers.forEach((m) => memberMap.set(m.userId, m));
+        storedMembers.forEach((m) => {
+          memberMap.set(m.userId, {
+            userId: m.userId,
+            role: m.role,
+            user: {
+              id: m.userId,
+              name: m.memberName || 'Member',
+              email: m.payoutReceiver || '',
+            },
+          });
+        });
+
+        // If still empty and squad exists in mockMemberships, load them
+        if (memberMap.size === 0) {
+          const fallbackDemoMems = mockMemberships.filter((m) => m.squadId === selectedSquadId);
+          fallbackDemoMems.forEach((m) => {
+            memberMap.set(m.userId, {
+              userId: m.userId,
+              role: m.role,
+              user: {
+                id: m.userId,
+                name: m.memberName || 'Member',
+                email: m.payoutReceiver || '',
+              },
+            });
+          });
+        }
+
+        const members = Array.from(memberMap.values());
+
+        // Build revenue list
+        const apiRevenue: RevenueEventOption[] = (squadResult.success && squadResult.data?.revenue && Array.isArray(squadResult.data.revenue))
+          ? squadResult.data.revenue.filter((event: RevenueEventOption & { status?: string }) => event.status === 'active' || !event.status)
+          : [];
+
+        const revMap = new Map<string, RevenueEventOption>();
+        apiRevenue.forEach((r) => revMap.set(r.id, r));
+        storedRevenue.forEach((r) => {
+          if (r.status === 'active' || !r.status) {
+            revMap.set(r.id, {
+              id: r.id,
+              amountMinor: r.amountMinor,
+              currency: r.currency,
+              description: r.description || null,
+              createdAt: r.createdAt,
+            });
+          }
+        });
+
+        // Fallback to mockRevenueEvents if empty
+        if (revMap.size === 0) {
+          const fallbackDemoRevs = mockRevenueEvents.filter((r) => r.squadId === selectedSquadId);
+          fallbackDemoRevs.forEach((r) => {
+            revMap.set(r.id, {
+              id: r.id,
+              amountMinor: r.amountMinor,
+              currency: r.currency,
+              description: r.description || null,
+              createdAt: r.createdAt,
+            });
+          });
+        }
+
+        const activeRevenue = Array.from(revMap.values());
+
         setLoadError(null);
         setRevenueEvents(activeRevenue);
-        setSelectedRevenueEventId(activeRevenue[0]?.id || '');
-        const baseShare = Math.floor(1000 / members.length) / 10;
-        let remainder = 1000 - Math.floor(1000 / members.length) * members.length;
-        setMemberSplits(members.map((member) => {
-          const extra = remainder > 0 ? 0.1 : 0;
-          if (remainder > 0) remainder--;
-          return {
-            memberId: member.userId,
-            name: member.user.name,
-            percentage: Math.round((baseShare + extra) * 10) / 10,
-            streakDays: 0,
-          };
-        }));
+
+        if (targetRevId && activeRevenue.some((r) => r.id === targetRevId)) {
+          setSelectedRevenueEventId(targetRevId);
+        } else if (activeRevenue.length > 0) {
+          setSelectedRevenueEventId(activeRevenue[0].id);
+        } else {
+          setSelectedRevenueEventId('');
+        }
+
+        if (members.length > 0) {
+          const baseShare = Math.floor(1000 / members.length) / 10;
+          let remainder = 1000 - Math.floor(1000 / members.length) * members.length;
+          setMemberSplits(
+            members.map((member) => {
+              const extra = remainder > 0 ? 0.1 : 0;
+              if (remainder > 0) remainder--;
+              return {
+                memberId: member.userId,
+                name: member.user.name,
+                percentage: Math.round((baseShare + extra) * 10) / 10,
+                streakDays: 0,
+              };
+            })
+          );
+        } else {
+          setMemberSplits([]);
+        }
       } catch (error) {
         if (!cancelled) {
           setLoadError(error instanceof Error ? error.message : 'Unable to load squad members');

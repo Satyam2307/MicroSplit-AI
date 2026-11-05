@@ -40,6 +40,14 @@ export async function POST(request: NextRequest) {
         : "UTC"
     );
 
+    const ownerName = sanitizeText(
+      typeof body.ownerName === "string" ? body.ownerName : ""
+    ).trim() || "Alex Rivera";
+
+    const ownerEmail = sanitizeText(
+      typeof body.ownerEmail === "string" ? body.ownerEmail : ""
+    ).trim().toLowerCase() || "alex@microsplit.demo";
+
     if (name.length < 2) {
       return NextResponse.json(
         {
@@ -60,30 +68,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Default demo user: Alex Rivera
-    const alexUser = mockUsers.find((u) => u.id === 'usr_1') || {
-      id: 'usr_1',
-      name: 'Alex Rivera',
-      email: 'alex@microsplit.demo',
-      avatar: '/avatars/alex.svg',
-      role: 'admin',
-    };
+    // Find or create owner user
+    let ownerUser = mockUsers.find(
+      (u) => u.email.toLowerCase() === ownerEmail.toLowerCase()
+    );
+    if (!ownerUser) {
+      ownerUser = {
+        id: `usr_${Date.now()}`,
+        name: ownerName,
+        email: ownerEmail,
+        avatar: '/avatars/alex.svg',
+        role: 'owner',
+      };
+      mockUsers.push(ownerUser);
+    } else {
+      ownerUser.name = ownerName;
+    }
 
     const squadId = `sqd_${Date.now()}`;
     const newSquad = {
       id: squadId,
       name,
-      ownerId: alexUser.id,
+      ownerId: ownerUser.id,
       currency,
       createdAt: new Date().toISOString(),
       memberCount: 1,
       totalRevenue: 0,
       currentRole: "owner",
       owner: {
-        id: alexUser.id,
-        name: alexUser.name,
-        email: alexUser.email,
-        avatar: alexUser.avatar,
+        id: ownerUser.id,
+        name: ownerUser.name,
+        email: ownerUser.email,
+        avatar: ownerUser.avatar,
       },
     };
 
@@ -91,7 +107,7 @@ export async function POST(request: NextRequest) {
     mockSquads.unshift({
       id: squadId,
       name,
-      ownerId: alexUser.id,
+      ownerId: ownerUser.id,
       currency,
       createdAt: newSquad.createdAt,
       memberCount: 1,
@@ -101,13 +117,13 @@ export async function POST(request: NextRequest) {
     const ownerMembership = {
       id: `mem_${Date.now()}`,
       squadId,
-      userId: alexUser.id,
-      memberName: alexUser.name,
+      userId: ownerUser.id,
+      memberName: ownerUser.name,
       role: "owner",
-      payoutReceiver: alexUser.email,
+      payoutReceiver: ownerUser.email,
       payoutReceiverType: "EMAIL",
       payoutReceiverConfigured: true,
-      payoutReceiverMasked: alexUser.email,
+      payoutReceiverMasked: ownerUser.email,
       isCurrentUser: true,
       timezone,
       focusSessionsOptIn: true,
@@ -121,7 +137,7 @@ export async function POST(request: NextRequest) {
         success: true,
         data: newSquad,
         membership: ownerMembership,
-        user: alexUser,
+        user: ownerUser,
       },
       { status: 201 }
     );
@@ -135,20 +151,21 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  // Always return demo squads + any created squads instantly
-  const alexUser = mockUsers.find((u) => u.id === 'usr_1') || {
-    id: 'usr_1',
-    name: 'Alex Rivera',
-  };
-
-  const squads = mockSquads.map((squad) => ({
-    ...squad,
-    currentRole: "owner",
-    owner: {
-      id: alexUser.id,
-      name: alexUser.name,
-    },
-  }));
+  const squads = mockSquads.map((squad) => {
+    const squadOwner = mockUsers.find((u) => u.id === squad.ownerId) || {
+      id: squad.ownerId || 'usr_1',
+      name: 'Alex Rivera',
+      email: 'alex@microsplit.demo',
+    };
+    return {
+      ...squad,
+      currentRole: "owner",
+      owner: {
+        id: squadOwner.id,
+        name: squadOwner.name,
+      },
+    };
+  });
 
   return NextResponse.json({
     success: true,

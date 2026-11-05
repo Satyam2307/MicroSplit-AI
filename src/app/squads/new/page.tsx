@@ -10,14 +10,19 @@ import {
   Shield,
   Sparkles,
   Globe,
+  User,
+  Mail,
 } from 'lucide-react';
 import { Reveal, Card } from '@/components/ui';
+import { saveStoredSquad, saveStoredMember } from '@/lib/client-storage';
 
 export default function NewSquadPage() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [currency, setCurrency] = useState('USD');
   const [ownerTimezone, setOwnerTimezone] = useState('Asia/Kolkata');
+  const [ownerName, setOwnerName] = useState('Alex Rivera');
+  const [ownerEmail, setOwnerEmail] = useState('alex@microsplit.demo');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,12 +43,19 @@ export default function NewSquadPage() {
           name: name.trim(),
           currency,
           ownerTimezone,
+          ownerName: ownerName.trim(),
+          ownerEmail: ownerEmail.trim(),
         }),
       });
 
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Failed to create squad');
+      }
+
+      saveStoredSquad(data.data);
+      if (data.membership) {
+        saveStoredMember(data.membership);
       }
 
       router.push(`/squads/${data.data.id}`);
@@ -155,15 +167,58 @@ export default function NewSquadPage() {
                   </div>
                 </div>
 
+                {/* Owner Information */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold mb-2 text-[var(--primary)]">
+                      Owner Name
+                    </label>
+                    <div className="relative">
+                      <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text)] opacity-60" />
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Alex Rivera or Satyam Chaurasia"
+                        value={ownerName}
+                        onChange={(e) => setOwnerName(e.target.value)}
+                        className="input-field text-base w-full pl-10"
+                      />
+                    </div>
+                    <p className="text-xs mt-1.5 text-[var(--text)]">
+                      The name of the squad administrator and lead.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold mb-2 text-[var(--primary)]">
+                      Owner Email (Settlement)
+                    </label>
+                    <div className="relative">
+                      <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text)] opacity-60" />
+                      <input
+                        type="email"
+                        required
+                        placeholder="e.g. alex@microsplit.demo"
+                        value={ownerEmail}
+                        onChange={(e) => setOwnerEmail(e.target.value)}
+                        className="input-field text-base w-full pl-10"
+                      />
+                    </div>
+                    <p className="text-xs mt-1.5 text-[var(--text)]">
+                      PayPal or destination email for owner payouts.
+                    </p>
+                  </div>
+                </div>
+
                 <div
                   className="p-4 rounded-xl border flex items-start gap-3"
                   style={{ background: 'var(--background)', borderColor: 'var(--text)' }}
                 >
                   <Shield size={18} className="text-[var(--accent)] mt-0.5 flex-shrink-0" />
                   <div className="text-xs">
-                    <p className="font-bold text-[var(--primary)] mb-0.5">Verified owner identity</p>
+                    <p className="font-bold text-[var(--primary)] mb-0.5">Designated Squad Owner</p>
                     <p className="text-[var(--text)]">
-                      The signed-in GitHub account will be recorded as the squad owner. Payout details can be configured separately.
+                      <strong className="text-[var(--primary)]">{ownerName || 'Owner'}</strong> ({ownerEmail || 'email'}) will be recorded as the squad lead with full administrative permissions.
                     </p>
                   </div>
                 </div>
