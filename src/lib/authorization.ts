@@ -1,4 +1,3 @@
-import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/lib/prisma";
 import { mockMemberships, mockSquads } from "@/lib/mock-data";
@@ -22,23 +21,7 @@ export { hasSquadRole };
 export async function requireAuthenticatedActor(): Promise<
   Authorized<AuthenticatedActor>
 > {
-  try {
-    const session = await auth();
-    if (session?.user?.id) {
-      return {
-        ok: true,
-        value: {
-          userId: session.user.id,
-          email: session.user.email ?? null,
-          name: session.user.name ?? null,
-        },
-      };
-    }
-  } catch {
-    // Fall through to demo default
-  }
-
-  // Demo mode: Return Alex Rivera default demo user instantly
+  // Demo mode: Return Alex Rivera default demo user instantly with 0ms delay
   return {
     ok: true,
     value: {

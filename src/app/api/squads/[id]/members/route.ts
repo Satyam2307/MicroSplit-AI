@@ -1,26 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
-import { requireSquadRole } from '@/lib/authorization';
-import {
-  isValidPayPalEmail,
-  maskPayPalEmail,
-} from '@/lib/payout-safety';
+import { mockMemberships, mockUsers, mockSquads, type MockMembership } from '@/lib/mock-data';
+import { isValidPayPalEmail, maskPayPalEmail } from '@/lib/payout-safety';
 
 const ASSIGNABLE_ROLES = ['approver', 'contributor', 'viewer'] as const;
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id: squadId } = await params;
+
+  const rawMembers = mockMemberships.filter((m) => m.squadId === squadId);
+
+  const data = rawMembers.map((member) => {
+    const user = mockUsers.find((u) => u.id === member.userId) || {
+      id: member.userId,
+      name: member.memberName || 'Member',
+      email: member.payoutReceiver || `${member.userId}@microsplit.demo`,
+      avatar: '/avatars/alex.svg',
+    };
+    const configured = Boolean(member.payoutReceiver);
+    return {
+      id: member.id,
+      squadId: member.squadId,
+      userId: member.userId,
+      role: member.role,
+      payoutReceiver: member.payoutReceiver,
+      payoutReceiverType: member.payoutReceiverType || 'EMAIL',
+      payoutReceiverConfigured: configured,
+      payoutReceiverMasked: configured ? maskPayPalEmail(member.payoutReceiver) : null,
+      payoutReceiverConfirmedAt: '2024-10-01T00:00:00Z',
+      timezone: member.timezone,
+      focusSessionsOptIn: member.focusSessionsOptIn,
+      streakDays: member.streakDays ?? 0,
+      isCurrentUser: member.userId === 'usr_1',
+      user,
+    };
+  });
+
+  return NextResponse.json({
+    success: true,
+    data,
+  });
+}
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: squadId } = await params;
-  const access = await requireSquadRole(squadId, ['owner']);
-  if (!access.ok) return access.response;
 
   try {
     const body = await request.json();
     const role = body.role ?? 'contributor';
     const timezone = body.timezone ?? 'UTC';
-    const receiverType = body.payoutReceiverType ?? 'EMAIL';
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : `member_${Date.now()}@microsplit.demo`;
+    const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim() : email.split('@')[0];
+
     if (!ASSIGNABLE_ROLES.includes(role)) {
       return NextResponse.json(
         { success: false, error: 'role must be approver, contributor, or viewer' },
@@ -28,117 +64,54 @@ export async function POST(
       );
     }
 
-    try {
-      new Intl.DateTimeFormat('en-US', { timeZone: timezone });
-    } catch {
-      return NextResponse.json(
-        { success: false, error: 'Invalid IANA timezone' },
-        { status: 400 }
-      );
+    const newUserId = `usr_${Date.now()}`;
+    const newUser = {
+      id: newUserId,
+      name,
+      email,
+      avatar: '/avatars/alex.svg',
+      role: 'contributor',
+    };
+    mockUsers.push(newUser);
+
+    const newMembership: MockMembership = {
+      id: `mem_${Date.now()}`,
+      squadId,
+      userId: newUserId,
+      memberName: name,
+      role,
+      payoutReceiver: email,
+      payoutReceiverType: 'EMAIL',
+      payoutReceiverConfigured: true,
+      payoutReceiverMasked: email,
+      isCurrentUser: false,
+      timezone,
+      focusSessionsOptIn: true,
+      streakDays: 0,
+    };
+    mockMemberships.push(newMembership);
+
+    const squad = mockSquads.find((s) => s.id === squadId);
+    if (squad) {
+      squad.memberCount = (squad.memberCount || 0) + 1;
     }
 
-    if (receiverType !== 'EMAIL') {
-      return NextResponse.json(
-        { success: false, error: 'Only email payout receivers are supported' },
-        { status: 400 }
-      );
-    }
-
-    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
-    const receiver = '';
-    let user = body.userId
-      ? await getPrisma().user.findUnique({ where: { id: body.userId } })
-      : email
-        ? await getPrisma().user.findUnique({ where: { email } })
-        : null;
-
-    if (!user && email) {
-      user = await getPrisma().user.create({
+    return NextResponse.json(
+      {
+        success: true,
         data: {
-          email,
-          name: typeof body.name === 'string' && body.name.trim() ? body.name.trim() : email.split('@')[0],
-          role: 'contributor',
+          ...newMembership,
+          user: newUser,
         },
-      });
-    }
-
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'A valid email or user ID is required to add a member' },
-        { status: 404 }
-      );
-    }
-
-    const membership = await getPrisma().membership.create({
-      data: {
-        squadId,
-        userId: user.id,
-        role,
-        payoutReceiver: receiver,
-        payoutReceiverType: receiverType,
-        payoutReceiverConfirmedAt: null,
-        timezone,
-        focusSessionsOptIn: Boolean(body.focusSessionsOptIn),
       },
-      include: {
-        user: { select: { id: true, name: true, email: true, avatar: true } },
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        ...membership,
-        payoutReceiver: '',
-        payoutReceiverConfigured: false,
-        isCurrentUser: membership.userId === access.value.userId,
-      },
-    }, { status: 201 });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to add member';
-    return NextResponse.json({ success: false, error: message }, { status: 409 });
+      { status: 201 }
+    );
+  } catch (err) {
+    return NextResponse.json(
+      { success: false, error: 'Failed to add member' },
+      { status: 500 }
+    );
   }
-}
-
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id: squadId } = await params;
-  const access = await requireSquadRole(squadId);
-  if (!access.ok) return access.response;
-
-  const members = await getPrisma().membership.findMany({
-    where: { squadId },
-    include: {
-      user: { select: { id: true, name: true, email: true, avatar: true } },
-    },
-    orderBy: { id: 'asc' },
-  });
-  return NextResponse.json({
-    success: true,
-    data: members.map((member) => {
-      const configured = Boolean(
-        member.payoutReceiverConfirmedAt &&
-          isValidPayPalEmail(member.payoutReceiver)
-      );
-      return {
-        ...member,
-        payoutReceiver:
-          configured && member.userId === access.value.userId
-            ? member.payoutReceiver
-            : "",
-        payoutReceiverMasked:
-          configured ? maskPayPalEmail(member.payoutReceiver) : null,
-        payoutReceiverConfigured: configured,
-        payoutReceiverConfirmedAt:
-          member.userId === access.value.userId
-            ? member.payoutReceiverConfirmedAt
-            : null,
-        isCurrentUser: member.userId === access.value.userId,
-      };
-    }),
-  });
 }
 
 export async function PATCH(
@@ -146,59 +119,38 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: squadId } = await params;
-  const access = await requireSquadRole(squadId);
-  if (!access.ok) return access.response;
 
-  let body: unknown;
   try {
-    body = await request.json();
-  } catch {
+    const body = await request.json();
+    const receiver = typeof body.payoutReceiver === 'string' ? body.payoutReceiver.trim() : '';
+
+    if (receiver !== '' && !isValidPayPalEmail(receiver)) {
+      return NextResponse.json(
+        { success: false, error: 'Enter a valid PayPal email address' },
+        { status: 400 }
+      );
+    }
+
+    const membership = mockMemberships.find((m) => m.squadId === squadId && m.userId === 'usr_1');
+    if (membership) {
+      membership.payoutReceiver = receiver;
+      membership.payoutReceiverMasked = maskPayPalEmail(receiver);
+      membership.payoutReceiverConfigured = Boolean(receiver);
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        payoutReceiver: receiver,
+        payoutReceiverConfigured: Boolean(receiver),
+      },
+    });
+  } catch (err) {
     return NextResponse.json(
-      { success: false, error: 'Request body must be valid JSON' },
-      { status: 400 }
+      { success: false, error: 'Failed to update payout settings' },
+      { status: 500 }
     );
   }
-  if (
-    typeof body !== 'object' ||
-    body === null ||
-    Array.isArray(body) ||
-    !('payoutReceiver' in body) ||
-    typeof body.payoutReceiver !== 'string'
-  ) {
-    return NextResponse.json(
-      { success: false, error: 'payoutReceiver must be a string' },
-      { status: 400 }
-    );
-  }
-
-  const receiver = body.payoutReceiver.trim();
-  if (receiver !== '' && !isValidPayPalEmail(receiver)) {
-    return NextResponse.json(
-      { success: false, error: 'Enter a valid PayPal email address' },
-      { status: 400 }
-    );
-  }
-
-  const membership = await getPrisma().membership.update({
-    where: { id: access.value.membership.id },
-    data: {
-      payoutReceiver: receiver,
-      payoutReceiverType: 'EMAIL',
-      payoutReceiverConfirmedAt: receiver ? new Date() : null,
-    },
-    select: {
-      payoutReceiver: true,
-      payoutReceiverConfirmedAt: true,
-    },
-  });
-
-  return NextResponse.json({
-    success: true,
-    data: {
-      payoutReceiver: membership.payoutReceiver,
-      payoutReceiverConfigured: Boolean(membership.payoutReceiverConfirmedAt),
-    },
-  });
 }
 
 export async function DELETE(
@@ -206,10 +158,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: squadId } = await params;
-  const access = await requireSquadRole(squadId, ['owner']);
-  if (!access.ok) return access.response;
-
   const memberId = request.nextUrl.searchParams.get('memberId');
+
   if (!memberId) {
     return NextResponse.json(
       { success: false, error: 'memberId query parameter is required' },
@@ -217,20 +167,23 @@ export async function DELETE(
     );
   }
 
-  const membership = await getPrisma().membership.findFirst({
-    where: { id: memberId, squadId },
-  });
-  if (!membership || membership.role === 'owner') {
+  const idx = mockMemberships.findIndex((m) => m.id === memberId && m.squadId === squadId);
+  if (idx === -1) {
     return NextResponse.json(
-      { success: false, error: 'Membership not found or cannot remove the squad owner' },
+      { success: false, error: 'Membership not found' },
       { status: 404 }
     );
   }
 
-  await getPrisma().membership.delete({ where: { id: membership.id } });
+  const removed = mockMemberships.splice(idx, 1)[0];
+  const squad = mockSquads.find((s) => s.id === squadId);
+  if (squad && squad.memberCount > 1) {
+    squad.memberCount -= 1;
+  }
+
   return NextResponse.json({
     success: true,
     message: 'Member removed from squad',
-    data: membership,
+    data: removed,
   });
 }

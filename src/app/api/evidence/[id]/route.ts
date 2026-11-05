@@ -28,6 +28,7 @@ import {
   validateEvidenceBytes,
 } from "@/lib/evidence-workflow";
 import { getPrisma } from "@/lib/prisma";
+import { mockEvidence } from "@/lib/mock-data";
 
 export const maxDuration = 60;
 
@@ -522,6 +523,18 @@ export async function GET(
     },
   });
   if (!evidence) {
+    const mock = mockEvidence.find((e) => e.id === id);
+    if (mock) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          ...mock,
+          uploader: { name: "Alex Rivera" },
+          reviewedBy: { name: "Alex Rivera" },
+          aiLogs: [],
+        },
+      });
+    }
     return NextResponse.json(
       { success: false, error: "Evidence not found" },
       { status: 404 }

@@ -54,15 +54,6 @@ export default function Navbar() {
     setNotifOpen(false);
   }, [pathname]);
 
-  // After login (client-side redirect), re-fetch the session on route change
-  // so the header doesn't stay on the stale "Sign in" state until a refresh.
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      void update();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
-
   // Close dropdowns on outside click
   useEffect(() => {
     const handleClick = () => {

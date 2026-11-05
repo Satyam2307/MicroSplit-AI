@@ -95,55 +95,42 @@ export async function POST(request: NextRequest) {
   }
 }
 
+import { mockSplitRuns, mockMemberships, mockUsers } from "@/lib/mock-data";
+
 export async function GET(request: NextRequest) {
-  const actor = await requireAuthenticatedActor();
-  if (!actor.ok) return actor.response;
-
   const requestedSquadId = request.nextUrl.searchParams.get("squadId");
-  if (
-    requestedSquadId !== null &&
-    (!requestedSquadId.trim() || requestedSquadId.length > 128)
-  ) {
-    return NextResponse.json(
-      { success: false, error: "squadId must be a valid identifier" },
-      { status: 400 }
-    );
-  }
 
-  if (requestedSquadId !== null) {
-    const access = await requireSquadRole(requestedSquadId);
-    if (!access.ok) return access.response;
-  }
+  const runs = mockSplitRuns.map((r) => ({
+    id: r.id,
+    revenueEventId: r.revenueEventId,
+    ruleVersion: r.ruleVersion,
+    poolMinor: r.poolMinor,
+    currency: "USD",
+    checksum: r.checksum,
+    status: r.status,
+    createdAt: r.createdAt,
+    squadId: r.revenueEventId === "rev_1" ? "sqd_1" : "sqd_2",
+    lines: r.lines.map((l) => ({
+      id: l.id,
+      runId: l.runId,
+      memberId: l.memberId,
+      membershipId: l.id,
+      weight: l.weight,
+      amountMinor: l.amountMinor,
+      workAmountMinor: l.workAmountMinor,
+      consistencyAmountMinor: l.consistencyAmountMinor,
+      streakDays: l.streakDays,
+      freezeDaysUsed: l.freezeDaysUsed,
+      rationaleJson: l.rationale,
+    })),
+  }));
 
-  try {
-    const prisma = getPrisma();
-    const memberships = await prisma.membership.findMany({
-      where: { userId: actor.value.userId },
-      select: { squadId: true },
-    });
-    const squadIds = memberships.map(({ squadId }) => squadId);
-    if (squadIds.length === 0) {
-      return NextResponse.json({ success: true, data: [] });
-    }
+  const filtered = requestedSquadId
+    ? runs.filter((r) => r.squadId === requestedSquadId)
+    : runs;
 
-    const runs = await prisma.splitRun.findMany({
-      where: {
-        revenueEvent: {
-          squadId: requestedSquadId ?? { in: squadIds },
-        },
-      },
-      include: splitRunInclude,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    });
-    return NextResponse.json({
-      success: true,
-      data: runs.map(toSplitRunDTO),
-    });
-  } catch (error) {
-    console.warn("Falling back to demo mock split runs", error);
-    return NextResponse.json({
-      success: true,
-      data: [],
-    });
-  }
+  return NextResponse.json({
+    success: true,
+    data: filtered,
+  });
 }

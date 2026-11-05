@@ -30,6 +30,10 @@ import {
   type MockRevenueEvent,
   type MockUser,
   type MockSquad,
+  mockSquads,
+  mockMemberships,
+  mockRevenueEvents,
+  mockUsers,
 } from '@/lib/mock-data';
 import type { SplitRunDTO } from '@/lib/split-run-types';
 import { formatMoney } from '@/lib/money';
@@ -67,22 +71,33 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { id } = use(params);
 
-  // Local state for dynamic interactivity
-  const initialSquad: MockSquad & { currentRole?: string } = {
-    id,
-    name: '',
-    ownerId: '',
-    currency: 'USD',
-    createdAt: '',
-    memberCount: 0,
-    totalRevenue: 0,
-  };
+  // Instant local seed from demo squad data
+  const demoSquadMatch = mockSquads.find((s) => s.id === id);
+  const initialSquad: MockSquad & { currentRole?: string } = demoSquadMatch
+    ? { ...demoSquadMatch, currentRole: 'owner' }
+    : {
+        id,
+        name: '',
+        ownerId: 'usr_1',
+        currency: 'USD',
+        createdAt: '',
+        memberCount: 0,
+        totalRevenue: 0,
+      };
+
   const [squad, setSquad] = useState(initialSquad);
-  const [users, setUsers] = useState<MockUser[]>([]);
-  const [members, setMembers] = useState<MockMembership[]>([]);
-  const [revenue, setRevenue] = useState<MockRevenueEvent[]>([]);
+  const [users, setUsers] = useState<MockUser[]>(() => mockUsers);
+  const [members, setMembers] = useState<MockMembership[]>(() =>
+    mockMemberships.filter((m) => m.squadId === id).map((m) => ({
+      ...m,
+      isCurrentUser: m.userId === 'usr_1',
+    }))
+  );
+  const [revenue, setRevenue] = useState<MockRevenueEvent[]>(() =>
+    mockRevenueEvents.filter((r) => r.squadId === id)
+  );
   const [runs, setRuns] = useState<SplitRunDTO[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!demoSquadMatch);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'revenue' | 'splits'>('overview');
 

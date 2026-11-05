@@ -27,6 +27,7 @@ import { Reveal, Card, WeightBar, MoneyChip } from '@/components/ui';
 import { formatMoney } from '@/lib/money';
 import { calculateConsistencySplit } from '@/lib/consistency-streak';
 import { showToast } from '@/components/Toast';
+import { mockSquads } from '@/lib/mock-data';
 
 type RuleType = 'fixed_percentage' | 'weighted_points' | 'tiered' | 'milestone';
 interface SquadOption {
@@ -65,8 +66,10 @@ interface MemberSplit {
 
 export default function SplitsNewPage() {
   const router = useRouter();
-  const [squads, setSquads] = useState<SquadOption[]>([]);
-  const [selectedSquadId, setSelectedSquadId] = useState('');
+  const [squads, setSquads] = useState<SquadOption[]>(() =>
+    mockSquads.map((s) => ({ id: s.id, name: s.name, currency: s.currency }))
+  );
+  const [selectedSquadId, setSelectedSquadId] = useState('sqd_1');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [revenueEvents, setRevenueEvents] = useState<RevenueEventOption[]>([]);
   const [selectedRevenueEventId, setSelectedRevenueEventId] = useState('');
