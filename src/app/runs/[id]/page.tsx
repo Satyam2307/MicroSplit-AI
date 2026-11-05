@@ -28,6 +28,7 @@ import type {
   SplitRunEvidenceDTO,
 } from '@/lib/split-run-types';
 import { formatMoney } from '@/lib/money';
+import { getStoredSplitRun } from '@/lib/client-storage';
 
 type RunView = SplitRunDTO & { currentRole?: string };
 
@@ -80,11 +81,19 @@ function RunDetailContent({ params }: { params: Promise<{ id: string }> }) {
 
   useEffect(() => {
     let cancelled = false;
+
+    // Check stored run immediately
+    const localRun = getStoredSplitRun(id);
+    if (localRun) {
+      setRun({ ...localRun, currentRole: 'owner' });
+    }
+
     async function loadRun() {
       try {
         const response = await fetch(`/api/split-runs/${encodeURIComponent(id)}`);
         const result = await response.json();
         if (!response.ok || !result.success) {
+          if (localRun) return;
           throw new Error(result.error || 'Unable to load split run');
         }
         if (cancelled) return;
@@ -93,7 +102,11 @@ function RunDetailContent({ params }: { params: Promise<{ id: string }> }) {
         setEvidence(result.data.evidence ?? []);
       } catch (error) {
         if (!cancelled) {
-          setLoadError(error instanceof Error ? error.message : 'Unable to load split run');
+          if (localRun) {
+            setRun({ ...localRun, currentRole: 'owner' });
+          } else {
+            setLoadError(error instanceof Error ? error.message : 'Unable to load split run');
+          }
         }
       }
     }

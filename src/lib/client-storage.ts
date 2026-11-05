@@ -89,3 +89,24 @@ export function saveStoredRevenue(event: MockRevenueEvent): void {
   setItem(REVENUE_KEY, [event, ...filtered]);
 }
 
+// ─── Split Runs ──────────────────────────────────────────────
+const SPLIT_RUNS_KEY = 'microsplit_custom_split_runs';
+
+export function getStoredSplitRuns(squadId?: string): any[] {
+  const all = getItem<any[]>(SPLIT_RUNS_KEY, []);
+  if (!squadId) return all;
+  return all.filter((r) => r.squadId === squadId);
+}
+
+export function getStoredSplitRun(id: string): any | null {
+  const all = getItem<any[]>(SPLIT_RUNS_KEY, []);
+  return all.find((r) => r.id === id) || null;
+}
+
+export function saveStoredSplitRun(run: any): void {
+  const all = getItem<any[]>(SPLIT_RUNS_KEY, []);
+  const filtered = all.filter((r) => r.id !== run.id);
+  setItem(SPLIT_RUNS_KEY, [run, ...filtered]);
+}
+
+
