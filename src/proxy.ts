@@ -1,6 +1,6 @@
 
-import { auth } from "@/auth";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
 const BLOCKED_PATTERNS = [
   /^\/\.env/i,
@@ -11,7 +11,7 @@ const BLOCKED_PATTERNS = [
   /\.(pem|key|crt|sql|bak|backup|config|dump)$/i,
 ];
 
-export const proxy = auth((request) => {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Block requests for sensitive files
@@ -32,17 +32,10 @@ export const proxy = auth((request) => {
   );
 
   return response;
-});
+}
 
 export const config = {
   matcher: [
-    "/squads/:path*",
-    "/splits/:path*",
-    "/evidence/:path*",
-    "/payouts/:path*",
-    "/ledger/:path*",
-    "/statements/:path*",
-    "/runs/:path*",
-    "/admin/:path*",
+    "/((?!_next/static|_next/image|favicon.ico|icon|apple-icon).*)",
   ],
 };

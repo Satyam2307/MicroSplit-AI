@@ -1,31 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPrisma } from "@/lib/prisma";
-import { requireAuthenticatedActor } from "@/lib/authorization";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { mockSquads, mockMemberships, mockUsers } from "@/lib/mock-data";
 import { sanitizeText } from "@/lib/sanitize";
 
 export async function POST(request: NextRequest) {
-  const actor = await requireAuthenticatedActor();
-  if (!actor.ok) return actor.response;
-
-  const rateLimit = checkRateLimit(
-    `squad_create_${actor.value.userId}`,
-    {
-      intervalMs: 60000,
-      maxRequests: 10,
-    }
-  );
-
-  if (!rateLimit.success) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Too many squad creation attempts. Please wait.",
-      },
-      { status: 429 }
-    );
-  }
-
   try {
     const body = await request.json();
 
@@ -70,77 +47,73 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    try {
-      new Intl.DateTimeFormat("en-US", { timeZone: timezone });
-    } catch {
-      return NextResponse.json(
-        { success: false, error: "Invalid IANA timezone" },
-        { status: 400 }
-      );
-    }
+    // Default demo user: Alex Rivera
+    const alexUser = mockUsers.find((u) => u.id === 'usr_1') || {
+      id: 'usr_1',
+      name: 'Alex Rivera',
+      email: 'alex@microsplit.demo',
+      avatar: '/avatars/alex.svg',
+      role: 'admin',
+    };
 
-    const prisma = getPrisma();
+    const squadId = `sqd_${Date.now()}`;
+    const newSquad = {
+      id: squadId,
+      name,
+      ownerId: alexUser.id,
+      currency,
+      createdAt: new Date().toISOString(),
+      memberCount: 1,
+      totalRevenue: 0,
+      currentRole: "owner",
+      owner: {
+        id: alexUser.id,
+        name: alexUser.name,
+        email: alexUser.email,
+        avatar: alexUser.avatar,
+      },
+    };
 
-    const owner = await prisma.user.findUnique({
-      where: { id: actor.value.userId },
-      select: { id: true, name: true, email: true },
+    // Prepend so newly created squad appears at the top
+    mockSquads.unshift({
+      id: squadId,
+      name,
+      ownerId: alexUser.id,
+      currency,
+      createdAt: newSquad.createdAt,
+      memberCount: 1,
+      totalRevenue: 0,
     });
 
-    if (!owner) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Authenticated user was not found",
-        },
-        { status: 401 }
-      );
-    }
+    const ownerMembership = {
+      id: `mem_${Date.now()}`,
+      squadId,
+      userId: alexUser.id,
+      memberName: alexUser.name,
+      role: "owner",
+      payoutReceiver: alexUser.email,
+      payoutReceiverType: "EMAIL",
+      payoutReceiverConfigured: true,
+      payoutReceiverMasked: alexUser.email,
+      isCurrentUser: true,
+      timezone,
+      focusSessionsOptIn: true,
+      streakDays: 0,
+    };
 
-    const squad = await prisma.squad.create({
-      data: {
-        name,
-        currency,
-        ownerId: owner.id,
-        memberships: {
-          create: {
-            userId: owner.id,
-            role: "owner",
-            payoutReceiver: "",
-            payoutReceiverType: "EMAIL",
-            timezone,
-          },
-        },
-      },
-      include: {
-        memberships: true,
-        owner: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            avatar: true,
-          },
-        },
-      },
-    });
+    mockMemberships.push(ownerMembership);
 
     return NextResponse.json(
       {
         success: true,
-        data: {
-          ...squad,
-          memberCount: squad.memberships.length,
-          totalRevenue: 0,
-          currentRole: "owner",
-        },
-        membership: squad.memberships[0],
-        user: owner,
+        data: newSquad,
+        membership: ownerMembership,
+        user: alexUser,
       },
       { status: 201 }
     );
   } catch (error) {
     console.error("Failed to create squad", error);
-
     return NextResponse.json(
       { success: false, error: "Unable to create squad" },
       { status: 500 }
@@ -149,30 +122,23 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  const actor = await requireAuthenticatedActor();
-  if (!actor.ok) return actor.response;
+  // Always return demo squads + any created squads instantly
+  const alexUser = mockUsers.find((u) => u.id === 'usr_1') || {
+    id: 'usr_1',
+    name: 'Alex Rivera',
+  };
 
-  const squads = await getPrisma().squad.findMany({
-    where: { memberships: { some: { userId: actor.value.userId } } },
-    include: {
-      owner: { select: { id: true, name: true, email: true, avatar: true } },
-      memberships: {
-        where: { userId: actor.value.userId },
-        select: { role: true },
-      },
-      _count: { select: { memberships: true } },
-      revenueEvents: { where: { status: 'active' }, select: { amountMinor: true } },
+  const squads = mockSquads.map((squad) => ({
+    ...squad,
+    currentRole: "owner",
+    owner: {
+      id: alexUser.id,
+      name: alexUser.name,
     },
-    orderBy: { createdAt: 'desc' },
-  });
+  }));
 
   return NextResponse.json({
     success: true,
-    data: squads.map(({ memberships, _count, revenueEvents, ...squad }) => ({
-      ...squad,
-      memberCount: _count.memberships,
-      currentRole: memberships[0]?.role,
-      totalRevenue: revenueEvents.reduce((total, event) => total + event.amountMinor, 0),
-    })),
+    data: squads,
   });
 }

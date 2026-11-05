@@ -1,13 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { Zap, Mail, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Zap, GitBranch, Mail, ArrowRight, UserCheck } from 'lucide-react';
 import { Reveal } from '@/components/ui';
-import { signInWithDemo } from '@/app/actions/auth';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
+  const router = useRouter();
+  const [email, setEmail] = useState('alex@microsplit.demo');
   const [role, setRole] = useState('owner');
+
+  const handleContinue = (e: React.FormEvent) => {
+    e.preventDefault();
+    router.push('/squads');
+  };
 
   return (
     <div
@@ -41,23 +48,38 @@ export default function LoginPage() {
           </div>
 
           <h1 className="text-2xl font-black text-center mb-2 text-[var(--primary)]">
-            Welcome back
+            Demo Workspace
           </h1>
           <p className="text-sm text-center mb-8 text-[var(--text)]">
-            Sign in to manage your squads and splits
+            Explore MicroSplit AI with the pre-loaded Alex Rivera demo profile
           </p>
 
+          {/* GitHub button (Mockup demo flow) */}
+          <button
+            onClick={() => router.push('/squads')}
+            className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl font-semibold text-sm mb-4 transition-all text-white cursor-pointer hover:opacity-90"
+            style={{ background: 'var(--primary)' }}
+          >
+            <GitBranch size={18} />
+            Continue with GitHub (Demo)
+          </button>
+
+          <div className="flex items-center gap-3 my-6">
+            <div className="flex-1 h-px bg-[var(--text)] opacity-20" />
+            <span className="text-xs font-medium text-[var(--text)]">or demo role</span>
+            <div className="flex-1 h-px bg-[var(--text)] opacity-20" />
+          </div>
+
           {/* Email / Role login */}
-          <form action={signInWithDemo} className="space-y-4">
+          <form onSubmit={handleContinue} className="space-y-4">
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider block mb-2 text-[var(--text)]">
                 Email
               </label>
-              <div className="relative">
+              <div className="relative flex items-center">
                 <Mail
                   size={16}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
-                  style={{ color: 'var(--text)', opacity: 0.5 }}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10 text-[var(--text)]"
                 />
                 <input
                   type="email"
@@ -81,7 +103,7 @@ export default function LoginPage() {
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
               >
-                <option value="owner">Owner</option>
+                <option value="owner">Owner (Alex Rivera)</option>
                 <option value="approver">Approver</option>
                 <option value="contributor">Contributor</option>
                 <option value="viewer">Viewer</option>
@@ -90,16 +112,16 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              className="btn-primary w-full justify-center mt-2 text-white flex items-center gap-2 cursor-pointer"
+              className="btn-primary w-full justify-center mt-2 text-white flex items-center gap-2 cursor-pointer hover:opacity-90"
               style={{ background: 'var(--accent)' }}
             >
-              <span>Sign in</span>
+              <span>Launch Demo Console</span>
               <ArrowRight size={16} />
             </button>
           </form>
 
-          <p className="text-xs text-center mt-6 text-[var(--text)]">
-            Demo mode — no real authentication required
+          <p className="text-xs text-center mt-6 text-[var(--text)] opacity-80">
+            Demo mode active &bull; No authentication required
           </p>
         </div>
       </Reveal>

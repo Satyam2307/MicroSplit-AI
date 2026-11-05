@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { Reveal, Card, MoneyChip } from '@/components/ui';
 import { formatMoney } from '@/lib/money';
-import { useSession } from 'next-auth/react';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -27,17 +26,16 @@ interface StatementLine {
 }
 
 export default function StatementsPage() {
-  const { data: session, status } = useSession();
   const [lines, setLines] = useState<StatementLine[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const member = {
-    id: session?.user.id ?? '',
-    name: session?.user.name || 'Member',
-    email: session?.user.email || '',
+    id: 'usr_1',
+    name: 'Alex Rivera',
+    email: 'alex@microsplit.demo',
   };
+
   useEffect(() => {
-    if (status !== 'authenticated' || !member.id) return;
     let active = true;
     fetch('/api/statements')
       .then(async (response) => {
@@ -58,17 +56,10 @@ export default function StatementsPage() {
     return () => {
       active = false;
     };
-  }, [member.id, status]);
+  }, []);
 
   const totalEarned = lines.reduce((sum, line) => sum + line.amountMinor, 0);
 
-  if (status === 'loading' || !member.id) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--background)' }}>
-        <p className="text-sm" style={{ color: 'var(--muted)' }}>Loading your statement...</p>
-      </div>
-    );
-  }
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--background)' }}>

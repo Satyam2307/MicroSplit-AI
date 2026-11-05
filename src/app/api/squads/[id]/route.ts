@@ -1,78 +1,67 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
-import { requireSquadRole } from '@/lib/authorization';
-import { isValidPayPalEmail, maskPayPalEmail } from '@/lib/payout-safety';
+import {
+  mockSquads,
+  mockMemberships,
+  mockUsers,
+  mockRevenueEvents,
+} from '@/lib/mock-data';
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const access = await requireSquadRole(id);
-  if (!access.ok) return access.response;
 
-  const squad = await getPrisma().squad.findUnique({
-    where: { id },
-    include: {
-      memberships: {
-        include: {
-          user: { select: { id: true, name: true, email: true, avatar: true } },
-        },
-      },
-      owner: { select: { id: true, name: true, email: true, avatar: true } },
-      revenueEvents: true,
-    },
-  });
+  // 1. Instant lookup in mock data
+  const squad = mockSquads.find((s) => s.id === id);
 
-  if (!squad) {
-    return NextResponse.json(
-      { success: false, error: 'Squad not found' },
-      { status: 404 }
+  if (squad) {
+    const rawMembers = mockMemberships.filter((m) => m.squadId === id);
+    const members = rawMembers.map((membership) => {
+      const user = mockUsers.find((u) => u.id === membership.userId) || {
+        id: membership.userId,
+        name: membership.memberName || 'Member',
+        email: membership.payoutReceiver || `${membership.userId}@microsplit.demo`,
+        avatar: '/avatars/alex.svg',
+      };
+      return {
+        ...membership,
+        user,
+        payoutReceiver: membership.payoutReceiver || `${membership.userId}@paypal.demo`,
+        payoutReceiverType: 'EMAIL',
+        payoutReceiverConfigured: true,
+        payoutReceiverMasked: membership.payoutReceiver || `${membership.userId}@paypal.demo`,
+        payoutReceiverConfirmedAt: '2024-10-01T00:00:00Z',
+        isCurrentUser: membership.userId === 'usr_1',
+      };
+    });
+
+    const revenue = mockRevenueEvents.filter((r) => r.squadId === id);
+    const totalRevenue = revenue.reduce(
+      (sum, r) => sum + (r.amountMinor || 0),
+      squad.totalRevenue || 0
     );
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        squad: {
+          ...squad,
+          memberCount: members.length > 0 ? members.length : squad.memberCount,
+          totalRevenue,
+          currentRole: 'owner',
+        },
+        members,
+        revenue,
+        users: members.map((m) => m.user),
+      },
+    });
   }
 
-  const members = squad.memberships.map((membership) => {
-    const configured = Boolean(
-      membership.payoutReceiverConfirmedAt &&
-        isValidPayPalEmail(membership.payoutReceiver)
-    );
-    return {
-      ...membership,
-      payoutReceiver:
-        configured && membership.userId === access.value.userId
-          ? membership.payoutReceiver
-          : '',
-      payoutReceiverType: 'EMAIL',
-      payoutReceiverConfigured: configured,
-      payoutReceiverMasked: configured
-        ? maskPayPalEmail(membership.payoutReceiver)
-        : null,
-      payoutReceiverConfirmedAt:
-        membership.userId === access.value.userId
-          ? membership.payoutReceiverConfirmedAt
-          : null,
-      isCurrentUser: membership.userId === access.value.userId,
-    };
-  });
-  const { memberships: _memberships, revenueEvents, ...squadData } = squad;
-
-  return NextResponse.json({
-    success: true,
-    data: {
-      squad: {
-        ...squadData,
-        memberCount: members.length,
-        totalRevenue: revenueEvents.reduce(
-          (total, event) => total + event.amountMinor,
-          0
-        ),
-        currentRole: access.value.membership.role,
-      },
-      members,
-      revenue: revenueEvents,
-      users: members.map((membership) => membership.user),
-    },
-  });
+  return NextResponse.json(
+    { success: false, error: 'Squad not found' },
+    { status: 404 }
+  );
 }
 
 export async function DELETE(
@@ -80,13 +69,19 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const access = await requireSquadRole(id, ['owner']);
-  if (!access.ok) return access.response;
 
-  const squad = await getPrisma().squad.delete({ where: { id } });
-  return NextResponse.json({
-    success: true,
-    message: `Squad ${squad.name} and associated records successfully deleted`,
-    data: squad,
-  });
+  const squadIdx = mockSquads.findIndex((s) => s.id === id);
+  if (squadIdx !== -1) {
+    const [deleted] = mockSquads.splice(squadIdx, 1);
+    return NextResponse.json({
+      success: true,
+      message: `Squad ${deleted.name} successfully deleted`,
+      data: deleted,
+    });
+  }
+
+  return NextResponse.json(
+    { success: false, error: 'Squad not found' },
+    { status: 404 }
+  );
 }

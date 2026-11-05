@@ -36,9 +36,42 @@ interface SquadListItem {
   owner: { name: string } | null;
 }
 
+const initialDemoSquads: SquadListItem[] = [
+  {
+    id: 'sqd_1',
+    name: 'Vortex Design Studio',
+    ownerId: 'usr_1',
+    currency: 'USD',
+    memberCount: 4,
+    totalRevenue: 850000,
+    currentRole: 'owner',
+    owner: { name: 'Alex Rivera' },
+  },
+  {
+    id: 'sqd_2',
+    name: 'OSS Contributors Fund',
+    ownerId: 'usr_2',
+    currency: 'USD',
+    memberCount: 5,
+    totalRevenue: 1200000,
+    currentRole: 'owner',
+    owner: { name: 'Alex Rivera' },
+  },
+  {
+    id: 'sqd_3',
+    name: 'DevRelay Agency',
+    ownerId: 'usr_1',
+    currency: 'USD',
+    memberCount: 3,
+    totalRevenue: 450000,
+    currentRole: 'owner',
+    owner: { name: 'Alex Rivera' },
+  },
+];
+
 export default function SquadsPage() {
   const router = useRouter();
-  const [squads, setSquads] = useState<SquadListItem[]>([]);
+  const [squads, setSquads] = useState<SquadListItem[]>(initialDemoSquads);
   const [search, setSearch] = useState('');
   const [listError, setListError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);

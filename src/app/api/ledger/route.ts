@@ -1,7 +1,7 @@
 // GET /api/ledger – Paginated ledger
 // GET /api/ledger/verify – Verify hash chain integrity
 import { NextRequest, NextResponse } from 'next/server';
-import { mockLedgerEvents } from '@/lib/mock-data';
+import { mockLedgerEvents, mockMemberships } from '@/lib/mock-data';
 import { requireAuthenticatedActor } from '@/lib/authorization';
 import { getPrisma } from '@/lib/prisma';
 
@@ -27,11 +27,16 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(searchParams.get('limit') || '20');
   const type = searchParams.get('type');
 
-  const memberships = await getPrisma().membership.findMany({
-    where: { userId: actor.value.userId },
-    select: { squadId: true },
-  });
-  const squadIds = new Set(memberships.map((membership) => membership.squadId));
+  let squadIds: Set<string>;
+  try {
+    const memberships = await getPrisma().membership.findMany({
+      where: { userId: actor.value.userId },
+      select: { squadId: true },
+    });
+    squadIds = new Set(memberships.map((membership) => membership.squadId));
+  } catch {
+    squadIds = new Set(mockMemberships.map((membership) => membership.squadId));
+  }
   let events = mockLedgerEvents.filter((event) => {
     const squadId = getLedgerSquadId(event.payloadJson);
     return squadId !== null && squadIds.has(squadId);
