@@ -36,6 +36,10 @@ export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
+  // Hydration fix: first render always matches the server (dark), then switches to the real theme.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const isDark = !mounted || theme === 'dark';
   const { data: session, status } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -238,9 +242,9 @@ export default function Navbar() {
                 onClick={toggleTheme}
                 aria-label="Toggle dark/light theme"
                 className="p-2 rounded-full transition-colors text-white hover:bg-white/10 flex items-center justify-center cursor-pointer"
-                title={theme === 'dark' ? 'Switch to Daylight Protocol' : 'Switch to Night Obsidian Protocol'}
+                title={isDark ? 'Switch to Daylight Protocol' : 'Switch to Night Obsidian Protocol'}
               >
-                {theme === 'dark' ? (
+                {isDark ? (
                   <Sun size={17} className="text-amber-300 hover:rotate-45 transition-transform" />
                 ) : (
                   <Moon size={17} className="text-teal-300 hover:-rotate-12 transition-transform" />
