@@ -431,23 +431,42 @@ button:disabled,
   background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 4%, transparent) 0%, color-mix(in srgb, var(--primary) 3%, transparent) 100%);
 }
 
-/* ─── Scrollbar ───────────────────────────────────────────── */
+/* ─── Scrollbar (navy rail + teal thumb, matches navbar) ──── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 12px;
+  height: 12px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--primary);
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--primary) 15%, transparent);
-  border-radius: 3px;
+  background-color: var(--primary-teal);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--primary) 28%, transparent);
+  background-color: #14B8A6;
+}
+
+::-webkit-scrollbar-thumb:active {
+  background-color: #F5C26B;
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--primary);
+}
+
+/* Firefox only */
+@supports (-moz-appearance: none) {
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-teal) var(--primary);
+  }
 }
 
 /* ─── Animations ──────────────────────────────────────────── */
@@ -497,6 +516,10 @@ button:disabled,
 
 /* ─── Reduced Motion (Section 12) ─────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
   .btn-3d,
   .btn-primary,
   .btn-secondary,

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import ScrollProgress from "@/components/ScrollProgress";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -165,6 +166,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <MicroSplitConcierge />
             <Analytics />
             <ToastContainer />
+            <ScrollProgress />
           </AuthProvider>
         </ThemeProvider>
       </body>
