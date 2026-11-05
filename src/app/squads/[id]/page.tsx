@@ -81,22 +81,23 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { id } = use(params);
 
-  // Instant local seed from demo squad data or local storage
-  const storedMatch = getStoredSquad(id);
-  const demoSquadMatch = mockSquads.find((s) => s.id === id) || storedMatch;
-  const initialSquad: MockSquad & { currentRole?: string } = demoSquadMatch
-    ? { ...demoSquadMatch, currentRole: 'owner' }
-    : {
-        id,
-        name: '',
-        ownerId: 'usr_1',
-        currency: 'USD',
-        createdAt: '',
-        memberCount: 0,
-        totalRevenue: 0,
-      };
-
-  const [squad, setSquad] = useState(initialSquad);
+  const [squad, setSquad] = useState<MockSquad & { currentRole?: string }>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = getStoredSquad(id);
+      if (stored) return { ...stored, currentRole: 'owner' };
+    }
+    const demo = mockSquads.find((s) => s.id === id);
+    if (demo) return { ...demo, currentRole: 'owner' };
+    return {
+      id,
+      name: '',
+      ownerId: 'usr_1',
+      currency: 'USD',
+      createdAt: '',
+      memberCount: 0,
+      totalRevenue: 0,
+    };
+  });
   const [users, setUsers] = useState<MockUser[]>(() => mockUsers);
   const [members, setMembers] = useState<MockMembership[]>(() => {
     const demoMems = mockMemberships.filter((m) => m.squadId === id).map((m) => ({
@@ -118,7 +119,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
     return Array.from(map.values());
   });
   const [runs, setRuns] = useState<SplitRunDTO[]>([]);
-  const [isLoading, setIsLoading] = useState(!demoSquadMatch);
+  const [isLoading, setIsLoading] = useState(() => !squad.name);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'revenue' | 'splits'>('overview');
 
@@ -131,8 +132,10 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
     const localMembers = getStoredMembers(id);
     const localRevs = getStoredRevenue(id);
 
-    if (localSquad) {
-      setSquad((prev) => ({ ...localSquad, ...prev, currentRole: 'owner' }));
+    if (localSquad && localSquad.name) {
+      setSquad({ ...localSquad, currentRole: 'owner' });
+      setMembers(localMembers);
+      setRevenue(localRevs);
       setIsLoading(false);
     }
 
@@ -159,10 +162,18 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
           localRevs.forEach((r) => revMap.set(r.id, r));
           const mergedRevenue = Array.from(revMap.values());
 
-          setSquad({
+          const totalRev = mergedRevenue.reduce((sum, r) => sum + (r.amountMinor || 0), squadResult.data.squad.totalRevenue || 0);
+
+          const finalSquad = {
             ...squadResult.data.squad,
-            memberCount: Math.max(squadResult.data.squad.memberCount, mergedMembers.length),
-          });
+            name: squadResult.data.squad.name || localSquad?.name || 'Squad',
+            memberCount: Math.max(squadResult.data.squad.memberCount || 0, mergedMembers.length),
+            totalRevenue: totalRev,
+            currentRole: 'owner',
+          };
+
+          setSquad(finalSquad);
+          saveStoredSquad(finalSquad);
           setMembers(mergedMembers);
           setPayoutReceiverInput(
             mergedMembers.find(
@@ -171,13 +182,18 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
           );
           setRevenue(mergedRevenue);
           setUsers(squadResult.data.users || []);
-        } else if (localSquad) {
-          // Fallback to local storage gracefully without error
-          setSquad(localSquad);
+        } else if (localSquad && localSquad.name) {
+          const totalRev = localRevs.reduce((sum, r) => sum + (r.amountMinor || 0), localSquad.totalRevenue || 0);
+          setSquad({
+            ...localSquad,
+            currentRole: 'owner',
+            memberCount: Math.max(localSquad.memberCount || 1, localMembers.length),
+            totalRevenue: totalRev,
+          });
           setMembers(localMembers);
           setRevenue(localRevs);
         } else {
-          throw new Error(squadResult.error || 'Unable to load squad');
+          setLoadError(squadResult.error || 'Squad not found');
         }
 
         if (runsResponse.ok && runsResult.success) {
@@ -468,7 +484,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
     return <div className="min-h-screen p-8 text-center text-[var(--text)]">Loading squad…</div>;
   }
 
-  if (loadError || !squad.name) {
+  if (loadError && !squad.name) {
     return (
       <div className="min-h-screen p-8 text-center text-rose-700" role="alert">
         {loadError || 'Squad not found'}

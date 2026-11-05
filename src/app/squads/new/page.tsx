@@ -126,6 +126,49 @@ export default function NewSquadPage() {
                   </p>
                 </div>
 
+                {/* Owner Information */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold mb-2 text-[var(--primary)]">
+                      Owner Name
+                    </label>
+                    <div className="relative">
+                      <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text)] opacity-60" />
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Alex Rivera or Satyam Chaurasia"
+                        value={ownerName}
+                        onChange={(e) => setOwnerName(e.target.value)}
+                        className="input-field text-base w-full pl-10 font-medium"
+                      />
+                    </div>
+                    <p className="text-xs mt-1.5 text-[var(--text)]">
+                      The name of the squad administrator and lead.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold mb-2 text-[var(--primary)]">
+                      Owner Email (Settlement / PayPal)
+                    </label>
+                    <div className="relative">
+                      <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text)] opacity-60" />
+                      <input
+                        type="email"
+                        required
+                        placeholder="e.g. alex@microsplit.demo"
+                        value={ownerEmail}
+                        onChange={(e) => setOwnerEmail(e.target.value)}
+                        className="input-field text-base w-full pl-10 font-medium"
+                      />
+                    </div>
+                    <p className="text-xs mt-1.5 text-[var(--text)]">
+                      PayPal or destination email for owner payouts.
+                    </p>
+                  </div>
+                </div>
+
                 {/* Currency & Timezone */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
@@ -164,49 +207,6 @@ export default function NewSquadPage() {
                       <option value="Asia/Dubai">Asia/Dubai (GST, UTC+4)</option>
                       <option value="UTC">UTC (Universal)</option>
                     </select>
-                  </div>
-                </div>
-
-                {/* Owner Information */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold mb-2 text-[var(--primary)]">
-                      Owner Name
-                    </label>
-                    <div className="relative">
-                      <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text)] opacity-60" />
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Alex Rivera or Satyam Chaurasia"
-                        value={ownerName}
-                        onChange={(e) => setOwnerName(e.target.value)}
-                        className="input-field text-base w-full pl-10"
-                      />
-                    </div>
-                    <p className="text-xs mt-1.5 text-[var(--text)]">
-                      The name of the squad administrator and lead.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold mb-2 text-[var(--primary)]">
-                      Owner Email (Settlement)
-                    </label>
-                    <div className="relative">
-                      <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text)] opacity-60" />
-                      <input
-                        type="email"
-                        required
-                        placeholder="e.g. alex@microsplit.demo"
-                        value={ownerEmail}
-                        onChange={(e) => setOwnerEmail(e.target.value)}
-                        className="input-field text-base w-full pl-10"
-                      />
-                    </div>
-                    <p className="text-xs mt-1.5 text-[var(--text)]">
-                      PayPal or destination email for owner payouts.
-                    </p>
                   </div>
                 </div>
 

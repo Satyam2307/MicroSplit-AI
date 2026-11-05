@@ -77,7 +77,29 @@ const initialDemoSquads: SquadListItem[] = [
 
 export default function SquadsPage() {
   const router = useRouter();
-  const [squads, setSquads] = useState<SquadListItem[]>(initialDemoSquads);
+  const [squads, setSquads] = useState<SquadListItem[]>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = getStoredSquads().map((s) => ({
+        id: s.id,
+        name: s.name,
+        ownerId: s.ownerId,
+        currency: s.currency,
+        memberCount: s.memberCount || 1,
+        totalRevenue: s.totalRevenue || 0,
+        currentRole: 'owner',
+        owner: { name: (s as any).owner?.name || 'Owner' },
+      }));
+      if (stored.length > 0) {
+        const map = new Map<string, SquadListItem>();
+        stored.forEach((s) => map.set(s.id, s));
+        initialDemoSquads.forEach((s) => {
+          if (!map.has(s.id)) map.set(s.id, s);
+        });
+        return Array.from(map.values());
+      }
+    }
+    return initialDemoSquads;
+  });
   const [search, setSearch] = useState('');
   const [listError, setListError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);

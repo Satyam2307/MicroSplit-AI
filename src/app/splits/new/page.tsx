@@ -30,6 +30,7 @@ import { showToast } from '@/components/Toast';
 import { mockSquads, mockMemberships, mockRevenueEvents } from '@/lib/mock-data';
 import {
   getStoredSquads,
+  getStoredSquad,
   getStoredMembers,
   getStoredRevenue,
 } from '@/lib/client-storage';
@@ -72,23 +73,32 @@ interface MemberSplit {
 export default function SplitsNewPage() {
   const router = useRouter();
   const [squads, setSquads] = useState<SquadOption[]>(() => {
-    const demo = mockSquads.map((s) => ({ id: s.id, name: s.name, currency: s.currency }));
-    const local = getStoredSquads().map((s) => ({ id: s.id, name: s.name, currency: s.currency }));
     const map = new Map<string, SquadOption>();
-    local.forEach((s) => map.set(s.id, s));
-    demo.forEach((s) => {
-      if (!map.has(s.id)) map.set(s.id, s);
+    if (typeof window !== 'undefined') {
+      const local = getStoredSquads();
+      local.forEach((s) => map.set(s.id, { id: s.id, name: s.name, currency: s.currency }));
+    }
+    mockSquads.forEach((s) => {
+      if (!map.has(s.id)) map.set(s.id, { id: s.id, name: s.name, currency: s.currency });
     });
     return Array.from(map.values());
   });
-  const [selectedSquadId, setSelectedSquadId] = useState('');
+  const [selectedSquadId, setSelectedSquadId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const q = new URLSearchParams(window.location.search).get('squadId');
+      if (q) return q;
+      const local = getStoredSquads();
+      if (local.length > 0) return local[0].id;
+    }
+    return 'sqd_1';
+  });
   const [loadError, setLoadError] = useState<string | null>(null);
   const [revenueEvents, setRevenueEvents] = useState<RevenueEventOption[]>([]);
   const [selectedRevenueEventId, setSelectedRevenueEventId] = useState('');
   const selectedSquad = squads.find((squad) => squad.id === selectedSquadId) ?? {
-    id: '',
-    name: '',
-    currency: 'USD',
+    id: selectedSquadId,
+    name: squads.find((s) => s.id === selectedSquadId)?.name || 'Squad Workspace',
+    currency: squads.find((s) => s.id === selectedSquadId)?.currency || 'USD',
   };
   const [selectedRule, setSelectedRule] = useState<RuleType>('fixed_percentage');
   const selectedRevenueEvent = revenueEvents.find(
@@ -218,6 +228,25 @@ export default function SplitsNewPage() {
           });
         }
 
+        // If still empty, check stored squad owner details
+        if (memberMap.size === 0) {
+          const localSq = getStoredSquad(selectedSquadId);
+          if (localSq) {
+            const ownerObj = (localSq as any).owner;
+            const ownerName = ownerObj?.name || 'Squad Owner';
+            const ownerEmail = ownerObj?.email || '';
+            memberMap.set(localSq.ownerId || 'usr_owner', {
+              userId: localSq.ownerId || 'usr_owner',
+              role: 'owner',
+              user: {
+                id: localSq.ownerId || 'usr_owner',
+                name: ownerName,
+                email: ownerEmail,
+              },
+            });
+          }
+        }
+
         const members = Array.from(memberMap.values());
 
         // Build revenue list
@@ -251,6 +280,21 @@ export default function SplitsNewPage() {
               createdAt: r.createdAt,
             });
           });
+        }
+
+        // Fallback to squad totalRevenue pool if still empty and squad has recorded funds
+        if (revMap.size === 0) {
+          const localSq = getStoredSquad(selectedSquadId);
+          const poolMinor = localSq?.totalRevenue || (squadResult.data?.squad?.totalRevenue as number) || 0;
+          if (poolMinor > 0) {
+            revMap.set(`rev_pool_${selectedSquadId}`, {
+              id: `rev_pool_${selectedSquadId}`,
+              amountMinor: poolMinor,
+              currency: localSq?.currency || 'USD',
+              description: `${localSq?.name || 'Squad'} Verified Revenue Pool`,
+              createdAt: new Date().toISOString(),
+            });
+          }
         }
 
         const activeRevenue = Array.from(revMap.values());
