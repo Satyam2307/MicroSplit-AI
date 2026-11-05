@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { requireAuthenticatedActor, requireSquadRole } from "@/lib/authorization";
+import { checkRateLimit } from "@/lib/rate-limit";
 import {
   createPayoutBatch,
   assertSandboxConfigured,
@@ -63,6 +64,18 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || "anonymous";
+  const rateLimit = checkRateLimit(`payout_dispatch_${clientIp}`, {
+    intervalMs: 60000,
+    maxRequests: 20,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { success: false, error: "Too many payout requests. Please wait." },
+      { status: 429 }
+    );
+  }
+
   const actor = await requireAuthenticatedActor();
   if (!actor.ok) return actor.response;
 

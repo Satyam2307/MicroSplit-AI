@@ -1,10 +1,23 @@
 // GET /api/ledger/verify – Verify the hash chain integrity
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { mockLedgerEvents } from '@/lib/mock-data';
 import { verifyLedgerChain } from '@/lib/ledger';
 import { requireAuthenticatedActor } from '@/lib/authorization';
+import { checkRateLimit } from '@/lib/rate-limit';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'anonymous';
+  const rateLimit = checkRateLimit(`ledger_verify_${clientIp}`, {
+    intervalMs: 60000,
+    maxRequests: 30,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { success: false, error: 'Too many requests. Please slow down.' },
+      { status: 429 }
+    );
+  }
+
   const actor = await requireAuthenticatedActor();
   if (!actor.ok) return actor.response;
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPrisma } from "@/lib/prisma";
 import { requireSquadRole } from "@/lib/authorization";
+import { checkRateLimit } from "@/lib/rate-limit";
 import {
   getSplitRunStatusForDecision,
   parseSplitApprovalInput,
@@ -10,6 +11,18 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || "anonymous";
+  const rateLimit = checkRateLimit(`split_approval_${clientIp}`, {
+    intervalMs: 60000,
+    maxRequests: 30,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { success: false, error: "Too many requests. Please slow down." },
+      { status: 429 }
+    );
+  }
+
   const { id } = await params;
   if (!id || id.length > 128) {
     return NextResponse.json(

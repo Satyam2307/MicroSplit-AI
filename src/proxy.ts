@@ -8,6 +8,7 @@ const BLOCKED_PATTERNS = [
   /^\/\.svn/i,
   /^\/\.hg/i,
   /^\/\.DS_Store/i,
+  /^\/admin(\/.*)?$/i,
   /\.(pem|key|crt|sql|bak|backup|config|dump)$/i,
 ];
 

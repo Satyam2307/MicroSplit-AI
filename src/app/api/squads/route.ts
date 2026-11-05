@@ -1,9 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { mockSquads, mockMemberships, mockUsers } from "@/lib/mock-data";
 import { sanitizeText } from "@/lib/sanitize";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
+    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || "anonymous";
+    const rateLimit = checkRateLimit(`squads_create_${clientIp}`, {
+      intervalMs: 60000,
+      maxRequests: 30,
+    });
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { success: false, error: "Too many requests. Please slow down." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
 
     if (!body || typeof body !== "object" || Array.isArray(body)) {

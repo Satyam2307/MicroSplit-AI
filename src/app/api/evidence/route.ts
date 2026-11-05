@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthenticatedActor, requireSquadRole } from "@/lib/authorization";
+import { checkRateLimit } from "@/lib/rate-limit";
 import {
   EvidenceStorageError,
   getEvidenceStorage,
@@ -17,6 +18,18 @@ import { mockEvidence } from "@/lib/mock-data";
 const uploadRoles = ["owner", "approver", "contributor"] as const;
 
 export async function POST(request: NextRequest) {
+  const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || "anonymous";
+  const rateLimit = checkRateLimit(`evidence_upload_${clientIp}`, {
+    intervalMs: 60000,
+    maxRequests: 30,
+  });
+  if (!rateLimit.success) {
+    return NextResponse.json(
+      { success: false, error: "Too many requests. Please slow down." },
+      { status: 429 }
+    );
+  }
+
   const actor = await requireAuthenticatedActor();
   if (!actor.ok) return actor.response;
 
