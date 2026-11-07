@@ -30,6 +30,7 @@ import { Reveal, Card, WeightBar, MoneyChip } from '@/components/ui';
 import { formatMoney } from '@/lib/money';
 import { calculateConsistencySplit } from '@/lib/consistency-streak';
 import { showToast } from '@/components/Toast';
+import SplitSidePanel from '@/components/SplitSidePanel';
 import { mockSquads, mockMemberships, mockRevenueEvents } from '@/lib/mock-data';
 import {
   getStoredSquads,
@@ -512,7 +513,7 @@ export default function SplitsNewPage() {
             memberId: m.memberId,
             memberName: m.name,
             name: m.name,
-            percentage: m.percentage,
+            percentage: getEffectivePercentage(m),
           })),
         }),
       });
@@ -869,12 +870,6 @@ export default function SplitsNewPage() {
                   {memberSplits.map((member, idx) => {
                     const currentShare = getEffectivePercentage(member);
                     const tierLabel = `Tier ${member.tier ?? 1}`;
-                    const value =
-                      selectedRule === 'weighted_points'
-                        ? (member.points ?? member.percentage)
-                        : selectedRule === 'milestone'
-                          ? member.bonus ?? 0
-                          : member.percentage;
                     const suffix = selectedRule === 'weighted_points' ? 'pts' : '%';
 
                     return (
@@ -1028,7 +1023,8 @@ export default function SplitsNewPage() {
                                 updatePercentage(idx, nextValue);
                               }
                             }}
-                            className="w-full accent-[var(--accent)] h-2 bg-slate-100 rounded-lg cursor-pointer"                          />
+                            className="w-full accent-[var(--accent)] h-2 bg-slate-100 rounded-lg cursor-pointer"
+                          />
                         </div>
                       </div>
                     );
@@ -1054,7 +1050,7 @@ export default function SplitsNewPage() {
 
           {/* Right: Live Preview & Run Action */}
           <div className="lg:col-span-2">
-            <div className="sticky top-24">
+            <div className="space-y-6">
               <Reveal delay={0.25}>
                 <Card elevated padding="lg">
                   <div className="flex items-center justify-between mb-4">
@@ -1203,6 +1199,16 @@ export default function SplitsNewPage() {
                   </p>
                 </Card>
               </Reveal>
+
+              <SplitSidePanel
+                rule={selectedRule}
+                hasSquad={!!selectedSquad.id}
+                hasRevenue={!!selectedRevenueEventId}
+                poolLabel={formatMoney(poolAmount)}
+                memberCount={memberSplits.length}
+                sharesValid={isValid}
+                consistencyOn={enableConsistency}
+              />
             </div>
           </div>
         </div>
@@ -1298,7 +1304,11 @@ export default function SplitsNewPage() {
                 </p>
 
                 {memberSplits.map((member, idx) => {
-                  const shareAmount = Math.round((poolAmount * member.percentage) / 100);
+                  const line = consistencyResult.lines.find((l) => l.memberId === member.memberId);
+                  const shareAmount = line
+                    ? line.finalAmountMinor
+                    : Math.round((poolAmount * getEffectivePercentage(member)) / 100);
+                  const sharePct = poolAmount > 0 ? (shareAmount / poolAmount) * 100 : 0;
                   return (
                     <motion.div
                       key={member.memberId || idx}
@@ -1321,7 +1331,7 @@ export default function SplitsNewPage() {
                             {member.name}
                           </p>
                           <p className="text-xs text-[var(--muted)] font-medium">
-                            {member.percentage}% allocation
+                            {sharePct.toFixed(1)}% allocation
                           </p>
                         </div>
                       </div>
