@@ -606,7 +606,7 @@ export default function SplitsNewPage() {
                         value={selectedSquadId}
                         onChange={(e) => setSelectedSquadId(e.target.value)}
                         disabled={squads.length === 0}
-                        className="h-[52px] w-full appearance-none rounded-xl border-[1.5px] border-[var(--border)] bg-[var(--background)] pl-11 pr-11 text-[15px] font-medium text-[var(--text)] transition hover:border-[var(--accent)] focus:border-[var(--accent)] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)] disabled:cursor-not-allowed disabled:border-dashed disabled:opacity-70"
+                        className="h-[52px] w-full appearance-none rounded-xl border-[1.5px] border-[var(--border)] bg-[var(--background)] pl-11 pr-11 text-[15px] font-medium text-[var(--text)] transition hover:border-[var(--accent)] focus:border-[var(--accent)] focus:bg-[var(--background)] focus:outline-none focus:ring-4 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)] disabled:cursor-not-allowed disabled:border-dashed disabled:opacity-70"
                       >
                         {squads.length === 0 && <option value="">No squads yet</option>}
                         {squads.map((squad) => (
@@ -670,7 +670,7 @@ export default function SplitsNewPage() {
                         value={selectedRevenueEventId}
                         onChange={(event) => setSelectedRevenueEventId(event.target.value)}
                         disabled={revenueEvents.length === 0}
-                        className="h-[52px] w-full appearance-none rounded-xl border-[1.5px] border-[var(--border)] bg-[var(--background)] pl-11 pr-11 text-[15px] font-medium text-[var(--text)] transition hover:border-[var(--accent)] focus:border-[var(--accent)] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)] disabled:cursor-not-allowed disabled:border-dashed disabled:opacity-70"
+                        className="h-[52px] w-full appearance-none rounded-xl border-[1.5px] border-[var(--border)] bg-[var(--background)] pl-11 pr-11 text-[15px] font-medium text-[var(--text)] transition hover:border-[var(--accent)] focus:border-[var(--accent)] focus:bg-[var(--background)] focus:outline-none focus:ring-4 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)] disabled:cursor-not-allowed disabled:border-dashed disabled:opacity-70"
                       >
                         {revenueEvents.length === 0 && (
                           <option value="">
@@ -840,7 +840,7 @@ export default function SplitsNewPage() {
                     <button
                       type="button"
                       onClick={resetShares}
-                      className="px-2.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-black/5 text-[var(--muted)] transition-colors"
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-[color-mix(in_srgb,var(--text)_12%,transparent)] text-[var(--muted)] transition-colors"
                     >
                       Reset
                     </button>
@@ -852,7 +852,7 @@ export default function SplitsNewPage() {
                   style={{
                     background: isValid ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'color-mix(in srgb, var(--accent) 10%, transparent)',
                     border: `1px solid ${isValid ? 'color-mix(in srgb, var(--accent) 30%, transparent)' : 'color-mix(in srgb, var(--accent) 30%, transparent)'}`,
-                    color: isValid ? 'var(--accent)' : 'var(--primary)',
+                    color: isValid ? 'var(--accent)' : 'var(--text)',
                   }}
                 >
                   <span className="flex items-center gap-1.5">
@@ -875,7 +875,7 @@ export default function SplitsNewPage() {
                     return (
                       <div
                         key={member.memberId}
-                        className="p-3.5 rounded-xl border border-[var(--border)] bg-white/50 space-y-2.5"
+                        className="p-3.5 rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--text)_6%,transparent)] space-y-2.5"
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-2.5 min-w-0">
@@ -888,7 +888,7 @@ export default function SplitsNewPage() {
                               {member.name.charAt(0)}
                             </div>
                             <div className="min-w-0">
-                              <p className="text-sm font-bold truncate text-[var(--primary)]">
+                              <p className="text-sm font-bold truncate text-[var(--text)]">
                                 {member.name}
                               </p>
                               <div className="flex items-center gap-1.5 mt-0.5">
@@ -912,14 +912,14 @@ export default function SplitsNewPage() {
                             <button
                               type="button"
                               onClick={() => adjustBy(idx, -5)}
-                              className="w-8 h-8 rounded-full border border-[var(--border)] bg-white hover:bg-slate-50 flex items-center justify-center text-[var(--text)] hover:text-[var(--primary)] transition-colors shadow-sm"
+                              className="w-8 h-8 rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--text)_6%,transparent)] hover:bg-[color-mix(in_srgb,var(--text)_12%,transparent)] flex items-center justify-center text-[var(--text)] hover:text-[var(--text)] transition-colors shadow-sm"
                               title={selectedRule === 'milestone' ? 'Decrease 5% bonus' : 'Decrease 5%'}
                             >
                               <Minus size={14} />
                             </button>
 
                             {selectedRule === 'weighted_points' ? (
-                              <div className="flex items-center justify-between gap-2 rounded-full border-[2.5px] border-[var(--primary)] bg-white px-3 py-2 shadow-[inset_0_1px_2px_rgba(15,23,42,0.04)] min-w-[132px]">
+                              <div className="flex items-center justify-between gap-2 rounded-full border-[2.5px] border-[color-mix(in_srgb,var(--text)_45%,transparent)] bg-[color-mix(in_srgb,var(--text)_6%,transparent)] px-3 py-2 shadow-[inset_0_1px_2px_rgba(15,23,42,0.04)] min-w-[132px]">
                                 <input
                                   type="number"
                                   min="0"
@@ -930,7 +930,7 @@ export default function SplitsNewPage() {
                                     const nextValue = parseFloat(e.target.value);
                                     updatePoints(idx, nextValue);
                                   }}
-                                  className="w-[40px] bg-transparent text-right text-base font-black font-mono leading-none tracking-tight text-[var(--primary)] focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                  className="w-[40px] bg-transparent text-right text-base font-black font-mono leading-none tracking-tight text-[var(--text)] focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 />
                                 <span className="text-[0.7rem] font-bold uppercase tracking-[0.18em] text-[var(--muted)]">PTS</span>
                               </div>
@@ -945,13 +945,13 @@ export default function SplitsNewPage() {
                                     updated[idx] = { ...updated[idx], tier, percentage: candidate };
                                     setMemberSplits(updated);
                                   }}
-                                  className="appearance-none rounded-full border-[2.5px] border-[var(--primary)] bg-white px-4 py-2.5 pr-10 text-base font-bold text-[var(--primary)] hover:border-[var(--accent)] transition-colors shadow-[inset_0_1px_2px_rgba(15,23,42,0.04)] focus:outline-none focus:ring-4 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
+                                  className="appearance-none rounded-full border-[2.5px] border-[color-mix(in_srgb,var(--text)_45%,transparent)] bg-[color-mix(in_srgb,var(--text)_6%,transparent)] px-4 py-2.5 pr-10 text-base font-bold text-[var(--text)] hover:border-[var(--accent)] transition-colors shadow-[inset_0_1px_2px_rgba(15,23,42,0.04)] focus:outline-none focus:ring-4 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
                                 >
                                   <option value={1}>Tier 1</option>
                                   <option value={2}>Tier 2</option>
                                   <option value={3}>Tier 3</option>
                                 </select>
-                                <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--primary)]" />
+                                <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text)]" />
                               </div>
                             ) : (
                               <div className="relative flex items-center">
@@ -969,7 +969,7 @@ export default function SplitsNewPage() {
                                       updatePercentage(idx, nextValue);
                                     }
                                   }}
-                                  className="w-24 px-3 py-1.5 text-right font-black font-mono text-base rounded-lg border-2 border-[var(--text)] focus:border-[var(--accent)] focus:outline-none bg-white text-[var(--primary)] pr-6 tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                  className="w-24 px-3 py-1.5 text-right font-black font-mono text-base rounded-lg border-2 border-[color-mix(in_srgb,var(--text)_35%,transparent)] focus:border-[var(--accent)] focus:outline-none bg-[color-mix(in_srgb,var(--text)_6%,transparent)] text-[var(--text)] pr-6 tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 />
                                 <span className="absolute right-2.5 text-xs font-bold text-[var(--text)] pointer-events-none">
                                   {suffix}
@@ -980,7 +980,7 @@ export default function SplitsNewPage() {
                             <button
                               type="button"
                               onClick={() => adjustBy(idx, 5)}
-                              className="w-8 h-8 rounded-full border border-[var(--border)] bg-white hover:bg-slate-50 flex items-center justify-center text-[var(--text)] hover:text-[var(--primary)] transition-colors shadow-sm"
+                              className="w-8 h-8 rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--text)_6%,transparent)] hover:bg-[color-mix(in_srgb,var(--text)_12%,transparent)] flex items-center justify-center text-[var(--text)] hover:text-[var(--text)] transition-colors shadow-sm"
                               title={selectedRule === 'milestone' ? 'Increase 5% bonus' : 'Increase 5%'}
                             >
                               <Plus size={14} />
@@ -1023,7 +1023,7 @@ export default function SplitsNewPage() {
                                 updatePercentage(idx, nextValue);
                               }
                             }}
-                            className="w-full accent-[var(--accent)] h-2 bg-slate-100 rounded-lg cursor-pointer"
+                            className="w-full accent-[var(--accent)] h-2 bg-[color-mix(in_srgb,var(--text)_6%,transparent)] rounded-lg cursor-pointer"
                           />
                         </div>
                       </div>
@@ -1034,7 +1034,7 @@ export default function SplitsNewPage() {
                 {!isValid && (
                   <div
                     className="mt-4 px-4 py-3 rounded-xl flex items-center gap-2 text-xs font-semibold"
-                    style={{ background: 'color-mix(in srgb, var(--accent) 8%, transparent)', color: 'var(--primary)' }}
+                    style={{ background: 'color-mix(in srgb, var(--accent) 8%, transparent)', color: 'var(--text)' }}
                   >
                     <Info size={16} className="flex-shrink-0" />
                     {selectedRule === 'weighted_points'
@@ -1056,7 +1056,7 @@ export default function SplitsNewPage() {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <Zap size={18} className="text-[var(--accent)]" />
-                      <h2 className="text-lg font-bold text-[var(--primary)]">
+                      <h2 className="text-lg font-bold text-[var(--text)]">
                         Live Split Preview
                       </h2>
                     </div>
@@ -1066,7 +1066,7 @@ export default function SplitsNewPage() {
                   </div>
 
                   {/* Pool breakdown */}
-                  <div className="mb-6 p-4 rounded-xl space-y-3 bg-[var(--background)] border border-[var(--text)]">
+                  <div className="mb-6 p-4 rounded-xl space-y-3 bg-[var(--background)] border border-[color-mix(in_srgb,var(--text)_25%,transparent)]">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wider mb-0.5 text-[var(--text)]">
                         Total Pool
@@ -1077,12 +1077,12 @@ export default function SplitsNewPage() {
                     </div>
 
                     {enableConsistency && (
-                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[var(--text)] text-xs">
-                        <div className="p-2 rounded-lg bg-white border border-[var(--text)]">
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[color-mix(in_srgb,var(--text)_25%,transparent)] text-xs">
+                        <div className="p-2 rounded-lg bg-[color-mix(in_srgb,var(--text)_6%,transparent)] border border-[color-mix(in_srgb,var(--text)_25%,transparent)]">
                           <span className="text-[11px] text-[var(--text)] block">Work Pool</span>
-                          <span className="font-bold text-[var(--primary)]">{formatMoney(consistencyResult.workPoolMinor)}</span>
+                          <span className="font-bold text-[var(--text)]">{formatMoney(consistencyResult.workPoolMinor)}</span>
                         </div>
-                        <div className="p-2 rounded-lg bg-white border border-[var(--text)]">
+                        <div className="p-2 rounded-lg bg-[color-mix(in_srgb,var(--text)_6%,transparent)] border border-[color-mix(in_srgb,var(--text)_25%,transparent)]">
                           <span className="text-[11px] text-[var(--accent)] block">Consistency ({consistencyPercent}%)</span>
                           <span className="font-bold text-[var(--accent)]">{formatMoney(consistencyResult.consistencyPoolMinor)}</span>
                         </div>
@@ -1108,17 +1108,17 @@ export default function SplitsNewPage() {
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -10 }}
-                            className="p-3 rounded-xl bg-white border border-[var(--text)] space-y-1.5 shadow-sm"
+                            className="p-3 rounded-xl bg-[color-mix(in_srgb,var(--text)_6%,transparent)] border border-[color-mix(in_srgb,var(--text)_25%,transparent)] space-y-1.5 shadow-sm"
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <div
                                   className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                                  style={{ background: 'var(--primary)' }}
+                                  style={{ background: 'linear-gradient(135deg, var(--primary), var(--accent))' }}
                                 >
                                   {member?.name.charAt(0)}
                                 </div>
-                                <span className="text-sm font-bold text-[var(--primary)]">
+                                <span className="text-sm font-bold text-[var(--text)]">
                                   {member?.name}
                                 </span>
                                 {enableConsistency && line.streakDays > 0 && (
@@ -1153,7 +1153,7 @@ export default function SplitsNewPage() {
                     className="mt-6 px-4 py-3 rounded-xl text-xs font-bold tabular-nums"
                     style={{
                       background: isValid ? 'var(--background)' : 'var(--background)',
-                      color: isValid ? 'var(--accent)' : 'var(--primary)',
+                      color: isValid ? 'var(--accent)' : 'var(--text)',
                       border: `1px solid ${isValid ? 'var(--background)' : 'var(--background)'}`,
                     }}
                   >
@@ -1163,7 +1163,7 @@ export default function SplitsNewPage() {
                   </div>
 
                   {submitError && (
-                    <div className="mt-3 p-3 rounded-xl text-xs font-bold bg-[var(--background)] text-[var(--primary)]">
+                    <div className="mt-3 p-3 rounded-xl text-xs font-bold bg-[var(--background)] text-[var(--text)]">
                       {submitError}
                     </div>
                   )}
@@ -1259,7 +1259,7 @@ export default function SplitsNewPage() {
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-[var(--border)] overflow-hidden z-10"
+              className="relative w-full max-w-lg bg-[var(--background)] rounded-3xl shadow-2xl border border-[var(--border)] overflow-hidden z-10"
             >
               {/* Top Banner with Emerald Gradient */}
               <div
@@ -1315,19 +1315,19 @@ export default function SplitsNewPage() {
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.2 + idx * 0.08 }}
-                      className="p-3.5 rounded-xl border border-[var(--border)] bg-[var(--background)] flex items-center justify-between shadow-sm"
+                      className="p-3.5 rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--text)_6%,transparent)] flex items-center justify-between shadow-sm"
                     >
                       <div className="flex items-center gap-3">
                         <div
                           className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-sm"
                           style={{
-                            background: idx === 0 ? 'var(--accent)' : 'var(--primary)',
+                            background: idx === 0 ? 'var(--accent)' : 'linear-gradient(135deg, var(--primary), var(--accent))',
                           }}
                         >
                           {member.name.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-[var(--primary)] leading-tight">
+                          <p className="text-sm font-bold text-[var(--text)] leading-tight">
                             {member.name}
                           </p>
                           <p className="text-xs text-[var(--muted)] font-medium">
@@ -1350,7 +1350,7 @@ export default function SplitsNewPage() {
               </div>
 
               {/* Invariant Zero-Loss Guarantee Footer */}
-              <div className="px-6 py-4 border-t border-[var(--border)] bg-[var(--background)] flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="px-6 py-4 border-t border-[var(--border)] bg-[color-mix(in_srgb,var(--text)_6%,transparent)] flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--accent)]">
                   <CheckCircle2 size={15} />
                   <span>Exact Match: {formatMoney(poolAmount)} (0¢ rounding loss)</span>

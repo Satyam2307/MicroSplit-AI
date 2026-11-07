@@ -47,7 +47,7 @@ function CheckRow({ done, label, hint }: { done: boolean; label: string; hint?: 
       <div className="min-w-0">
         <p
           className="text-xs font-bold"
-          style={{ color: done ? 'var(--primary)' : 'var(--muted)' }}
+          style={{ color: done ? 'var(--text)' : 'var(--muted)' }}
         >
           {label}
         </p>
@@ -74,12 +74,19 @@ export default function SplitSidePanel({
       {/* Ready-to-run checklist */}
       <Card padding="md" elevated>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-[var(--primary)]">Ready to run?</h3>
+          <h3 className="text-sm font-bold text-[var(--text)]">Ready to run?</h3>
           <span
             className="text-[10px] font-bold px-2 py-0.5 rounded-full"
             style={{
-              background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
               color: allReady ? 'var(--accent)' : 'var(--muted)',
+              background: allReady
+                ? 'color-mix(in srgb, var(--accent) 14%, transparent)'
+                : 'color-mix(in srgb, var(--text) 8%, transparent)',
+              border: `1px solid ${
+                allReady
+                  ? 'color-mix(in srgb, var(--accent) 30%, transparent)'
+                  : 'color-mix(in srgb, var(--text) 15%, transparent)'
+              }`,
             }}
           >
             {allReady ? 'All set' : 'Action needed'}
@@ -119,14 +126,15 @@ export default function SplitSidePanel({
       <Card padding="md">
         <div className="flex items-center gap-2 mb-2">
           <Lightbulb size={16} className="text-[var(--accent)]" />
-          <h3 className="text-sm font-bold text-[var(--primary)]">How {info.title} works</h3>
+          <h3 className="text-sm font-bold text-[var(--text)]">How {info.title} works</h3>
         </div>
         <p className="text-xs text-[var(--text)] leading-relaxed">{info.body}</p>
         <p
           className="mt-3 text-[11px] font-mono leading-relaxed rounded-lg px-3 py-2"
           style={{
-            background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
+            background: 'rgba(15, 157, 138, 0.12)',
             color: 'var(--text)',
+            border: '1px solid rgba(15, 157, 138, 0.14)',
           }}
         >
           {info.example}
@@ -144,12 +152,12 @@ export default function SplitSidePanel({
             key={item.label}
             className="flex flex-col items-center gap-1 rounded-xl px-2 py-3 text-center"
             style={{
-              background: 'color-mix(in srgb, var(--accent) 6%, transparent)',
-              border: '1px solid var(--border)',
+              background: 'rgba(15, 157, 138, 0.06)',
+              border: '1px solid rgba(148, 163, 184, 0.2)',
             }}
           >
             <span className="text-[var(--accent)]">{item.icon}</span>
-            <span className="text-[10px] font-bold text-[var(--primary)]">{item.label}</span>
+            <span className="text-[10px] font-bold text-[var(--text)]">{item.label}</span>
           </div>
         ))}
       </div>
