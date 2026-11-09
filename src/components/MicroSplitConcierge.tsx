@@ -191,29 +191,24 @@ export default function MicroSplitConcierge() {
     }
   };
 
-  // WhatsApp Submission
+  // WhatsApp Submission — always routes to MicroSplit support line +91 8251048701
+  const SUPPORT_WHATSAPP = '918251048701';
+
   const handleLaunchWhatsApp = (e?: React.FormEvent) => {
     e?.preventDefault();
-    const digits = waPhone.replace(/[^0-9]/g, '');
-    const targetPhone =
-      digits.length === 10 ? `91${digits}` : digits.length >= 7 ? digits : '';
-
-    if (!targetPhone) {
-      setWaError('Please enter a valid phone number (minimum 10 digits).');
-      return;
-    }
 
     setWaError(null);
     const ticketId = `MS-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+    const userRef = waPhone.trim() ? `📱 *From:* ${waPhone.trim()}\n` : '';
     const formattedMessage =
       `👋 *MicroSplit AI — Support Desk*\n\n` +
       `🎫 *Ticket ID:* #${ticketId}\n` +
-      `📱 *Recipient:* +${targetPhone}\n` +
-      `💬 *Inquiry Details:*\n"${waMessage.trim() || 'Hi MicroSplit AI team, I need help with squad revenue attribution, 0-cent splits, and payout settlements.'}"\n\n` +
+      userRef +
+      `💬 *Inquiry:*\n"${waMessage.trim() || 'Hi MicroSplit AI team, I need help with squad revenue attribution, 0-cent splits, and payout settlements.'}"\n\n` +
       `⚡ *Status:* Registered on Cryptographic Ledger\n` +
       `---\n*MicroSplit AI Support Desk*`;
 
-    const whatsappUrl = `https://wa.me/${targetPhone}?text=${encodeURIComponent(formattedMessage)}`;
+    const whatsappUrl = `https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(formattedMessage)}`;
     if (typeof window !== 'undefined') {
       window.open(whatsappUrl, '_blank');
     }
@@ -499,29 +494,21 @@ export default function MicroSplitConcierge() {
                   </div>
                 )}
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Your WhatsApp Phone Number *
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="e.g. 9876543210 or +1..."
-                    value={waPhone}
-                    onChange={(e) => setWaPhone(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                  />
-                  <span className="text-[10px] text-emerald-400 block mt-1">
-                    ✓ Ticket is registered directly to this phone number
-                  </span>
+                {/* Support number badge */}
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-950/50 border border-emerald-500/30">
+                  <Phone className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-[11px] font-bold text-emerald-300">Connects to: +91 82510 48701</p>
+                    <p className="text-[10px] text-emerald-400/70">MicroSplit Support Line</p>
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Inquiry Details (Optional)
+                    Your Message (Optional)
                   </label>
                   <textarea
-                    rows={3}
+                    rows={4}
                     placeholder="Describe your squad split question or payout status..."
                     value={waMessage}
                     onChange={(e) => setWaMessage(e.target.value)}
@@ -534,7 +521,7 @@ export default function MicroSplitConcierge() {
                   className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
                 >
                   <Phone className="w-3.5 h-3.5" />
-                  <span>Launch Ticket in WhatsApp →</span>
+                  <span>Open WhatsApp Chat →</span>
                 </button>
               </form>
             )}
@@ -547,7 +534,7 @@ export default function MicroSplitConcierge() {
                     <CheckCircle2 className="w-8 h-8 text-teal-400 mx-auto" />
                     <h4 className="font-bold text-sm text-white">Inquiry Received</h4>
                     <p className="text-xs text-slate-300">
-                      Your ticket has been dispatched to <span className="text-teal-300">support@microsplit.ai</span>.
+                      Your ticket has been dispatched to <span className="text-teal-300">akshat.singhai701@gmail.com</span>.
                     </p>
                     <div className="p-2 bg-slate-900 rounded-xl border border-slate-800 text-xs font-mono text-teal-300">
                       Ticket ID: #{emailSuccessTicket}

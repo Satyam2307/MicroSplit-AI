@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
           squad: squad || undefined,
           topic,
           whatsapp: whatsapp || undefined,
-          domainEmail: 'support@microsplit.ai',
+          domainEmail: 'akshat.singhai701@gmail.com',
         },
       },
       { status: 200 }
