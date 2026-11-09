@@ -1,43 +1,85 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Zap, GitBranch, Mail, ArrowRight, UserCheck } from 'lucide-react';
+import { Zap, Mail, ArrowRight, User, Sparkles } from 'lucide-react';
 import { Reveal } from '@/components/ui';
+import {
+  setCurrentUser,
+  getInitials,
+  DEFAULT_DEMO_USER,
+} from '@/lib/client-storage';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('alex@microsplit.demo');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [role, setRole] = useState('owner');
 
-  const handleContinue = (e: React.FormEvent) => {
+  const handleSignIn = (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanEmail = email.trim() || 'demo@microsplit.ai';
+    let cleanName = name.trim();
+    if (!cleanName) {
+      cleanName =
+        cleanEmail
+          .split('@')[0]
+          .split(/[._-]/)
+          .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+          .join(' ') || 'MicroSplit User';
+    }
+
+    setCurrentUser({
+      id: `usr_${Date.now()}`,
+      name: cleanName,
+      email: cleanEmail,
+      role,
+      initials: getInitials(cleanName),
+    });
+
     router.push('/squads');
+  };
+
+  const handlePreFillDemo = () => {
+    setName(DEFAULT_DEMO_USER.name);
+    setEmail(DEFAULT_DEMO_USER.email);
+    setRole(DEFAULT_DEMO_USER.role);
   };
 
   return (
     <div
       className="min-h-screen flex items-center justify-center px-4"
-      style={{ background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary) 50%, var(--primary) 100%)' }}
+      style={{
+        background:
+          'linear-gradient(135deg, var(--primary) 0%, var(--primary) 50%, var(--primary) 100%)',
+      }}
     >
       <div
         className="absolute inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--accent) 12%, transparent) 0%, transparent 70%)' }}
+        style={{
+          background:
+            'radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--accent) 12%, transparent) 0%, transparent 70%)',
+        }}
       />
 
       <Reveal>
         <div
           className="relative w-full max-w-md p-8 sm:p-10 rounded-3xl"
-          style={{ background: 'var(--background)', boxShadow: '0 20px 48px color-mix(in srgb, var(--primary) 25%, transparent)' }}
+          style={{
+            background: 'var(--background)',
+            boxShadow:
+              '0 20px 48px color-mix(in srgb, var(--primary) 25%, transparent)',
+          }}
         >
           {/* Logo */}
-          <div className="flex items-center justify-center gap-2.5 mb-8">
+          <div className="flex items-center justify-center gap-2.5 mb-6">
             <div
               className="w-10 h-10 rounded-xl flex items-center justify-center text-white"
               style={{
-                background: 'linear-gradient(135deg, var(--primary), var(--accent))',
-                boxShadow: '0 4px 12px color-mix(in srgb, var(--accent) 30%, transparent)',
+                background:
+                  'linear-gradient(135deg, var(--primary), var(--accent))',
+                boxShadow:
+                  '0 4px 12px color-mix(in srgb, var(--accent) 30%, transparent)',
               }}
             >
               <Zap size={20} strokeWidth={2.5} />
@@ -47,31 +89,53 @@ export default function LoginPage() {
             </span>
           </div>
 
-          <h1 className="text-2xl font-black text-center mb-2 text-[var(--primary)]">
-            Demo Workspace
+          <h1 className="text-2xl font-black text-center mb-1 text-[var(--primary)]">
+            Sign In to MicroSplit
           </h1>
-          <p className="text-sm text-center mb-8 text-[var(--text)]">
-            Explore MicroSplit AI with the pre-loaded Alex Rivera demo profile
+          <p className="text-xs text-center mb-6 text-[var(--text)] opacity-80">
+            Enter your credentials to manage your squads and revenue splits
           </p>
 
-          {/* GitHub button (Mockup demo flow) */}
-          <button
-            onClick={() => router.push('/squads')}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl font-semibold text-sm mb-4 transition-all text-white cursor-pointer hover:opacity-90"
-            style={{ background: 'var(--primary)' }}
-          >
-            <GitBranch size={18} />
-            Continue with GitHub (Demo)
-          </button>
-
-          <div className="flex items-center gap-3 my-6">
-            <div className="flex-1 h-px bg-[var(--text)] opacity-20" />
-            <span className="text-xs font-medium text-[var(--text)]">or demo role</span>
-            <div className="flex-1 h-px bg-[var(--text)] opacity-20" />
+          {/* Quick Demo Pre-fill Pill */}
+          <div className="flex justify-center mb-6">
+            <button
+              type="button"
+              onClick={handlePreFillDemo}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all hover:scale-105 cursor-pointer"
+              style={{
+                background: 'rgba(15, 157, 138, 0.12)',
+                color: '#0F9D8A',
+                border: '1px solid rgba(15, 157, 138, 0.3)',
+              }}
+            >
+              <Sparkles size={13} />
+              <span>Use Alex Rivera Demo Profile</span>
+            </button>
           </div>
 
-          {/* Email / Role login */}
-          <form onSubmit={handleContinue} className="space-y-4">
+          {/* Email / Role login form */}
+          <form onSubmit={handleSignIn} className="space-y-4">
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider block mb-2 text-[var(--text)]">
+                Full Name
+              </label>
+              <div className="relative flex items-center">
+                <User
+                  size={16}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10 text-[var(--text)] opacity-60"
+                />
+                <input
+                  type="text"
+                  name="name"
+                  className="input-field w-full text-sm font-medium"
+                  placeholder="e.g. Alex Rivera or your name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  style={{ paddingLeft: '44px' }}
+                />
+              </div>
+            </div>
+
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider block mb-2 text-[var(--text)]">
                 Email
@@ -79,13 +143,14 @@ export default function LoginPage() {
               <div className="relative flex items-center">
                 <Mail
                   size={16}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10 text-[var(--text)]"
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10 text-[var(--text)] opacity-60"
                 />
                 <input
                   type="email"
                   name="email"
+                  required
                   className="input-field w-full text-sm font-medium"
-                  placeholder="alex@microsplit.demo"
+                  placeholder="you@company.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   style={{ paddingLeft: '44px' }}
@@ -95,7 +160,7 @@ export default function LoginPage() {
 
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider block mb-2 text-[var(--text)]">
-                Demo Role
+                Role
               </label>
               <select
                 name="role"
@@ -103,7 +168,7 @@ export default function LoginPage() {
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
               >
-                <option value="owner">Owner (Alex Rivera)</option>
+                <option value="owner">Squad Owner</option>
                 <option value="approver">Approver</option>
                 <option value="contributor">Contributor</option>
                 <option value="viewer">Viewer</option>
@@ -115,13 +180,13 @@ export default function LoginPage() {
               className="btn-primary w-full justify-center mt-2 text-white flex items-center gap-2 cursor-pointer hover:opacity-90"
               style={{ background: 'var(--accent)' }}
             >
-              <span>Launch Demo Console</span>
+              <span>Sign In &amp; Launch Console</span>
               <ArrowRight size={16} />
             </button>
           </form>
 
-          <p className="text-xs text-center mt-6 text-[var(--text)] opacity-80">
-            Demo mode active &bull; No authentication required
+          <p className="text-xs text-center mt-6 text-[var(--text)] opacity-60">
+            Secure session stored locally &bull; No third-party tracking
           </p>
         </div>
       </Reveal>

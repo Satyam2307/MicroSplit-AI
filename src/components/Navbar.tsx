@@ -23,6 +23,13 @@ import {
 import { showToast } from '@/components/Toast';
 import { signOutFromApp } from '@/app/actions/auth';
 import { useTheme } from './ThemeProvider';
+import {
+  getCurrentUser,
+  clearCurrentUser,
+  AUTH_CHANGE_EVENT,
+  DEFAULT_DEMO_USER,
+  type UserSession,
+} from '@/lib/client-storage';
 
 const navLinks = [
   { href: '/squads', label: 'Squads', icon: Users },
@@ -39,15 +46,33 @@ export default function Navbar() {
   const { theme, toggleTheme } = useTheme();
   // Hydration fix: first render always matches the server (dark), then switches to the real theme.
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const [user, setUser] = useState<UserSession | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+    // Check if user session exists; fallback to default demo user if not logged out
+    const stored = getCurrentUser();
+    setUser(stored);
+
+    const handleAuthChange = (e: Event) => {
+      const customEvent = e as CustomEvent<UserSession | null>;
+      setUser(customEvent.detail ?? null);
+    };
+
+    window.addEventListener(AUTH_CHANGE_EVENT, handleAuthChange);
+    return () => window.removeEventListener(AUTH_CHANGE_EVENT, handleAuthChange);
+  }, []);
+
   const isDark = !mounted || theme === 'dark';
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const profileName = 'Alex Rivera';
-  const profileEmail = 'alex@microsplit.demo';
-  const profileInitials = 'AR';
+
+  const profileName = user?.name || DEFAULT_DEMO_USER.name;
+  const profileEmail = user?.email || DEFAULT_DEMO_USER.email;
+  const profileInitials = user?.initials || DEFAULT_DEMO_USER.initials;
+  const profileRole = user?.role || DEFAULT_DEMO_USER.role;
 
   // Close menus on route change
   useEffect(() => {
@@ -310,92 +335,113 @@ export default function Navbar() {
                 <ArrowRight size={13} />
               </Link>
 
-              {/* Demo Profile - Alex Rivera */}
-              <div className="relative" onClick={(e) => e.stopPropagation()}>
-                <button
-                  type="button"
-                  onClick={() => { setUserMenuOpen(!userMenuOpen); setNotifOpen(false); }}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-transform hover:scale-105 text-white"
-                  style={{
-                    background: 'linear-gradient(135deg, #0F9D8A 0%, #087F73 100%)',
-                    boxShadow: '0 2px 8px rgba(15, 157, 138, 0.4)',
-                    border: '1.5px solid rgba(255, 255, 255, 0.25)',
-                  }}
-                  aria-label="Alex Rivera profile menu"
-                >
-                  AR
-                </button>
+              {/* User Profile / Sign In */}
+              {user ? (
+                <div className="relative" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    onClick={() => { setUserMenuOpen(!userMenuOpen); setNotifOpen(false); }}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-transform hover:scale-105 text-white cursor-pointer"
+                    style={{
+                      background: 'linear-gradient(135deg, #0F9D8A 0%, #087F73 100%)',
+                      boxShadow: '0 2px 8px rgba(15, 157, 138, 0.4)',
+                      border: '1.5px solid rgba(255, 255, 255, 0.25)',
+                    }}
+                    aria-label={`${profileName} profile menu`}
+                  >
+                    {profileInitials}
+                  </button>
 
-                <AnimatePresence>
-                  {userMenuOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                      transition={{ duration: 0.15 }}
-                      className="absolute right-0 mt-2 w-60 rounded-2xl overflow-hidden z-50 shadow-2xl bg-white border border-slate-200"
-                    >
-                      <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-[#0B1F3A] text-white flex items-center justify-center text-xs font-bold">
-                            AR
+                  <AnimatePresence>
+                    {userMenuOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 mt-2 w-64 rounded-2xl overflow-hidden z-50 shadow-2xl bg-white border border-slate-200"
+                      >
+                        <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-[#0B1F3A] text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
+                              {profileInitials}
+                            </div>
+                            <div className="overflow-hidden text-left">
+                              <p className="text-xs font-bold text-[#0B1F3A] truncate">{profileName}</p>
+                              <p className="text-[11px] text-slate-500 truncate">{profileEmail}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-xs font-bold text-[#0B1F3A]">Alex Rivera</p>
-                            <p className="text-[11px] text-slate-500">alex@microsplit.demo</p>
+                          <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200 capitalize">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#0F9D8A]" />
+                            Role: {profileRole}
                           </div>
                         </div>
-                        <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#0F9D8A]" />
-                          Squad Owner &bull; Demo Mode
+                        <div className="py-1 text-xs">
+                          <Link
+                            href="/squads"
+                            className="px-4 py-2 text-slate-700 hover:bg-slate-50 hover:text-[#0B1F3A] flex items-center justify-between font-medium"
+                            onClick={() => setUserMenuOpen(false)}
+                          >
+                            <span>Manage Squads</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-bold">demo</span>
+                          </Link>
+                          <Link
+                            href="/splits/new"
+                            className="px-4 py-2 text-slate-700 hover:bg-slate-50 hover:text-[#0B1F3A] block font-medium"
+                            onClick={() => setUserMenuOpen(false)}
+                          >
+                            Run Revenue Split
+                          </Link>
+                          <Link
+                            href="/statements"
+                            className="px-4 py-2 text-slate-700 hover:bg-slate-50 hover:text-[#0B1F3A] block font-medium"
+                            onClick={() => setUserMenuOpen(false)}
+                          >
+                            Member Statements
+                          </Link>
                         </div>
-                      </div>
-                      <div className="py-1 text-xs">
-                        <Link
-                          href="/squads"
-                          className="px-4 py-2 text-slate-700 hover:bg-slate-50 hover:text-[#0B1F3A] flex items-center justify-between font-medium"
-                          onClick={() => setUserMenuOpen(false)}
-                        >
-                          <span>Manage Squads</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-bold">3 demo</span>
-                        </Link>
-                        <Link
-                          href="/splits/new"
-                          className="px-4 py-2 text-slate-700 hover:bg-slate-50 hover:text-[#0B1F3A] block font-medium"
-                          onClick={() => setUserMenuOpen(false)}
-                        >
-                          Run Revenue Split
-                        </Link>
-                        <Link
-                          href="/statements"
-                          className="px-4 py-2 text-slate-700 hover:bg-slate-50 hover:text-[#0B1F3A] block font-medium"
-                          onClick={() => setUserMenuOpen(false)}
-                        >
-                          Member Statements
-                        </Link>
-                      </div>
-                      <div className="pt-1 pb-1 border-t border-slate-100 bg-slate-50">
-                        <Link
-                          href="/login"
-                          className="px-4 py-2 text-[11px] font-semibold text-slate-600 hover:text-[#0B1F3A] hover:bg-slate-100 block w-full text-left"
-                          onClick={() => setUserMenuOpen(false)}
-                        >
-                          Switch Demo Role
-                        </Link>
-                        <form action={signOutFromApp}>
+                        <div className="pt-1 pb-1 border-t border-slate-100 bg-slate-50 flex flex-col">
+                          <Link
+                            href="/login"
+                            className="px-4 py-2 text-[11px] font-semibold text-slate-600 hover:text-[#0B1F3A] hover:bg-slate-100 block w-full text-left"
+                            onClick={() => setUserMenuOpen(false)}
+                          >
+                            Switch Account / Role
+                          </Link>
                           <button
-                            type="submit"
-                            className="px-4 py-2 text-[11px] font-semibold text-red-600 hover:bg-red-50 flex items-center gap-1.5 w-full text-left cursor-pointer"
+                            type="button"
+                            className="px-4 py-2 text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 flex items-center gap-2 w-full text-left cursor-pointer transition-colors"
+                            onClick={() => {
+                              clearCurrentUser();
+                              setUserMenuOpen(false);
+                              showToast({
+                                type: 'info',
+                                title: 'Signed Out',
+                                message: 'You have been signed out successfully.',
+                              });
+                              router.push('/login');
+                            }}
                           >
                             <LogOut size={13} />
-                            Sign out
+                            <span>Sign out</span>
                           </button>
-                        </form>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              ) : (
+                <Link
+                  href="/login"
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold text-white transition-all duration-200 hover:scale-[1.02] shadow-md flex-shrink-0"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--accent), var(--accent))',
+                    boxShadow: '0 2px 10px color-mix(in srgb, var(--accent) 40%, transparent)',
+                  }}
+                >
+                  <span>Sign in</span>
+                </Link>
+              )}
 
               {/* Mobile Menu Hamburger */}
               <button
@@ -488,6 +534,49 @@ export default function Navbar() {
                   >
                     + Squad
                   </Link>
+                </div>
+
+                {/* Mobile User Profile / Auth State */}
+                <div className="pt-3 border-t border-white/10 mt-3">
+                  {user ? (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-bold">
+                          {profileInitials}
+                        </div>
+                        <div className="text-left">
+                          <p className="text-xs font-bold text-white leading-none">{profileName}</p>
+                          <p className="text-[10px] text-slate-300 mt-0.5">{profileEmail}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          clearCurrentUser();
+                          setMobileOpen(false);
+                          showToast({
+                            type: 'info',
+                            title: 'Signed Out',
+                            message: 'You have been signed out successfully.',
+                          });
+                          router.push('/login');
+                        }}
+                        className="px-3 py-1.5 rounded-full text-xs font-bold text-rose-300 bg-rose-950/50 border border-rose-500/30 flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <LogOut size={12} />
+                        <span>Sign out</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <Link
+                      href="/login"
+                      onClick={() => setMobileOpen(false)}
+                      className="w-full py-2 rounded-full text-xs font-bold text-center text-white block"
+                      style={{ background: 'var(--accent)' }}
+                    >
+                      Sign In
+                    </Link>
+                  )}
                 </div>
               </div>
             </motion.div>

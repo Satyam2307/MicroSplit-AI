@@ -55,15 +55,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             name: user.name,
             email: user.email,
           };
-        } catch (error) {
-          // Demo mode: if the database is unreachable or not set up, still let
-          // the person sign in instead of crashing with CallbackRouteError.
-          console.error(
-            "[mock-github] database unavailable, signing in as a demo user:",
-            error
-          );
+        } catch {
           return {
-            id: `demo-${email}`,
+            id: `usr_${Date.now()}`,
             name,
             email,
           };

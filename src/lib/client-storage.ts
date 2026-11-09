@@ -109,4 +109,53 @@ export function saveStoredSplitRun(run: any): void {
   setItem(SPLIT_RUNS_KEY, [run, ...filtered]);
 }
 
+// ─── User Session ─────────────────────────────────────────────
+export interface UserSession {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  initials: string;
+}
+
+const USER_SESSION_KEY = 'microsplit_user_session';
+export const AUTH_CHANGE_EVENT = 'microsplit_auth_change';
+
+export const DEFAULT_DEMO_USER: UserSession = {
+  id: 'usr_1',
+  name: 'Alex Rivera',
+  email: 'alex@microsplit.demo',
+  role: 'owner',
+  initials: 'AR',
+};
+
+export function getCurrentUser(): UserSession | null {
+  return getItem<UserSession | null>(USER_SESSION_KEY, null);
+}
+
+export function setCurrentUser(user: UserSession): void {
+  setItem(USER_SESSION_KEY, user);
+  if (isBrowser()) {
+    window.dispatchEvent(new CustomEvent(AUTH_CHANGE_EVENT, { detail: user }));
+  }
+}
+
+export function clearCurrentUser(): void {
+  if (!isBrowser()) return;
+  try {
+    localStorage.removeItem(USER_SESSION_KEY);
+    window.dispatchEvent(new CustomEvent(AUTH_CHANGE_EVENT, { detail: null }));
+  } catch (err) {
+    console.warn('Failed to clear user session:', err);
+  }
+}
+
+export function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'U';
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+
 

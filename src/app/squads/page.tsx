@@ -29,6 +29,7 @@ import {
   saveStoredSquad,
   saveStoredMember,
   deleteStoredSquad,
+  getCurrentUser,
 } from '@/lib/client-storage';
 
 interface SquadListItem {
@@ -105,8 +106,8 @@ export default function SquadsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newSquadName, setNewSquadName] = useState('');
   const [newSquadCurrency, setNewSquadCurrency] = useState('USD');
-  const [newOwnerName, setNewOwnerName] = useState('Alex Rivera');
-  const [newOwnerEmail, setNewOwnerEmail] = useState('alex@microsplit.demo');
+  const [newOwnerName, setNewOwnerName] = useState(() => getCurrentUser()?.name || 'Alex Rivera');
+  const [newOwnerEmail, setNewOwnerEmail] = useState(() => getCurrentUser()?.email || 'alex@microsplit.demo');
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -119,6 +120,12 @@ export default function SquadsPage() {
 
   useEffect(() => {
     let active = true;
+
+    const currentUser = getCurrentUser();
+    if (currentUser) {
+      setNewOwnerName(currentUser.name);
+      setNewOwnerEmail(currentUser.email);
+    }
 
     // Load any locally stored custom squads immediately
     const stored = getStoredSquads().map((s) => ({

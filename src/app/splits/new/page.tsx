@@ -32,7 +32,6 @@ import { formatMoney } from '@/lib/money';
 import { calculateConsistencySplit } from '@/lib/consistency-streak';
 import { showToast } from '@/components/Toast';
 import SplitSidePanel from '@/components/SplitSidePanel';
-import { mockSquads, mockMemberships, mockRevenueEvents } from '@/lib/mock-data';
 import {
   getStoredSquads,
   getStoredSquad,
@@ -418,26 +417,8 @@ function MemberRow({
 
 export default function SplitsNewPage() {
   const router = useRouter();
-  const [squads, setSquads] = useState<SquadOption[]>(() => {
-    const map = new Map<string, SquadOption>();
-    if (typeof window !== 'undefined') {
-      const local = getStoredSquads();
-      local.forEach((s) => map.set(s.id, { id: s.id, name: s.name, currency: s.currency }));
-    }
-    mockSquads.forEach((s) => {
-      if (!map.has(s.id)) map.set(s.id, { id: s.id, name: s.name, currency: s.currency });
-    });
-    return Array.from(map.values());
-  });
-  const [selectedSquadId, setSelectedSquadId] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      const q = new URLSearchParams(window.location.search).get('squadId');
-      if (q) return q;
-      const local = getStoredSquads();
-      if (local.length > 0) return local[0].id;
-    }
-    return 'sqd_1';
-  });
+  const [squads, setSquads] = useState<SquadOption[]>([]);
+  const [selectedSquadId, setSelectedSquadId] = useState<string>('');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [revenueEvents, setRevenueEvents] = useState<RevenueEventOption[]>([]);
   const [selectedRevenueEventId, setSelectedRevenueEventId] = useState('');
@@ -499,10 +480,6 @@ export default function SplitsNewPage() {
         availableSquads.forEach((s) => {
           if (!map.has(s.id)) map.set(s.id, s);
         });
-        mockSquads.forEach((s) => {
-          if (!map.has(s.id)) map.set(s.id, { id: s.id, name: s.name, currency: s.currency });
-        });
-
         const combinedSquads = Array.from(map.values());
         setSquads(combinedSquads);
 
@@ -511,7 +488,7 @@ export default function SplitsNewPage() {
         } else {
           setSelectedSquadId((current) => {
             if (current && combinedSquads.some((s) => s.id === current)) return current;
-            return combinedSquads[0]?.id || 'sqd_1';
+            return combinedSquads[0]?.id || '';
           });
         }
       } catch (error) {
@@ -569,22 +546,6 @@ export default function SplitsNewPage() {
           });
         });
 
-        // If still empty and squad exists in mockMemberships, load them
-        if (memberMap.size === 0) {
-          const fallbackDemoMems = mockMemberships.filter((m) => m.squadId === selectedSquadId);
-          fallbackDemoMems.forEach((m) => {
-            memberMap.set(m.userId, {
-              userId: m.userId,
-              role: m.role,
-              user: {
-                id: m.userId,
-                name: m.memberName || 'Member',
-                email: m.payoutReceiver || '',
-              },
-            });
-          });
-        }
-
         // If still empty, check stored squad owner details
         if (memberMap.size === 0) {
           const localSq = getStoredSquad(selectedSquadId);
@@ -624,20 +585,6 @@ export default function SplitsNewPage() {
             });
           }
         });
-
-        // Fallback to mockRevenueEvents if empty
-        if (revMap.size === 0) {
-          const fallbackDemoRevs = mockRevenueEvents.filter((r) => r.squadId === selectedSquadId);
-          fallbackDemoRevs.forEach((r) => {
-            revMap.set(r.id, {
-              id: r.id,
-              amountMinor: r.amountMinor,
-              currency: r.currency,
-              description: r.description || null,
-              createdAt: r.createdAt,
-            });
-          });
-        }
 
         // Fallback to squad totalRevenue pool if still empty and squad has recorded funds
         if (revMap.size === 0) {
@@ -1000,6 +947,7 @@ export default function SplitsNewPage() {
                       />
                       <select
                         id="squad-workspace"
+                        suppressHydrationWarning
                         value={selectedSquadId}
                         onChange={(e) => setSelectedSquadId(e.target.value)}
                         disabled={squads.length === 0}
