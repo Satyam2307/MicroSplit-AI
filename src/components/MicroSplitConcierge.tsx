@@ -217,37 +217,40 @@ export default function MicroSplitConcierge() {
     }
   };
 
-  // Email Submission
-  const handleSendEmail = async (e: React.FormEvent) => {
+  // Email Submission — opens user's email client addressed to akshat.singhai701@gmail.com
+  const handleSendEmail = (e: React.FormEvent) => {
     e.preventDefault();
     setEmailError(null);
-    setIsSubmittingEmail(true);
 
-    try {
-      const res = await fetch('/api/contact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(emailForm),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        setEmailError(data.error || 'Failed to submit inquiry.');
-      } else {
-        setEmailSuccessTicket(data.ticketId || `MS-${Date.now().toString(36).toUpperCase()}`);
-        setEmailForm({
-          name: '',
-          email: '',
-          squad: '',
-          topic: 'Revenue Splits & Math',
-          message: '',
-        });
-      }
-    } catch {
-      setEmailError('Network error. Please try again or use WhatsApp.');
-    } finally {
-      setIsSubmittingEmail(false);
+    if (!emailForm.name || emailForm.name.trim().length < 2) {
+      setEmailError('Please enter a valid full name (minimum 2 characters).');
+      return;
     }
+    if (!emailForm.email) {
+      setEmailError('Please enter a valid email address.');
+      return;
+    }
+    if (!emailForm.message || emailForm.message.trim().length < 10) {
+      setEmailError('Please enter a message with at least 10 characters.');
+      return;
+    }
+
+    const ticketId = `MS-${Date.now().toString(36).toUpperCase()}`;
+    const subject = encodeURIComponent(`[MicroSplit] #${ticketId} — ${emailForm.topic} from ${emailForm.name}`);
+    const body = encodeURIComponent(
+      `Name: ${emailForm.name}\nEmail: ${emailForm.email}\nTopic: ${emailForm.topic}\n\nMessage:\n${emailForm.message}`
+    );
+
+    window.location.href = `mailto:akshat.singhai701@gmail.com?subject=${subject}&body=${body}`;
+
+    setEmailSuccessTicket(ticketId);
+    setEmailForm({
+      name: '',
+      email: '',
+      squad: '',
+      topic: 'Revenue Splits & Math',
+      message: '',
+    });
   };
 
   return (
@@ -622,20 +625,10 @@ export default function MicroSplitConcierge() {
 
                     <button
                       type="submit"
-                      disabled={isSubmittingEmail}
-                      className="w-full py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+                      className="w-full py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
                     >
-                      {isSubmittingEmail ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Submitting Ticket...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Send className="w-3.5 h-3.5" />
-                          <span>Submit Official Email Ticket</span>
-                        </>
-                      )}
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Open Email to akshat.singhai701@gmail.com →</span>
                     </button>
                   </form>
                 )}
