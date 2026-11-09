@@ -19,6 +19,7 @@ import {
   StatusChip,
   ProgressPipeline,
 } from '@/components/ui';
+import { formatDateTime } from '@/lib/date-format';
 import { formatMoney } from '@/lib/money';
 
 interface PayoutItemView {
@@ -194,7 +195,7 @@ export default function PayoutsPage() {
                 >
                   {batches.map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.squadName} · {new Date(item.createdAt).toLocaleString()} · {item.status}
+                      {item.squadName} · {formatDateTime(item.createdAt)} · {item.status}
                     </option>
                   ))}
                 </select>
@@ -276,7 +277,7 @@ export default function PayoutsPage() {
                           {batch.squadName} · {batch.senderBatchId}
                         </h2>
                         <p className="text-xs" style={{ color: 'var(--muted-light)' }}>
-                          PayPal ID: {batch.paypalBatchId || 'Not confirmed'} · {new Date(batch.createdAt).toLocaleString()}
+                          PayPal ID: {batch.paypalBatchId || 'Not confirmed'} · {formatDateTime(batch.createdAt)}
                         </p>
                       </div>
                     </div>

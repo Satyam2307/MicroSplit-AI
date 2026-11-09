@@ -142,10 +142,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body
-        className="min-h-full flex flex-col overflow-x-hidden relative"
-        style={{ background: "var(--background)" }}
-      >
+      <body className="min-h-full flex flex-col overflow-x-hidden relative">
         <ThemeProvider>
           <AuthProvider>
             <Suspense

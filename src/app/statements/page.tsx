@@ -1,8 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { useGSAP } from '@gsap/react';
 import { Reveal, Card, MoneyChip } from '@/components/ui';
 import { formatMoney } from '@/lib/money';
+import { formatDate } from '@/lib/date-format';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -11,6 +15,8 @@ import {
 } from 'lucide-react';
 import StreakHeatmap from '@/components/StreakHeatmap';
 import FocusSessionWidget from '@/components/FocusSessionWidget';
+
+gsap.registerPlugin(useGSAP, ScrollTrigger);
 
 interface StatementLine {
   id: string;
@@ -59,6 +65,86 @@ export default function StatementsPage() {
   }, []);
 
   const totalEarned = lines.reduce((sum, line) => sum + line.amountMinor, 0);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // GSAP entrance + micro-interactions (skipped when the user prefers reduced motion)
+  useGSAP(
+    () => {
+      if (isLoading || !rootRef.current) return;
+      const mm = gsap.matchMedia();
+      mm.add('(prefers-reduced-motion: no-preference)', () => {
+        const q = gsap.utils.selector(rootRef);
+
+        // 1. Header: title, subtitle and button rise in one after another
+        gsap.from(q('.st-head > *'), {
+          y: 28, opacity: 0, duration: 0.7, ease: 'power3.out', stagger: 0.12,
+        });
+
+        // 2. Avatar springs in; identity text slides after it
+        gsap.from(q('.st-avatar'), {
+          scale: 0, rotate: -120, duration: 0.9, ease: 'back.out(1.8)', delay: 0.25,
+        });
+        gsap.from(q('.st-identity > *'), {
+          x: -18, opacity: 0, duration: 0.5, ease: 'power2.out', stagger: 0.1, delay: 0.45,
+        });
+
+        // 3. Stat tiles cascade up
+        gsap.from(q('.st-tile'), {
+          y: 36, opacity: 0, scale: 0.92, duration: 0.65, ease: 'back.out(1.4)',
+          stagger: 0.1, delay: 0.5, clearProps: 'transform,opacity,scale',
+        });
+
+        // 4. Count-up for the numbers
+        const earned = q('.st-count-money')[0] as HTMLElement | undefined;
+        if (earned) {
+          const counter = { v: 0 };
+          earned.textContent = formatMoney(0);
+          gsap.to(counter, {
+            v: totalEarned, duration: 1.6, delay: 0.7, ease: 'power2.out',
+            onUpdate: () => { earned.textContent = formatMoney(Math.round(counter.v)); },
+            onComplete: () => { earned.textContent = formatMoney(totalEarned); },
+          });
+        }
+        const linesEl = q('.st-count-lines')[0] as HTMLElement | undefined;
+        if (linesEl) {
+          const counter = { v: 0 };
+          linesEl.textContent = '0';
+          gsap.to(counter, {
+            v: lines.length, duration: 1, delay: 0.8, ease: 'power1.out', snap: { v: 1 },
+            onUpdate: () => { linesEl.textContent = String(Math.round(counter.v)); },
+            onComplete: () => { linesEl.textContent = String(lines.length); },
+          });
+        }
+
+        // 5. Tiles lift on hover
+        const tiles = q('.st-tile') as HTMLElement[];
+        const cleanups = tiles.map((tile) => {
+          const enter = () => gsap.to(tile, { y: -6, scale: 1.04, duration: 0.25, ease: 'power2.out', overwrite: 'auto' });
+          const leave = () => gsap.to(tile, { y: 0, scale: 1, duration: 0.35, ease: 'power3.out', overwrite: 'auto' });
+          tile.addEventListener('mouseenter', enter);
+          tile.addEventListener('mouseleave', leave);
+          return () => {
+            tile.removeEventListener('mouseenter', enter);
+            tile.removeEventListener('mouseleave', leave);
+          };
+        });
+
+        // 6. Earnings rows slide in as the list scrolls into view
+        const rows = q('.st-row');
+        if (rows.length > 0) {
+          gsap.from(rows, {
+            x: -28, opacity: 0, duration: 0.55, ease: 'power2.out', stagger: 0.08,
+            clearProps: 'transform,opacity',
+            scrollTrigger: { trigger: q('.st-rows')[0], start: 'top 88%', once: true },
+          });
+        }
+
+        return () => cleanups.forEach((fn) => fn());
+      });
+      return () => mm.revert();
+    },
+    { scope: rootRef, dependencies: [isLoading, totalEarned, lines.length] }
+  );
 
   if (isLoading) {
     return (
@@ -69,10 +155,10 @@ export default function StatementsPage() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--background)' }}>
+    <div ref={rootRef} className="min-h-screen" style={{ background: 'var(--background)' }}>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         <Reveal>
-          <div className="flex items-center justify-between mb-8">
+          <div className="st-head flex items-center justify-between mb-8">
             <div>
               <h1 className="text-3xl font-black tracking-tight" style={{ color: 'var(--text)' }}>
                 Statement
@@ -93,34 +179,34 @@ export default function StatementsPage() {
           <Card elevated padding="lg" className="mb-8">
             <div className="flex items-center gap-4 mb-6">
               <div
-                className="w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold text-white shadow-sm"
+                className="st-avatar w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold text-white shadow-sm"
                 style={{ background: 'linear-gradient(135deg, var(--primary), var(--accent))' }}
               >
                 {member.name.charAt(0)}
               </div>
-              <div>
+              <div className="st-identity">
                 <h2 className="text-xl font-bold text-[var(--primary)]">{member.name}</h2>
                 <p className="text-sm text-[var(--text)]">{member.email}</p>
               </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="text-center p-4 rounded-xl bg-[var(--background)]">
-                <p className="text-2xl font-black tabular-nums text-[var(--accent)]">
+              <div className="st-tile text-center p-4 rounded-xl bg-[var(--background)]">
+                <p className="st-count-money text-2xl font-black tabular-nums text-[var(--accent)]">
                   {formatMoney(totalEarned)}
                 </p>
                 <p className="text-xs font-semibold mt-1 text-[var(--accent)]">Total earned</p>
               </div>
-              <div className="text-center p-4 rounded-xl bg-[var(--background)]">
+              <div className="st-tile text-center p-4 rounded-xl bg-[var(--background)]">
                 <p className="text-2xl font-black text-[var(--accent)]">
                   0 <span className="text-xs">days</span>
                 </p>
                 <p className="text-xs font-semibold mt-1 text-[var(--accent)]">Verified streak</p>
               </div>
-              <div className="text-center p-4 rounded-xl bg-[var(--background)] border border-[var(--text)]/50">
-                <p className="text-2xl font-black text-[var(--accent)]">{lines.length}</p>
+              <div className="st-tile text-center p-4 rounded-xl bg-[var(--background)] border border-[var(--text)]/50">
+                <p className="st-count-lines text-2xl font-black text-[var(--accent)]">{lines.length}</p>
                 <p className="text-xs font-semibold mt-1 text-[var(--accent)]">Split lines</p>
               </div>
-              <div className="text-center p-4 rounded-xl bg-[var(--background)]">
+              <div className="st-tile text-center p-4 rounded-xl bg-[var(--background)]">
                 <p className="text-2xl font-black text-[var(--accent)]">1 used</p>
                 <p className="text-xs font-semibold mt-1 text-[var(--accent)]">Freeze days</p>
               </div>
@@ -150,7 +236,7 @@ export default function StatementsPage() {
             <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
               <h3 className="text-lg font-bold" style={{ color: 'var(--text)' }}>Earnings History</h3>
             </div>
-            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+            <div className="st-rows divide-y" style={{ borderColor: 'var(--border)' }}>
               {lines.map((line) => {
                 const isPaid = line.payoutStatus === 'success';
                 const needsAttention = [
@@ -160,7 +246,7 @@ export default function StatementsPage() {
                   'blocked',
                 ].includes(line.payoutStatus);
                 return (
-                  <div key={line.id} className="px-6 py-4 flex items-center gap-4">
+                  <div key={line.id} className="st-row px-6 py-4 flex items-center gap-4">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
                       style={{
                         background: needsAttention ? 'var(--primary-subtle)' : 'var(--accent-subtle)',
@@ -173,7 +259,7 @@ export default function StatementsPage() {
                         {line.contributionSummary}
                       </p>
                       <p className="text-xs" style={{ color: 'var(--muted-light)' }}>
-                        {line.squadName} · {line.runStatus.replaceAll('_', ' ')} · {new Date(line.createdAt).toLocaleDateString()}
+                        {line.squadName} · {line.runStatus.replaceAll('_', ' ')} · {formatDate(line.createdAt)}
                       </p>
                     </div>
                     <MoneyChip

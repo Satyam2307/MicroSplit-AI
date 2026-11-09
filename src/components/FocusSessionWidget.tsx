@@ -13,6 +13,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import type { MockFocusSession } from '@/lib/mock-data';
+import { formatDate, formatTime } from '@/lib/date-format';
 
 interface FocusSessionWidgetProps {
   memberId: string;
@@ -241,7 +242,7 @@ export default function FocusSessionWidget({
                   {activeSession.taskTitle}
                 </h4>
                 <p className="text-xs font-mono text-[var(--text)]">
-                  {activeSession.taskId} &bull; Started {new Date(activeSession.startedAt).toLocaleTimeString()}
+                  {activeSession.taskId} &bull; Started {formatTime(activeSession.startedAt)}
                 </p>
               </div>
 
@@ -339,7 +340,7 @@ export default function FocusSessionWidget({
                     )}
                   </div>
                   <p className="text-[var(--text)] text-[11px]">
-                    {new Date(s.startedAt).toLocaleDateString()} &bull;{' '}
+                    {formatDate(s.startedAt)} &bull;{' '}
                     {s.durationMinutes ? `${Math.floor(s.durationMinutes / 60)}h ${s.durationMinutes % 60}m` : 'In progress'}{' '}
                     &bull; Source: <span className="font-mono">{s.source}</span>
                   </p>

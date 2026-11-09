@@ -1,8 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { useGSAP } from '@gsap/react';
 import { Card, StatusChip } from '@/components/ui';
 import { Flame, Shield, Calendar, Info } from 'lucide-react';
+
+gsap.registerPlugin(useGSAP, ScrollTrigger);
 
 interface StreakHeatmapProps {
   memberName: string;
@@ -51,13 +56,52 @@ export default function StreakHeatmap({
   });
 
   const isCapped = streakDays >= streakCapDays;
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia();
+      mm.add('(prefers-reduced-motion: no-preference)', () => {
+        const q = gsap.utils.selector(rootRef);
+
+        // Flame flickers continuously
+        gsap.to(q('.hm-flame'), {
+          scale: 1.15, rotate: -7, transformOrigin: '50% 90%',
+          duration: 0.8, ease: 'sine.inOut', yoyo: true, repeat: -1,
+        });
+
+        // Cells pop in as a wave across the weeks, then the green days pulse once
+        // Cells carry a CSS transform transition (hover zoom); pause it while GSAP drives them
+        const cells = q('.hm-cell');
+        gsap.set(cells, { transition: 'none' });
+        const tl = gsap.timeline({
+          scrollTrigger: { trigger: q('.hm-grid')[0], start: 'top 90%', once: true },
+        });
+        tl.from(q('.hm-cell'), {
+          scale: 0, opacity: 0, duration: 0.4, ease: 'back.out(2.2)',
+          stagger: { each: 0.007, from: 'start' }, clearProps: 'transform,opacity,scale',
+        }).fromTo(
+          q('.hm-active'),
+          { scale: 1 },
+          {
+            scale: 1.45, duration: 0.2, ease: 'power2.out', yoyo: true, repeat: 1,
+            stagger: { each: 0.03, from: 'start' }, clearProps: 'transform,scale',
+          },
+          '-=0.1'
+        ).add(() => { gsap.set(cells, { clearProps: 'transition' }); });
+      });
+      return () => mm.revert();
+    },
+    { scope: rootRef }
+  );
 
   return (
     <Card elevated padding="lg" className="mb-8">
+      <div ref={rootRef}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
           <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center"
+            className="hm-flame w-10 h-10 rounded-xl flex items-center justify-center"
             style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}
           >
             <Flame size={20} />
@@ -105,7 +149,7 @@ export default function StreakHeatmap({
 
       {/* Heatmap Grid */}
       <div className="overflow-x-auto pb-2">
-        <div className="inline-grid grid-rows-7 grid-flow-col gap-1.5 p-3 rounded-xl bg-[var(--background)]/40 border border-[var(--border)]">
+        <div className="hm-grid inline-grid grid-rows-7 grid-flow-col gap-1.5 p-3 rounded-xl bg-[var(--background)]/40 border border-[var(--border)]">
           {days.map((day) => {
             let bg = 'var(--text)';
             let border = 'transparent';
@@ -120,7 +164,7 @@ export default function StreakHeatmap({
             return (
               <div
                 key={day.date}
-                className="w-3.5 h-3.5 rounded-xs transition-transform hover:scale-125 cursor-pointer"
+                className={`hm-cell ${day.status === 'active' ? 'hm-active' : ''} w-3.5 h-3.5 rounded-xs transition-transform hover:scale-125 cursor-pointer`}
                 style={{ background: bg, border }}
                 onMouseEnter={() =>
                   setHoveredDay({
@@ -167,6 +211,7 @@ export default function StreakHeatmap({
             <span>Streaks reset if an unfrozen day has zero approved contributions</span>
           </div>
         )}
+      </div>
       </div>
     </Card>
   );

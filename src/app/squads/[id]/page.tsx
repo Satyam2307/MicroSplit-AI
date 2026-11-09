@@ -25,6 +25,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Reveal, Card, MoneyChip } from '@/components/ui';
+import { formatDate, formatDateTime } from '@/lib/date-format';
 import {
   type MockMembership,
   type MockRevenueEvent,
@@ -80,6 +81,12 @@ const getTimeInTimezone = (tz: string) => {
 function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { id } = use(params);
+
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   const [squad, setSquad] = useState<MockSquad & { currentRole?: string }>(() => {
     if (typeof window !== 'undefined') {
@@ -245,7 +252,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
   const [revError, setRevError] = useState<string | null>(null);
 
   // Current Indian Time (IST)
-  const indianTime = getTimeInTimezone('Asia/Kolkata');
+  const indianTime = isHydrated ? getTimeInTimezone('Asia/Kolkata') : '';
 
   // Handle Add Member Submission
   const handleAddMember = async (e: React.FormEvent) => {
@@ -536,7 +543,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
                 <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--text)]">
                   <span>{members.length} verified collaborator{members.length !== 1 ? 's' : ''}</span>
                   <span>•</span>
-                  <span>Created {new Date(squad.createdAt).toLocaleDateString()}</span>
+                  <span>Created {formatDate(squad.createdAt)}</span>
                   <span>•</span>
                   <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--background)] text-[var(--accent)] border border-[var(--text)]">
                     <Clock size={11} />
@@ -675,7 +682,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
                       (mem.payoutReceiver?.includes('@') ? mem.payoutReceiver.split('@')[0] : 'Collaborator');
                     const rc = roleColors[mem.role] || roleColors.viewer;
                     const tz = mem.timezone || 'Asia/Kolkata';
-                    const localTime = getTimeInTimezone(tz);
+                    const localTime = isHydrated ? getTimeInTimezone(tz) : '';
 
                     return (
                       <div key={mem.id} className="px-6 py-3.5 flex items-center justify-between gap-3">
@@ -773,7 +780,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
                               {rev.description}
                             </p>
                             <p className="text-xs text-[var(--text)] mt-0.5">
-                              {rev.source} • {new Date(rev.createdAt).toLocaleDateString()}
+                              {rev.source} • {formatDate(rev.createdAt)}
                             </p>
                           </div>
                           <div className="flex items-center gap-3">
@@ -843,7 +850,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
                             </span>
                           </div>
                           <p className="text-xs text-[var(--text)] mt-0.5">
-                            Rule: v{run.ruleVersion} • Calculation #{run.calculationVersion} • {new Date(run.createdAt).toLocaleDateString()}
+                            Rule: v{run.ruleVersion} • Calculation #{run.calculationVersion} • {formatDate(run.createdAt)}
                           </p>
                         </div>
                         <div className="flex items-center gap-4">
@@ -1026,7 +1033,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
                     <div>
                       <p className="text-base font-bold text-[var(--primary)]">{rev.description}</p>
                       <p className="text-xs text-[var(--text)] mt-0.5">
-                        Source: {rev.source} • Recorded {new Date(rev.createdAt).toLocaleString()}
+                        Source: {rev.source} • Recorded {formatDateTime(rev.createdAt)}
                       </p>
                     </div>
                     <MoneyChip amount={formatMoney(rev.amountMinor)} status="paid" size="md" />
@@ -1079,7 +1086,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
                         </span>
                       </div>
                       <p className="text-xs text-[var(--text)] mt-1">
-                        Rule: v{run.ruleVersion} • Calculation #{run.calculationVersion} • Created {new Date(run.createdAt).toLocaleString()}
+                        Rule: v{run.ruleVersion} • Calculation #{run.calculationVersion} • Created {formatDateTime(run.createdAt)}
                       </p>
                     </div>
                     <div className="flex items-center gap-4">

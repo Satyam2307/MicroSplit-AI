@@ -20,6 +20,7 @@ import {
 import { Reveal, Card, StatusChip, MoneyChip } from '@/components/ui';
 import { mockLedgerEvents } from '@/lib/mock-data';
 import { verifyLedgerChain, type LedgerEntry } from '@/lib/ledger';
+import { formatDateTime } from '@/lib/date-format';
 import { formatMoney } from '@/lib/money';
 import LedgerChainViz, { type VerifyStatus } from '@/components/LedgerChainViz';
 const typeIcons: Record<string, React.ReactNode> = {
@@ -283,7 +284,7 @@ export default function LedgerPage() {
                     {/* Time */}
                     <div className="col-span-2 text-right">
                       <span className="text-xs" style={{ color: 'var(--muted-light)' }}>
-                        {new Date(event.createdAt).toLocaleString()}
+                        {formatDateTime(event.createdAt)}
                       </span>
                     </div>
                   </div>

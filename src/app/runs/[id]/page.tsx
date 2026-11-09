@@ -28,6 +28,7 @@ import type {
   SplitRunEvidenceDTO,
 } from '@/lib/split-run-types';
 import { formatMoney } from '@/lib/money';
+import { formatDate, formatDateTime } from '@/lib/date-format';
 import { getStoredSplitRun } from '@/lib/client-storage';
 
 type RunView = SplitRunDTO & { currentRole?: string };
@@ -228,7 +229,7 @@ function RunDetailContent({ params }: { params: Promise<{ id: string }> }) {
               </div>
               <p className="text-sm" style={{ color: 'var(--muted)' }}>
                 Run {run.id} &bull; Rule v{run.ruleVersion} &bull; Calculation #{run.calculationVersion} &bull;{' '}
-                {new Date(run.createdAt).toLocaleDateString()}
+                {formatDate(run.createdAt)}
               </p>
             </div>
             <div className="flex flex-col items-start sm:items-end gap-2">
@@ -498,7 +499,7 @@ function RunDetailContent({ params }: { params: Promise<{ id: string }> }) {
                   <div className="flex justify-between">
                     <span style={{ color: 'var(--muted)' }}>Created</span>
                     <span className="font-semibold" style={{ color: 'var(--text)' }}>
-                      {new Date(run.createdAt).toLocaleDateString()}
+                      {formatDate(run.createdAt)}
                     </span>
                   </div>
                 </div>
@@ -532,7 +533,7 @@ function RunDetailContent({ params }: { params: Promise<{ id: string }> }) {
                             {a.note}
                           </p>
                           <p className="text-xs mt-1" style={{ color: 'var(--muted-light)' }}>
-                            {new Date(a.createdAt).toLocaleString()}
+                            {formatDateTime(a.createdAt)}
                           </p>
                         </div>
                       </div>

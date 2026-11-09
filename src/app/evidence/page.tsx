@@ -15,6 +15,7 @@ import {
   Filter,
 } from 'lucide-react';
 import { Reveal, Card, StatusChip } from '@/components/ui';
+import { formatDate, formatDateTime } from '@/lib/date-format';
 import type { MockFocusSession } from '@/lib/mock-data';
 import {
   DATE_INTERPRETATION_WARNING_PREFIX,
@@ -784,7 +785,7 @@ export default function EvidencePage() {
                       <p className="text-xs mt-0.5" style={{ color: 'var(--muted-light)' }}>
                         {evi.kind.toUpperCase()} &bull;{' '}
                         {((evi.sizeBytes ?? 0) / 1024).toFixed(0)} KB &bull;{' '}
-                        {new Date(evi.createdAt).toLocaleDateString()}
+                        {formatDate(evi.createdAt)}
                       </p>
                     </div>
 
@@ -820,12 +821,12 @@ export default function EvidencePage() {
                         >
                           <p className="text-xs" style={{ color: 'var(--muted)' }}>
                             Uploaded by {evi.uploader.name ?? 'Squad member'} on{' '}
-                            {new Date(evi.createdAt).toLocaleString()}
+                            {formatDateTime(evi.createdAt)}
                           </p>
                           {evi.reviewedAt && (
                             <p className="text-xs" style={{ color: 'var(--muted)' }}>
                               Reviewed by {evi.reviewedBy?.name ?? 'Squad member'} on{' '}
-                              {new Date(evi.reviewedAt).toLocaleString()}
+                              {formatDateTime(evi.reviewedAt)}
                             </p>
                           )}
                           <div className="flex flex-wrap items-center gap-3">
@@ -917,7 +918,7 @@ export default function EvidencePage() {
                                           : attempt.status}
                                       </p>
                                       <p className="text-[11px]" style={{ color: 'var(--muted)' }}>
-                                        {new Date(attempt.createdAt).toLocaleString()}
+                                        {formatDateTime(attempt.createdAt)}
                                         {attempt.errorCategory ? ` · ${attempt.errorCategory}` : ''}
                                       </p>
                                     </div>
@@ -1226,7 +1227,7 @@ export default function EvidencePage() {
                                           {contribution.reviewedAt && (
                                             <p className="text-[11px]" style={{ color: 'var(--muted)' }}>
                                               Reviewed by {contribution.reviewedBy?.name ?? 'Squad approver'} on{' '}
-                                              {new Date(contribution.reviewedAt).toLocaleString()}
+                                              {formatDateTime(contribution.reviewedAt)}
                                             </p>
                                           )}
                                         </div>
@@ -1305,7 +1306,7 @@ export default function EvidencePage() {
                   </div>
 
                   <p className="text-xs text-[var(--muted)]">
-                    {new Date(sess.startedAt).toLocaleString()} &bull; Duration:{' '}
+                    {formatDateTime(sess.startedAt)} &bull; Duration:{' '}
                     <strong>
                       {sess.durationMinutes
                         ? `${(sess.durationMinutes / 60).toFixed(1)} hours (${sess.durationMinutes}m)`
