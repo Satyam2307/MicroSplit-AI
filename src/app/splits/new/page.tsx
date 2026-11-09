@@ -25,6 +25,7 @@ import {
   PartyPopper,
   Sparkles,
   X,
+  Trash2,
 } from 'lucide-react';
 import { Reveal, Card, WeightBar, MoneyChip } from '@/components/ui';
 import { formatMoney } from '@/lib/money';
@@ -40,7 +41,6 @@ import {
   saveStoredSplitRun,
 } from '@/lib/client-storage';
 
-type RuleType = 'fixed_percentage' | 'weighted_points' | 'tiered' | 'milestone';
 interface SquadOption {
   id: string;
   name: string;
@@ -61,21 +61,359 @@ interface RevenueEventOption {
   createdAt: string;
 }
 
-const ruleOptions: { type: RuleType; label: string; desc: string; icon: React.ReactNode }[] = [
-  { type: 'fixed_percentage', label: 'Fixed %', desc: 'Set a fixed percentage for each member', icon: <Percent size={20} /> },
-  { type: 'weighted_points', label: 'Weighted Points', desc: 'Points per activity type, split by total', icon: <BarChart3 size={20} /> },
-  { type: 'tiered', label: 'Tiered', desc: 'Different splits per revenue band', icon: <Target size={20} /> },
-  { type: 'milestone', label: 'Milestone', desc: 'Bonuses for completed milestones', icon: <Trophy size={20} /> },
-];
+// ---HELPERS-START (pure logic: no React, no imports)
+type RuleType = 'fixed_percentage' | 'weighted_points' | 'tiered' | 'milestone';
 
 interface MemberSplit {
   memberId: string;
   name: string;
+  /** Fixed % mode */
   percentage: number;
+  /** Weighted Points mode */
+  points: number;
+  /** Milestone mode: base share of what is left after achieved bonuses */
+  base: number;
   streakDays: number;
-  points?: number;
-  bonus?: number;
-  tier?: number;
+}
+
+interface TierBand {
+  id: string;
+  /** Size of this band in major units (ignored for the last band = "everything above") */
+  sizeMajor: number;
+  /** memberId -> % within this band (must total 100) */
+  shares: Record<string, number>;
+}
+
+interface Milestone {
+  id: string;
+  name: string;
+  /** Bonus as % of the whole pool */
+  bonusPct: number;
+  memberId: string;
+  achieved: boolean;
+}
+
+const round1 = (v: number) => Math.round(v * 10) / 10;
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+const safeNum = (v: number) => (Number.isFinite(v) ? v : 0);
+
+/** Even split in tenths of a percent that always totals exactly 100.0 */
+function evenShares(count: number): number[] {
+  if (count <= 0) return [];
+  const base = Math.floor(1000 / count);
+  const rem = 1000 - base * count;
+  return Array.from({ length: count }, (_, i) => (base + (i < rem ? 1 : 0)) / 10);
+}
+
+function makeEvenShares(members: { memberId: string }[]): Record<string, number> {
+  const vals = evenShares(members.length);
+  const out: Record<string, number> = {};
+  members.forEach((m, i) => {
+    out[m.memberId] = vals[i];
+  });
+  return out;
+}
+
+/** How much of the pool (minor units) falls into each band. Last band takes the remainder. */
+function bandAmounts(poolMinor: number, bands: TierBand[]): number[] {
+  let remaining = Math.max(0, poolMinor);
+  return bands.map((band, i) => {
+    const isLast = i === bands.length - 1;
+    const amt = isLast
+      ? remaining
+      : Math.min(remaining, Math.max(0, Math.round(safeNum(band.sizeMajor) * 100)));
+    remaining -= amt;
+    return amt;
+  });
+}
+
+interface RuleContext {
+  poolMinor: number;
+  tierBands: TierBand[];
+  milestones: Milestone[];
+}
+
+/** Effective % of the whole pool each member gets under the chosen rule. Always totals 100 when valid. */
+function computeEffective(
+  rule: RuleType,
+  members: MemberSplit[],
+  ctx: RuleContext
+): Record<string, number> {
+  const out: Record<string, number> = {};
+
+  if (rule === 'fixed_percentage') {
+    members.forEach((m) => {
+      out[m.memberId] = m.percentage;
+    });
+    return out;
+  }
+
+  if (rule === 'weighted_points') {
+    const total = members.reduce((s, m) => s + m.points, 0);
+    members.forEach((m) => {
+      out[m.memberId] = total > 0 ? (m.points / total) * 100 : 0;
+    });
+    return out;
+  }
+
+  if (rule === 'tiered') {
+    const amts = bandAmounts(ctx.poolMinor, ctx.tierBands);
+    const pool = ctx.poolMinor;
+    members.forEach((m) => {
+      let pct = 0;
+      ctx.tierBands.forEach((band, bi) => {
+        const weight = pool > 0 ? amts[bi] / pool : bi === 0 ? 1 : 0;
+        pct += weight * (band.shares[m.memberId] ?? 0);
+      });
+      out[m.memberId] = pct;
+    });
+    return out;
+  }
+
+  // milestone
+  const achieved = ctx.milestones.filter((x) => x.achieved);
+  const achievedTotal = achieved.reduce((s, x) => s + x.bonusPct, 0);
+  const rest = Math.max(0, 100 - achievedTotal);
+  members.forEach((m) => {
+    const bonus = achieved
+      .filter((x) => x.memberId === m.memberId)
+      .reduce((s, x) => s + x.bonusPct, 0);
+    out[m.memberId] = bonus + (rest * m.base) / 100;
+  });
+  return out;
+}
+
+interface RuleValidation {
+  valid: boolean;
+  message: string | null;
+  summaryLabel: string;
+  summaryValue: string;
+}
+
+function validateRule(rule: RuleType, members: MemberSplit[], ctx: RuleContext): RuleValidation {
+  if (rule === 'fixed_percentage') {
+    const total = members.reduce((s, m) => s + m.percentage, 0);
+    const valid = members.length > 0 && Math.abs(total - 100) < 0.05;
+    return {
+      valid,
+      message: valid
+        ? null
+        : `Percentages must equal exactly 100.0%. Difference: ${(100 - total).toFixed(1)}%. Click "Split Evenly" above to auto-balance.`,
+      summaryLabel: 'Total Allocated',
+      summaryValue: `${total.toFixed(1)}% / 100.0%`,
+    };
+  }
+
+  if (rule === 'weighted_points') {
+    const total = members.reduce((s, m) => s + m.points, 0);
+    const valid = total > 0;
+    return {
+      valid,
+      message: valid ? null : 'Give at least one member some points. Shares are points ÷ total points.',
+      summaryLabel: 'Total Points',
+      summaryValue: `${total} pts`,
+    };
+  }
+
+  if (rule === 'tiered') {
+    const bands = ctx.tierBands;
+    const totals = bands.map((b) => members.reduce((s, m) => s + (b.shares[m.memberId] ?? 0), 0));
+    const okBands = totals.filter((t) => Math.abs(t - 100) < 0.05).length;
+    const badIndex = totals.findIndex((t) => Math.abs(t - 100) >= 0.05);
+    const badSize = bands.findIndex(
+      (b, i) => i < bands.length - 1 && !(safeNum(b.sizeMajor) > 0)
+    );
+    const valid = members.length > 0 && bands.length > 0 && badIndex === -1 && badSize === -1;
+    let message: string | null = null;
+    if (!valid) {
+      if (badIndex !== -1) {
+        message = `Band ${badIndex + 1} totals ${totals[badIndex].toFixed(1)}%. Every band must equal exactly 100%.`;
+      } else if (badSize !== -1) {
+        message = `Band ${badSize + 1} needs a size greater than 0.`;
+      } else {
+        message = 'Add at least one band and one member.';
+      }
+    }
+    return {
+      valid,
+      message,
+      summaryLabel: 'Bands at 100%',
+      summaryValue: `${okBands} / ${bands.length}`,
+    };
+  }
+
+  // milestone
+  const baseTotal = members.reduce((s, m) => s + m.base, 0);
+  const achieved = ctx.milestones.filter((x) => x.achieved);
+  const achievedTotal = achieved.reduce((s, x) => s + x.bonusPct, 0);
+  const unknownMember = achieved.some((x) => !members.some((m) => m.memberId === x.memberId));
+  const baseOk = members.length > 0 && Math.abs(baseTotal - 100) < 0.05;
+  const bonusOk = achievedTotal <= 100 && !unknownMember;
+  let message: string | null = null;
+  if (!baseOk) {
+    message = `Base shares must equal exactly 100.0%. Difference: ${(100 - baseTotal).toFixed(1)}%.`;
+  } else if (achievedTotal > 100) {
+    message = `Achieved milestone bonuses total ${achievedTotal.toFixed(1)}% of the pool. They cannot exceed 100%.`;
+  } else if (unknownMember) {
+    message = 'An achieved milestone is assigned to a member who is not in this squad.';
+  }
+  return {
+    valid: baseOk && bonusOk,
+    message,
+    summaryLabel: 'Base Shares',
+    summaryValue: `${baseTotal.toFixed(1)}% / 100.0%`,
+  };
+}
+// ---HELPERS-END
+
+const ruleOptions: { type: RuleType; label: string; desc: string; icon: React.ReactNode }[] = [
+  { type: 'fixed_percentage', label: 'Fixed %', desc: 'Set a fixed percentage for each member', icon: <Percent size={20} /> },
+  { type: 'weighted_points', label: 'Weighted Points', desc: 'Points per member, split by total', icon: <BarChart3 size={20} /> },
+  { type: 'tiered', label: 'Tiered', desc: 'Different splits per revenue band', icon: <Target size={20} /> },
+  { type: 'milestone', label: 'Milestone', desc: 'Bonuses for completed milestones', icon: <Trophy size={20} /> },
+];
+
+const panelCopy: Record<RuleType, { title: string; subtitle: string }> = {
+  fixed_percentage: {
+    title: 'Member Shares',
+    subtitle: 'Percentages must sum to exactly 100.0% • Live deterministic calculations',
+  },
+  weighted_points: {
+    title: 'Member Points',
+    subtitle: 'Give each member points. Share = member points ÷ total points.',
+  },
+  tiered: {
+    title: 'Revenue Bands',
+    subtitle: 'Each slice of revenue is split by its own band. Every band must total 100%.',
+  },
+  milestone: {
+    title: 'Base Shares & Milestones',
+    subtitle: 'Achieved milestone bonuses are paid first. Base shares split what is left.',
+  },
+};
+
+/* ─── One member row (shared by Fixed %, Weighted Points and Milestone base) ─── */
+interface MemberRowProps {
+  member: MemberSplit;
+  value: number;
+  unit: '%' | 'pts';
+  max: number;
+  step: number;
+  stepBy: number;
+  payout: number;
+  workAmount: number;
+  streakAmount: number;
+  showStreak: boolean;
+  note?: string;
+  onChange: (value: number) => void;
+}
+
+function MemberRow({
+  member,
+  value,
+  unit,
+  max,
+  step,
+  stepBy,
+  payout,
+  workAmount,
+  streakAmount,
+  showStreak,
+  note,
+  onChange,
+}: MemberRowProps) {
+  return (
+    <div className="p-3.5 sm:p-4 rounded-xl border border-[var(--border)] bg-white/70 space-y-2.5 shadow-sm transition-all hover:border-[var(--accent)]">
+      <div className="flex items-center justify-between gap-3">
+        {/* Member Identity & Streak */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 text-white shadow-sm"
+            style={{ background: 'linear-gradient(135deg, var(--primary), var(--accent))' }}
+          >
+            {member.name.charAt(0).toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-bold truncate text-[var(--primary)]">{member.name}</p>
+            <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+              {member.streakDays > 0 ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-[var(--accent-subtle)] text-[var(--accent)]">
+                  <Flame size={10} /> {member.streakDays}d streak
+                </span>
+              ) : (
+                <span className="text-[10px] text-[var(--muted-light)]">0d streak</span>
+              )}
+              {showStreak && streakAmount > 0 && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                  +{formatMoney(streakAmount)} streak
+                </span>
+              )}
+              {note && <span className="text-[10px] font-semibold text-[var(--muted)]">{note}</span>}
+            </div>
+          </div>
+        </div>
+
+        {/* Live Calculated Amount & Stepper Controls */}
+        <div className="flex items-center gap-2.5 sm:gap-3 flex-shrink-0">
+          <div className="text-right">
+            <span className="text-sm sm:text-base font-black tabular-nums text-[var(--accent)] font-mono block leading-tight">
+              {formatMoney(payout)}
+            </span>
+            <span className="text-[10px] text-[var(--muted)] font-medium block">
+              {showStreak && streakAmount > 0 ? <span>Work: {formatMoney(workAmount)}</span> : 'live payout'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => onChange(value - stepBy)}
+              className="w-8 h-8 rounded-lg border border-[var(--border)] bg-white hover:bg-slate-50 flex items-center justify-center text-[var(--text)] hover:text-[var(--primary)] transition-colors shadow-xs"
+              title={`Decrease ${stepBy}${unit === '%' ? '%' : ' points'}`}
+            >
+              <Minus size={14} />
+            </button>
+
+            <div className="relative flex items-center">
+              <input
+                type="number"
+                min="0"
+                max={max}
+                step={step}
+                value={value}
+                onChange={(e) => onChange(safeNum(parseFloat(e.target.value)))}
+                className="w-20 sm:w-24 px-2.5 py-1.5 text-right font-black font-mono text-sm sm:text-base rounded-lg border-2 border-[var(--text)] focus:border-[var(--accent)] focus:outline-none bg-white text-[var(--primary)] pr-9 tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              <span className="absolute right-2 text-[10px] font-bold text-[var(--text)] pointer-events-none">
+                {unit}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onChange(value + stepBy)}
+              className="w-8 h-8 rounded-lg border border-[var(--border)] bg-white hover:bg-slate-50 flex items-center justify-center text-[var(--text)] hover:text-[var(--primary)] transition-colors shadow-xs"
+              title={`Increase ${stepBy}${unit === '%' ? '%' : ' points'}`}
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="pt-1">
+        <input
+          type="range"
+          min="0"
+          max={max}
+          step={step}
+          value={Math.min(value, max)}
+          onChange={(e) => onChange(safeNum(parseFloat(e.target.value)))}
+          className="w-full accent-[var(--accent)] h-2 bg-slate-100 rounded-lg cursor-pointer"
+        />
+      </div>
+    </div>
+  );
 }
 
 export default function SplitsNewPage() {
@@ -122,20 +460,15 @@ export default function SplitsNewPage() {
   const [completedRun, setCompletedRun] = useState<any | null>(null);
 
   const [memberSplits, setMemberSplits] = useState<MemberSplit[]>([]);
+  const [tierBands, setTierBands] = useState<TierBand[]>([]);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
 
-  const getEffectivePercentage = (member: MemberSplit) => {
-    if (selectedRule === 'weighted_points') {
-      const totalPoints = memberSplits.reduce((sum, current) => sum + (current.points ?? current.percentage), 0);
-      const points = member.points ?? member.percentage;
-      return totalPoints > 0 ? (points / totalPoints) * 100 : 0;
-    }
-
-    if (selectedRule === 'milestone') {
-      return Math.max(0, Math.min(100, (member.percentage ?? 0) + (member.bonus ?? 0)));
-    }
-
-    return member.percentage;
-  };
+  // ── Rule-specific math (see helpers at the top of the file) ──
+  const ruleContext: RuleContext = { poolMinor: poolAmount, tierBands, milestones };
+  const effective = computeEffective(selectedRule, memberSplits, ruleContext);
+  const getEffectivePercentage = (member: MemberSplit) => effective[member.memberId] ?? 0;
+  const validation = validateRule(selectedRule, memberSplits, ruleContext);
+  const isValid = validation.valid;
 
   useEffect(() => {
     let cancelled = false;
@@ -335,26 +668,29 @@ export default function SplitsNewPage() {
         }
 
         if (members.length > 0) {
-          const baseShare = Math.floor(1000 / members.length) / 10;
-          let remainder = 1000 - Math.floor(1000 / members.length) * members.length;
-          setMemberSplits(
-            members.map((member) => {
-              const extra = remainder > 0 ? 0.1 : 0;
-              if (remainder > 0) remainder--;
-              const percentage = Math.round((baseShare + extra) * 10) / 10;
-              return {
-                memberId: member.userId,
-                name: member.user.name,
-                percentage,
-                streakDays: 0,
-                points: percentage,
-                bonus: 0,
-                tier: 1,
-              };
-            })
-          );
+          const shares = evenShares(members.length);
+          const built: MemberSplit[] = members.map((member, i) => ({
+            memberId: member.userId,
+            name: member.user.name,
+            percentage: shares[i],
+            points: 10,
+            base: shares[i],
+            streakDays: 0,
+          }));
+          setMemberSplits(built);
+
+          const evenMap = makeEvenShares(built);
+          setTierBands([
+            { id: 'band_1', sizeMajor: 2000, shares: { ...evenMap } },
+            { id: 'band_2', sizeMajor: 0, shares: { ...evenMap } },
+          ]);
+          setMilestones([
+            { id: 'ms_1', name: 'Milestone 1', bonusPct: 10, memberId: built[0].memberId, achieved: true },
+          ]);
         } else {
           setMemberSplits([]);
+          setTierBands([]);
+          setMilestones([]);
         }
       } catch (error) {
         if (!cancelled) {
@@ -369,8 +705,8 @@ export default function SplitsNewPage() {
     };
   }, [selectedSquadId]);
 
-  // Active members with >0% share or active in calculation
-  const activeMembers = memberSplits.filter((m) => m.percentage > 0);
+  // Members with a >0 effective share take part in the calculation (fallback: everyone)
+  const activeMembers = memberSplits.filter((m) => getEffectivePercentage(m) > 0);
   const membersToCalculate = activeMembers.length > 0 ? activeMembers : memberSplits;
 
   // Calculate live preview with consistency streak engine
@@ -385,90 +721,109 @@ export default function SplitsNewPage() {
     })),
   });
 
-  const totalPct = memberSplits.reduce((sum, m) => sum + getEffectivePercentage(m), 0);
-  const isValid =
-    selectedRule === 'weighted_points'
-      ? totalPct > 0
-      : selectedRule === 'milestone'
-        ? totalPct > 0
-        : Math.abs(totalPct - 100) < 0.05;
+  const linesSum = consistencyResult.lines.reduce((s, l) => s + l.finalAmountMinor, 0);
 
-  const updatePercentage = (idx: number, value: number) => {
-    const updated = [...memberSplits];
-    const val = isNaN(value) ? 0 : Math.max(0, Math.min(100, Math.round(value * 10) / 10));
-    updated[idx] = { ...updated[idx], percentage: val, points: selectedRule === 'weighted_points' ? val : updated[idx].points ?? val };
-    setMemberSplits(updated);
-  };
+  // ── Member updates (one field per rule, so switching methods never corrupts another) ──
+  const patchMember = (memberId: string, patch: Partial<MemberSplit>) =>
+    setMemberSplits((prev) => prev.map((m) => (m.memberId === memberId ? { ...m, ...patch } : m)));
 
-  const updatePoints = (idx: number, value: number) => {
-    const updated = [...memberSplits];
-    const val = isNaN(value) ? 0 : Math.max(0, Math.round(value));
-    updated[idx] = { ...updated[idx], points: val };
-    if (selectedRule === 'weighted_points') {
-      updated[idx] = { ...updated[idx], percentage: val > 0 ? Number((val / Math.max(1, updated.reduce((sum, entry) => sum + (entry.points ?? entry.percentage), 0))) * 100) : 0 };
-    }
-    setMemberSplits(updated);
-  };
+  const setFixedPercentage = (memberId: string, v: number) =>
+    patchMember(memberId, { percentage: clamp(round1(safeNum(v)), 0, 100) });
+  const setPoints = (memberId: string, v: number) =>
+    patchMember(memberId, { points: Math.max(0, Math.round(safeNum(v))) });
+  const setBase = (memberId: string, v: number) =>
+    patchMember(memberId, { base: clamp(round1(safeNum(v)), 0, 100) });
 
-  const updateBonus = (idx: number, value: number) => {
-    const updated = [...memberSplits];
-    const val = isNaN(value) ? 0 : Math.max(0, Math.round(value * 10) / 10);
-    updated[idx] = { ...updated[idx], bonus: val };
-    setMemberSplits(updated);
-  };
+  // ── Tier band updates ──
+  const setBandShare = (bandId: string, memberId: string, v: number) =>
+    setTierBands((prev) =>
+      prev.map((b) =>
+        b.id === bandId
+          ? { ...b, shares: { ...b.shares, [memberId]: clamp(round1(safeNum(v)), 0, 100) } }
+          : b
+      )
+    );
+  const setBandSize = (bandId: string, v: number) =>
+    setTierBands((prev) =>
+      prev.map((b) => (b.id === bandId ? { ...b, sizeMajor: Math.max(0, safeNum(v)) } : b))
+    );
+  const addBand = () =>
+    setTierBands((prev) =>
+      prev.length >= 4
+        ? prev
+        : [...prev, { id: `band_${Date.now()}`, sizeMajor: 2000, shares: makeEvenShares(memberSplits) }]
+    );
+  const removeBand = (bandId: string) =>
+    setTierBands((prev) => (prev.length <= 1 ? prev : prev.filter((b) => b.id !== bandId)));
 
-  const adjustBy = (idx: number, delta: number) => {
-    if (selectedRule === 'weighted_points') {
-      updatePoints(idx, (memberSplits[idx].points ?? memberSplits[idx].percentage) + delta);
-      return;
-    }
-
-    if (selectedRule === 'milestone') {
-      updateBonus(idx, (memberSplits[idx].bonus ?? 0) + delta);
-      return;
-    }
-
-    const cur = memberSplits[idx].percentage;
-    updatePercentage(idx, cur + delta);
-  };
+  // ── Milestone updates ──
+  const addMilestone = () =>
+    setMilestones((prev) => [
+      ...prev,
+      {
+        id: `ms_${Date.now()}`,
+        name: `Milestone ${prev.length + 1}`,
+        bonusPct: 5,
+        memberId: memberSplits[0]?.memberId ?? '',
+        achieved: false,
+      },
+    ]);
+  const patchMilestone = (id: string, patch: Partial<Milestone>) =>
+    setMilestones((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  const removeMilestone = (id: string) => setMilestones((prev) => prev.filter((x) => x.id !== id));
 
   const distributeEvenly = () => {
-    const targets = memberSplits.filter((m) => (selectedRule === 'weighted_points' ? (m.points ?? m.percentage) > 0 : m.percentage > 0));
-    const pool = targets.length > 0 ? targets : memberSplits;
-    const count = pool.length;
-    if (count === 0) return;
+    if (memberSplits.length === 0) return;
 
-    const updated = memberSplits.map((m) => {
-      const isTarget = pool.some((p) => p.memberId === m.memberId);
-      if (!isTarget) {
-        return { ...m, percentage: 0, points: 0, bonus: 0 };
-      }
+    if (selectedRule === 'fixed_percentage') {
+      const actives = memberSplits.filter((m) => m.percentage > 0);
+      const targets = actives.length > 0 ? actives : memberSplits;
+      const shares = evenShares(targets.length);
+      setMemberSplits(
+        memberSplits.map((m) => {
+          const i = targets.findIndex((t) => t.memberId === m.memberId);
+          return { ...m, percentage: i === -1 ? 0 : shares[i] };
+        })
+      );
+    } else if (selectedRule === 'weighted_points') {
+      const actives = memberSplits.filter((m) => m.points > 0);
+      const targets = actives.length > 0 ? actives : memberSplits;
+      setMemberSplits(
+        memberSplits.map((m) => ({
+          ...m,
+          points: targets.some((t) => t.memberId === m.memberId) ? 10 : 0,
+        }))
+      );
+    } else if (selectedRule === 'tiered') {
+      const even = makeEvenShares(memberSplits);
+      setTierBands((prev) => prev.map((b) => ({ ...b, shares: { ...even } })));
+    } else {
+      const shares = evenShares(memberSplits.length);
+      setMemberSplits(memberSplits.map((m, i) => ({ ...m, base: shares[i] })));
+    }
 
-      if (selectedRule === 'weighted_points') {
-        return { ...m, points: 10, percentage: 100 / count };
-      }
-
-      if (selectedRule === 'milestone') {
-        const base = 100 / count;
-        return { ...m, percentage: base, bonus: 0 };
-      }
-
-      const baseShare = Math.floor((1000 / count)) / 10;
-      const remainderTenths = 1000 - Math.floor(1000 / count) * count;
-      const extra = remainderTenths > 0 ? 0.1 : 0;
-      return { ...m, percentage: Math.round((baseShare + extra) * 10) / 10, points: Math.round((baseShare + extra) * 10) / 10 };
-    });
-
-    setMemberSplits(updated);
     showToast({
       type: 'info',
       title: 'Distributed Evenly',
-      message: `Split ${selectedRule === 'weighted_points' ? 'points' : '100%'} equally among ${count} members.`,
+      message: `Split evenly among ${memberSplits.length} members.`,
     });
   };
 
   const resetShares = () => {
-    setMemberSplits(memberSplits.map((m) => ({ ...m, percentage: 0, points: 0, bonus: 0 })));
+    if (selectedRule === 'fixed_percentage') {
+      setMemberSplits(memberSplits.map((m) => ({ ...m, percentage: 0 })));
+    } else if (selectedRule === 'weighted_points') {
+      setMemberSplits(memberSplits.map((m) => ({ ...m, points: 0 })));
+    } else if (selectedRule === 'tiered') {
+      setTierBands((prev) =>
+        prev.map((b) => ({
+          ...b,
+          shares: Object.fromEntries(memberSplits.map((m) => [m.memberId, 0])),
+        }))
+      );
+    } else {
+      setMemberSplits(memberSplits.map((m) => ({ ...m, base: 0 })));
+    }
   };
 
   // Run the split - functional backend dispatch with celebratory alert & animation
@@ -509,6 +864,7 @@ export default function SplitsNewPage() {
             streak_cap_days: streakCapDays,
             freeze_days_per_30: 2,
           },
+          // Every method is resolved to final % of the pool, so the existing API keeps working.
           memberSplits: memberSplits.map((m) => ({
             memberId: m.memberId,
             memberName: m.name,
@@ -544,6 +900,47 @@ export default function SplitsNewPage() {
       setIsSubmitting(false);
     }
   };
+
+  // Renders one MemberRow wired to the live engine result
+  const renderMemberRow = (
+    member: MemberSplit,
+    cfg: {
+      value: number;
+      unit: '%' | 'pts';
+      max: number;
+      step: number;
+      stepBy: number;
+      note?: string;
+      onChange: (v: number) => void;
+    }
+  ) => {
+    const line = consistencyResult.lines.find((l) => l.memberId === member.memberId);
+    return (
+      <MemberRow
+        key={member.memberId}
+        member={member}
+        value={cfg.value}
+        unit={cfg.unit}
+        max={cfg.max}
+        step={cfg.step}
+        stepBy={cfg.stepBy}
+        note={cfg.note}
+        payout={line ? line.finalAmountMinor : 0}
+        workAmount={line ? line.workAmountMinor : 0}
+        streakAmount={line ? line.consistencyAmountMinor : 0}
+        showStreak={enableConsistency}
+        onChange={cfg.onChange}
+      />
+    );
+  };
+
+  const maxPoints = Math.max(100, ...memberSplits.map((m) => m.points));
+  const bandAmts = bandAmounts(poolAmount, tierBands);
+  const achievedBonusTotal = milestones.filter((x) => x.achieved).reduce((s, x) => s + x.bonusPct, 0);
+  const sym = getCurrencySymbol(selectedSquad.currency || 'USD');
+
+  const smallInput =
+    'w-full px-2.5 py-1.5 text-sm font-semibold rounded-lg border-[1.5px] border-[var(--border)] bg-white text-[var(--primary)] focus:border-[var(--accent)] focus:outline-none';
 
   return (
     <div className="min-h-screen pb-16" style={{ background: 'var(--background)' }}>
@@ -725,17 +1122,44 @@ export default function SplitsNewPage() {
               </Card>
             </Reveal>
 
-            {/* 1. Member Shares & Live Streak Breakdown (Positioned directly under Squad & Revenue for instant visibility) */}
+            {/* 1. Split Methodology (choose the method FIRST) */}
             <Reveal delay={0.15}>
+              <Card padding="lg">
+                <h2 className="text-base font-bold mb-3" style={{ color: 'var(--text)' }}>
+                  Split Methodology
+                </h2>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {ruleOptions.map((opt) => (
+                    <button
+                      key={opt.type}
+                      type="button"
+                      aria-pressed={selectedRule === opt.type}
+                      className="p-3.5 rounded-xl text-center transition-all duration-200"
+                      style={{
+                        background: selectedRule === opt.type ? 'var(--background)' : 'color-mix(in srgb, var(--accent) 4%, transparent)',
+                        border: `2px solid ${selectedRule === opt.type ? 'var(--accent)' : 'transparent'}`,
+                        color: selectedRule === opt.type ? 'var(--accent)' : 'var(--muted)',
+                      }}
+                      onClick={() => setSelectedRule(opt.type)}
+                    >
+                      <div className="flex justify-center mb-1.5">{opt.icon}</div>
+                      <p className="text-sm font-bold">{opt.label}</p>
+                      <p className="hidden sm:block text-[11px] mt-0.5 font-medium opacity-80">{opt.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </Card>
+            </Reveal>
+
+            {/* 2. Allocation panel: changes with the chosen methodology */}
+            <Reveal delay={0.2}>
               <Card padding="lg">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                   <div>
                     <h2 className="text-lg font-bold" style={{ color: 'var(--text)' }}>
-                      Member Shares
+                      {panelCopy[selectedRule].title}
                     </h2>
-                    <p className="text-xs text-[var(--muted)]">
-                      Percentages must sum to exactly 100.0% • Live deterministic calculations
-                    </p>
+                    <p className="text-xs text-[var(--muted)]">{panelCopy[selectedRule].subtitle}</p>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -756,7 +1180,7 @@ export default function SplitsNewPage() {
                   </div>
                 </div>
 
-                {/* Integrated Consistency Streak Bonus inside Member Shares */}
+                {/* Consistency Streak Bonus (works with every methodology) */}
                 <div className="mb-4 p-3.5 rounded-xl border border-[var(--border)] bg-[var(--background)]">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -805,178 +1229,303 @@ export default function SplitsNewPage() {
                   )}
                 </div>
 
-                {/* Total Counter Banner */}
+                {/* Summary banner (label and value depend on the methodology) */}
                 <div
                   className="mb-4 p-3 rounded-xl flex items-center justify-between text-sm font-bold tabular-nums"
                   style={{
-                    background: isValid ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'color-mix(in srgb, var(--accent) 10%, transparent)',
-                    border: `1px solid ${isValid ? 'color-mix(in srgb, var(--accent) 30%, transparent)' : 'color-mix(in srgb, var(--accent) 30%, transparent)'}`,
+                    background: isValid
+                      ? 'color-mix(in srgb, var(--accent) 10%, transparent)'
+                      : 'color-mix(in srgb, #f59e0b 14%, transparent)',
+                    border: `1px solid ${isValid ? 'color-mix(in srgb, var(--accent) 30%, transparent)' : 'color-mix(in srgb, #f59e0b 45%, transparent)'}`,
                     color: isValid ? 'var(--accent)' : 'var(--primary)',
                   }}
                 >
                   <span className="flex items-center gap-1.5">
                     {isValid ? <CheckCircle2 size={16} /> : <Info size={16} />}
-                    Total Allocated
+                    {validation.summaryLabel}
                   </span>
-                  <span className="text-base font-black font-mono">
-                    {totalPct.toFixed(1)}% / 100.0%
-                  </span>
+                  <span className="text-base font-black font-mono">{validation.summaryValue}</span>
                 </div>
 
-                {/* Member Input Rows with Live Amount & Streak Share */}
-                <div className="space-y-3.5">
-                  {memberSplits.map((member, idx) => {
-                    const line = consistencyResult.lines.find((l) => l.memberId === member.memberId);
-                    const finalAmount = line ? line.finalAmountMinor : Math.round((poolAmount * member.percentage) / 100);
-                    const workAmount = line ? line.workAmountMinor : finalAmount;
-                    const streakAmount = line ? line.consistencyAmountMinor : 0;
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={selectedRule}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.18 }}
+                  >
+                    {/* ── FIXED % ── */}
+                    {selectedRule === 'fixed_percentage' && (
+                      <div className="space-y-3.5">
+                        {memberSplits.map((m) =>
+                          renderMemberRow(m, {
+                            value: m.percentage,
+                            unit: '%',
+                            max: 100,
+                            step: 0.5,
+                            stepBy: 5,
+                            onChange: (v) => setFixedPercentage(m.memberId, v),
+                          })
+                        )}
+                      </div>
+                    )}
 
-                    return (
-                      <div
-                        key={member.memberId}
-                        className="p-3.5 sm:p-4 rounded-xl border border-[var(--border)] bg-white/70 space-y-2.5 shadow-sm transition-all hover:border-[var(--accent)]"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          {/* Member Identity & Streak */}
-                          <div className="flex items-center gap-2.5 min-w-0">
+                    {/* ── WEIGHTED POINTS ── */}
+                    {selectedRule === 'weighted_points' && (
+                      <div className="space-y-3.5">
+                        {memberSplits.map((m) =>
+                          renderMemberRow(m, {
+                            value: m.points,
+                            unit: 'pts',
+                            max: maxPoints,
+                            step: 1,
+                            stepBy: 5,
+                            note: `= ${getEffectivePercentage(m).toFixed(1)}% of pool`,
+                            onChange: (v) => setPoints(m.memberId, v),
+                          })
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── TIERED ── */}
+                    {selectedRule === 'tiered' && (
+                      <div className="space-y-4">
+                        {tierBands.map((band, bi) => {
+                          const isLast = bi === tierBands.length - 1;
+                          const total = memberSplits.reduce((s, m) => s + (band.shares[m.memberId] ?? 0), 0);
+                          const ok = Math.abs(total - 100) < 0.05;
+                          return (
                             <div
-                              className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 text-white shadow-sm"
-                              style={{
-                                background: 'linear-gradient(135deg, var(--primary), var(--accent))',
-                              }}
+                              key={band.id}
+                              className="p-4 rounded-xl border border-[var(--border)] bg-white/70 shadow-sm space-y-3"
                             >
-                              {member.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-bold truncate text-[var(--primary)]">
-                                {member.name}
-                              </p>
-                              <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                                {member.streakDays > 0 ? (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-[var(--accent-subtle)] text-[var(--accent)]">
-                                    <Flame size={10} /> {member.streakDays}d streak
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-sm font-black text-[var(--primary)]">Band {bi + 1}</span>
+                                  {isLast ? (
+                                    <span className="text-xs font-semibold text-[var(--muted)]">
+                                      Everything above
+                                    </span>
+                                  ) : (
+                                    <label className="flex items-center gap-1.5 text-xs font-semibold text-[var(--muted)]">
+                                      {bi === 0 ? 'First' : 'Next'}
+                                      <span className="relative">
+                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--muted)]">
+                                          {sym}
+                                        </span>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="100"
+                                          value={band.sizeMajor}
+                                          onChange={(e) => setBandSize(band.id, parseFloat(e.target.value))}
+                                          className="w-28 pl-6 pr-2 py-1 text-sm font-bold rounded-lg border-[1.5px] border-[var(--border)] bg-white text-[var(--primary)] focus:border-[var(--accent)] focus:outline-none tabular-nums"
+                                        />
+                                      </span>
+                                    </label>
+                                  )}
+                                  <span className="text-[11px] font-semibold text-[var(--muted)] tabular-nums">
+                                    = {formatMoney(bandAmts[bi] ?? 0)} of this revenue
                                   </span>
-                                ) : (
-                                  <span className="text-[10px] text-[var(--muted-light)]">
-                                    0d streak
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className={`text-xs font-bold px-2 py-0.5 rounded-full tabular-nums ${
+                                      ok ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                                    }`}
+                                  >
+                                    {total.toFixed(1)}% {ok ? '✓' : '≠ 100'}
                                   </span>
-                                )}
-                                {enableConsistency && streakAmount > 0 && (
-                                  <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
-                                    +{formatMoney(streakAmount)} streak
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Live Calculated Amount & Stepper Controls */}
-                          <div className="flex items-center gap-2.5 sm:gap-3 flex-shrink-0">
-                            {/* Live Amount in Member Row */}
-                            <div className="text-right">
-                              <span className="text-sm sm:text-base font-black tabular-nums text-[var(--accent)] font-mono block leading-tight">
-                                {formatMoney(finalAmount)}
-                              </span>
-                              <span className="text-[10px] text-[var(--muted)] font-medium block">
-                                {enableConsistency && streakAmount > 0 ? (
-                                  <span>Work: {formatMoney(workAmount)}</span>
-                                ) : (
-                                  'live payout'
-                                )}
-                              </span>
-                            </div>
-
-                            {/* Direct Percentage Stepper & Input */}
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => adjustBy(idx, -5)}
-                                className="w-8 h-8 rounded-lg border border-[var(--border)] bg-white hover:bg-slate-50 flex items-center justify-center text-[var(--text)] hover:text-[var(--primary)] transition-colors shadow-xs"
-                                title="Decrease 5%"
-                              >
-                                <Minus size={14} />
-                              </button>
-
-                              <div className="relative flex items-center">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  step="0.5"
-                                  value={member.percentage}
-                                  onChange={(e) => updatePercentage(idx, parseFloat(e.target.value))}
-                                  className="w-20 sm:w-24 px-2.5 py-1.5 text-right font-black font-mono text-sm sm:text-base rounded-lg border-2 border-[var(--text)] focus:border-[var(--accent)] focus:outline-none bg-white text-[var(--primary)] pr-6 tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                />
-                                <span className="absolute right-2 text-xs font-bold text-[var(--text)] pointer-events-none">
-                                  %
-                                </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeBand(band.id)}
+                                    disabled={tierBands.length <= 1}
+                                    aria-label={`Remove band ${bi + 1}`}
+                                    className="p-1.5 rounded-lg text-[var(--muted)] hover:bg-black/5 disabled:opacity-30"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
                               </div>
 
-                              <button
-                                type="button"
-                                onClick={() => adjustBy(idx, 5)}
-                                className="w-8 h-8 rounded-lg border border-[var(--border)] bg-white hover:bg-slate-50 flex items-center justify-center text-[var(--text)] hover:text-[var(--primary)] transition-colors shadow-xs"
-                                title="Increase 5%"
-                              >
-                                <Plus size={14} />
-                              </button>
+                              <div className="space-y-2">
+                                {memberSplits.map((m) => {
+                                  const val = band.shares[m.memberId] ?? 0;
+                                  return (
+                                    <div key={m.memberId} className="flex items-center gap-3">
+                                      <span className="w-28 sm:w-36 truncate text-sm font-semibold text-[var(--primary)]">
+                                        {m.name}
+                                      </span>
+                                      <input
+                                        type="range"
+                                        min="0"
+                                        max="100"
+                                        step="0.5"
+                                        value={val}
+                                        onChange={(e) => setBandShare(band.id, m.memberId, parseFloat(e.target.value))}
+                                        className="flex-1 accent-[var(--accent)] h-2 cursor-pointer"
+                                        aria-label={`${m.name} share in band ${bi + 1}`}
+                                      />
+                                      <div className="relative w-20">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          max="100"
+                                          step="0.5"
+                                          value={val}
+                                          onChange={(e) => setBandShare(band.id, m.memberId, parseFloat(e.target.value))}
+                                          className={`${smallInput} text-right pr-6 tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                                        />
+                                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-[var(--muted)] pointer-events-none">
+                                          %
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
+                          );
+                        })}
+
+                        <button
+                          type="button"
+                          onClick={addBand}
+                          disabled={tierBands.length >= 4 || memberSplits.length === 0}
+                          className="w-full py-2.5 rounded-xl border-2 border-dashed border-[var(--border-strong)] text-xs font-bold text-[var(--accent)] hover:bg-[var(--accent-subtle)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                        >
+                          <Plus size={14} /> Add band {tierBands.length >= 4 ? '(max 4)' : ''}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* ── MILESTONE ── */}
+                    {selectedRule === 'milestone' && (
+                      <div className="space-y-5">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-2">
+                            Base shares (split what is left after bonuses)
+                          </p>
+                          <div className="space-y-3.5">
+                            {memberSplits.map((m) =>
+                              renderMemberRow(m, {
+                                value: m.base,
+                                unit: '%',
+                                max: 100,
+                                step: 0.5,
+                                stepBy: 5,
+                                note: `= ${getEffectivePercentage(m).toFixed(1)}% of pool in total`,
+                                onChange: (v) => setBase(m.memberId, v),
+                              })
+                            )}
                           </div>
                         </div>
 
-                        {/* Range slider */}
-                        <div className="pt-1">
-                          <input
-                            type="range"
-                            min="0"
-                            max="100"
-                            step="0.5"
-                            value={member.percentage}
-                            onChange={(e) => updatePercentage(idx, parseFloat(e.target.value))}
-                            className="w-full accent-[var(--accent)] h-2 bg-slate-100 rounded-lg cursor-pointer"
-                          />
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
+                              Milestones
+                            </p>
+                            <span className="text-xs font-semibold text-[var(--muted)] tabular-nums">
+                              Achieved bonuses: <strong className="text-[var(--accent)]">{achievedBonusTotal.toFixed(1)}%</strong> of pool
+                            </span>
+                          </div>
+
+                          <div className="space-y-2.5">
+                            {milestones.length === 0 && (
+                              <p className="text-xs text-[var(--muted)]">
+                                No milestones yet. Without any, this works like Fixed %.
+                              </p>
+                            )}
+                            {milestones.map((ms) => (
+                              <div
+                                key={ms.id}
+                                className="p-3 rounded-xl border border-[var(--border)] bg-white/70 shadow-sm grid grid-cols-2 sm:grid-cols-[1.4fr_90px_1.2fr_auto_auto] gap-2.5 items-center"
+                              >
+                                <input
+                                  type="text"
+                                  value={ms.name}
+                                  maxLength={60}
+                                  onChange={(e) => patchMilestone(ms.id, { name: e.target.value })}
+                                  aria-label="Milestone name"
+                                  className={`${smallInput} col-span-2 sm:col-span-1`}
+                                />
+                                <div className="relative">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="0.5"
+                                    value={ms.bonusPct}
+                                    onChange={(e) =>
+                                      patchMilestone(ms.id, {
+                                        bonusPct: clamp(round1(safeNum(parseFloat(e.target.value))), 0, 100),
+                                      })
+                                    }
+                                    aria-label="Bonus percent of pool"
+                                    className={`${smallInput} pr-6 text-right tabular-nums`}
+                                  />
+                                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-[var(--muted)] pointer-events-none">
+                                    %
+                                  </span>
+                                </div>
+                                <select
+                                  value={ms.memberId}
+                                  onChange={(e) => patchMilestone(ms.id, { memberId: e.target.value })}
+                                  aria-label="Member who earns this bonus"
+                                  className={smallInput}
+                                >
+                                  {memberSplits.map((m) => (
+                                    <option key={m.memberId} value={m.memberId}>
+                                      {m.name}
+                                    </option>
+                                  ))}
+                                </select>
+                                <label className="flex items-center gap-1.5 text-xs font-bold text-[var(--primary)] cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={ms.achieved}
+                                    onChange={(e) => patchMilestone(ms.id, { achieved: e.target.checked })}
+                                    className="accent-[var(--accent)] w-4 h-4"
+                                  />
+                                  Achieved
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => removeMilestone(ms.id)}
+                                  aria-label={`Remove ${ms.name}`}
+                                  className="p-1.5 rounded-lg text-[var(--muted)] hover:bg-black/5 justify-self-end"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={addMilestone}
+                            disabled={memberSplits.length === 0}
+                            className="mt-3 w-full py-2.5 rounded-xl border-2 border-dashed border-[var(--border-strong)] text-xs font-bold text-[var(--accent)] hover:bg-[var(--accent-subtle)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                          >
+                            <Plus size={14} /> Add milestone
+                          </button>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
+                    )}
+                  </motion.div>
+                </AnimatePresence>
 
-                {!isValid && (
+                {!isValid && validation.message && (
                   <div
                     className="mt-4 px-4 py-3 rounded-xl flex items-center gap-2 text-xs font-semibold"
-                    style={{ background: 'color-mix(in srgb, var(--accent) 8%, transparent)', color: 'var(--primary)' }}
+                    style={{ background: 'color-mix(in srgb, #f59e0b 12%, transparent)', color: 'var(--primary)' }}
                   >
                     <Info size={16} className="flex-shrink-0" />
-                    Percentages must equal exactly 100.0%. Difference: {(100 - totalPct).toFixed(1)}%. Click &quot;Split Evenly&quot; above to auto-balance.
+                    {validation.message}
                   </div>
                 )}
-              </Card>
-            </Reveal>
-
-            {/* 2. Split Methodology (Positioned below Member Shares) */}
-            <Reveal delay={0.2}>
-              <Card padding="lg">
-                <h2 className="text-base font-bold mb-3" style={{ color: 'var(--text)' }}>
-                  Split Methodology
-                </h2>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {ruleOptions.map((opt) => (
-                    <button
-                      key={opt.type}
-                      type="button"
-                      className="p-3.5 rounded-xl text-center transition-all duration-200"
-                      style={{
-                        background: selectedRule === opt.type ? 'var(--background)' : 'color-mix(in srgb, var(--accent) 4%, transparent)',
-                        border: `2px solid ${selectedRule === opt.type ? 'var(--accent)' : 'transparent'}`,
-                        color: selectedRule === opt.type ? 'var(--accent)' : 'var(--muted)',
-                      }}
-                      onClick={() => setSelectedRule(opt.type)}
-                    >
-                      <div className="flex justify-center mb-1.5">{opt.icon}</div>
-                      <p className="text-sm font-bold">{opt.label}</p>
-                    </button>
-                  ))}
-                </div>
               </Card>
             </Reveal>
           </div>
@@ -1085,14 +1634,14 @@ export default function SplitsNewPage() {
                   <div
                     className="mt-6 px-4 py-3 rounded-xl text-xs font-bold tabular-nums"
                     style={{
-                      background: isValid ? 'var(--background)' : 'var(--background)',
-                      color: isValid ? 'var(--accent)' : 'var(--text)',
-                      border: `1px solid ${isValid ? 'var(--background)' : 'var(--background)'}`,
+                      background: 'var(--background)',
+                      color: isValid && linesSum === poolAmount ? 'var(--accent)' : 'var(--text)',
+                      border: '1px solid var(--background)',
                     }}
                   >
-                    Sum: {formatMoney(consistencyResult.lines.reduce((s, l) => s + l.finalAmountMinor, 0))} /{' '}
+                    Sum: {formatMoney(linesSum)} /{' '}
                     {formatMoney(poolAmount)}{' '}
-                    {isValid ? '✓ Exact match (no cents lost)' : '✗ Does not match'}
+                    {isValid && linesSum === poolAmount ? '✓ Exact match (no cents lost)' : '✗ Does not match'}
                   </div>
 
                   {submitError && (
