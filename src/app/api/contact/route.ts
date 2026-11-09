@@ -63,7 +63,8 @@ export async function POST(req: NextRequest) {
 
     if (RESEND_API_KEY) {
       try {
-        const { Resend } = await import('resend');
+        const pkgName = 'resend';
+        const { Resend } = await import(/* webpackIgnore: true */ pkgName);
         const resend = new Resend(RESEND_API_KEY);
 
         await resend.emails.send({

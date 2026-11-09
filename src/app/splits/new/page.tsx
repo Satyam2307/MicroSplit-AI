@@ -725,8 +725,236 @@ export default function SplitsNewPage() {
               </Card>
             </Reveal>
 
-            {/* Rule Selector */}
+            {/* 1. Member Shares & Live Streak Breakdown (Positioned directly under Squad & Revenue for instant visibility) */}
             <Reveal delay={0.15}>
+              <Card padding="lg">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                  <div>
+                    <h2 className="text-lg font-bold" style={{ color: 'var(--text)' }}>
+                      Member Shares
+                    </h2>
+                    <p className="text-xs text-[var(--muted)]">
+                      Percentages must sum to exactly 100.0% • Live deterministic calculations
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={distributeEvenly}
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[var(--background)] hover:bg-[var(--text)] text-[var(--accent)] transition-colors flex items-center gap-1"
+                    >
+                      <Sliders size={13} /> Split Evenly
+                    </button>
+                    <button
+                      type="button"
+                      onClick={resetShares}
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-black/5 text-[var(--muted)] transition-colors"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                </div>
+
+                {/* Integrated Consistency Streak Bonus inside Member Shares */}
+                <div className="mb-4 p-3.5 rounded-xl border border-[var(--border)] bg-[var(--background)]">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Flame size={17} className="text-[var(--accent)]" />
+                      <div>
+                        <span className="text-xs font-bold block" style={{ color: 'var(--text)' }}>
+                          Consistency Streak Bonus
+                        </span>
+                        <span className="text-[11px] text-[var(--muted)] block">
+                          Reward consecutive days of verified contributions (max 10%)
+                        </span>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={enableConsistency}
+                        onChange={(e) => setEnableConsistency(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--accent)]"></div>
+                    </label>
+                  </div>
+
+                  {enableConsistency && (
+                    <div className="mt-3 pt-3 border-t border-[var(--border)] space-y-2.5">
+                      <div className="flex items-center justify-between text-xs font-semibold">
+                        <span style={{ color: 'var(--text)' }}>Consistency Allocation</span>
+                        <span className="font-bold text-[var(--accent)] font-mono">{consistencyPercent}% of pool</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="1"
+                        max="10"
+                        step="1"
+                        value={consistencyPercent}
+                        onChange={(e) => setConsistencyPercent(parseInt(e.target.value))}
+                        className="w-full accent-[var(--accent)] h-1.5 cursor-pointer"
+                      />
+                      <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-[var(--muted)] pt-0.5">
+                        <span>Work: <strong className="text-[var(--text)]">{formatMoney(consistencyResult.workPoolMinor)}</strong></span>
+                        <span>Streak: <strong className="text-[var(--accent)]">{formatMoney(consistencyResult.consistencyPoolMinor)}</strong></span>
+                        <span>Streak Cap: <strong className="text-[var(--text)]">{streakCapDays}d</strong></span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Total Counter Banner */}
+                <div
+                  className="mb-4 p-3 rounded-xl flex items-center justify-between text-sm font-bold tabular-nums"
+                  style={{
+                    background: isValid ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'color-mix(in srgb, var(--accent) 10%, transparent)',
+                    border: `1px solid ${isValid ? 'color-mix(in srgb, var(--accent) 30%, transparent)' : 'color-mix(in srgb, var(--accent) 30%, transparent)'}`,
+                    color: isValid ? 'var(--accent)' : 'var(--primary)',
+                  }}
+                >
+                  <span className="flex items-center gap-1.5">
+                    {isValid ? <CheckCircle2 size={16} /> : <Info size={16} />}
+                    Total Allocated
+                  </span>
+                  <span className="text-base font-black font-mono">
+                    {totalPct.toFixed(1)}% / 100.0%
+                  </span>
+                </div>
+
+                {/* Member Input Rows with Live Amount & Streak Share */}
+                <div className="space-y-3.5">
+                  {memberSplits.map((member, idx) => {
+                    const line = consistencyResult.lines.find((l) => l.memberId === member.memberId);
+                    const finalAmount = line ? line.finalAmountMinor : Math.round((poolAmount * member.percentage) / 100);
+                    const workAmount = line ? line.workAmountMinor : finalAmount;
+                    const streakAmount = line ? line.consistencyAmountMinor : 0;
+
+                    return (
+                      <div
+                        key={member.memberId}
+                        className="p-3.5 sm:p-4 rounded-xl border border-[var(--border)] bg-white/70 space-y-2.5 shadow-sm transition-all hover:border-[var(--accent)]"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          {/* Member Identity & Streak */}
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div
+                              className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 text-white shadow-sm"
+                              style={{
+                                background: 'linear-gradient(135deg, var(--primary), var(--accent))',
+                              }}
+                            >
+                              {member.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold truncate text-[var(--primary)]">
+                                {member.name}
+                              </p>
+                              <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                {member.streakDays > 0 ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-[var(--accent-subtle)] text-[var(--accent)]">
+                                    <Flame size={10} /> {member.streakDays}d streak
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-[var(--muted-light)]">
+                                    0d streak
+                                  </span>
+                                )}
+                                {enableConsistency && streakAmount > 0 && (
+                                  <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                                    +{formatMoney(streakAmount)} streak
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Live Calculated Amount & Stepper Controls */}
+                          <div className="flex items-center gap-2.5 sm:gap-3 flex-shrink-0">
+                            {/* Live Amount in Member Row */}
+                            <div className="text-right">
+                              <span className="text-sm sm:text-base font-black tabular-nums text-[var(--accent)] font-mono block leading-tight">
+                                {formatMoney(finalAmount)}
+                              </span>
+                              <span className="text-[10px] text-[var(--muted)] font-medium block">
+                                {enableConsistency && streakAmount > 0 ? (
+                                  <span>Work: {formatMoney(workAmount)}</span>
+                                ) : (
+                                  'live payout'
+                                )}
+                              </span>
+                            </div>
+
+                            {/* Direct Percentage Stepper & Input */}
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => adjustBy(idx, -5)}
+                                className="w-8 h-8 rounded-lg border border-[var(--border)] bg-white hover:bg-slate-50 flex items-center justify-center text-[var(--text)] hover:text-[var(--primary)] transition-colors shadow-xs"
+                                title="Decrease 5%"
+                              >
+                                <Minus size={14} />
+                              </button>
+
+                              <div className="relative flex items-center">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="0.5"
+                                  value={member.percentage}
+                                  onChange={(e) => updatePercentage(idx, parseFloat(e.target.value))}
+                                  className="w-20 sm:w-24 px-2.5 py-1.5 text-right font-black font-mono text-sm sm:text-base rounded-lg border-2 border-[var(--text)] focus:border-[var(--accent)] focus:outline-none bg-white text-[var(--primary)] pr-6 tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                />
+                                <span className="absolute right-2 text-xs font-bold text-[var(--text)] pointer-events-none">
+                                  %
+                                </span>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => adjustBy(idx, 5)}
+                                className="w-8 h-8 rounded-lg border border-[var(--border)] bg-white hover:bg-slate-50 flex items-center justify-center text-[var(--text)] hover:text-[var(--primary)] transition-colors shadow-xs"
+                                title="Increase 5%"
+                              >
+                                <Plus size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Range slider */}
+                        <div className="pt-1">
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            step="0.5"
+                            value={member.percentage}
+                            onChange={(e) => updatePercentage(idx, parseFloat(e.target.value))}
+                            className="w-full accent-[var(--accent)] h-2 bg-slate-100 rounded-lg cursor-pointer"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {!isValid && (
+                  <div
+                    className="mt-4 px-4 py-3 rounded-xl flex items-center gap-2 text-xs font-semibold"
+                    style={{ background: 'color-mix(in srgb, var(--accent) 8%, transparent)', color: 'var(--primary)' }}
+                  >
+                    <Info size={16} className="flex-shrink-0" />
+                    Percentages must equal exactly 100.0%. Difference: {(100 - totalPct).toFixed(1)}%. Click &quot;Split Evenly&quot; above to auto-balance.
+                  </div>
+                )}
+              </Card>
+            </Reveal>
+
+            {/* 2. Split Methodology (Positioned below Member Shares) */}
+            <Reveal delay={0.2}>
               <Card padding="lg">
                 <h2 className="text-base font-bold mb-3" style={{ color: 'var(--text)' }}>
                   Split Methodology
@@ -751,306 +979,11 @@ export default function SplitsNewPage() {
                 </div>
               </Card>
             </Reveal>
-
-            {/* Consistency Streak Bonus Config */}
-            <Reveal delay={0.18}>
-              <Card padding="lg">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <Flame size={18} className="text-[var(--accent)]" />
-                    <div>
-                      <h2 className="text-base font-bold" style={{ color: 'var(--text)' }}>
-                        Consistency Streak Bonus
-                      </h2>
-                      <p className="text-xs text-[var(--muted)]">
-                        Reward consecutive days of verified contributions
-                      </p>
-                    </div>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={enableConsistency}
-                      onChange={(e) => setEnableConsistency(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--accent)]"></div>
-                  </label>
-                </div>
-
-                {enableConsistency && (
-                  <div className="space-y-4 pt-3 border-t border-[var(--border)]">
-                    <div>
-                      <div className="flex justify-between text-xs mb-1.5 font-semibold">
-                        <span style={{ color: 'var(--text)' }}>Consistency Allocation</span>
-                        <span className="font-bold text-[var(--accent)] font-mono">{consistencyPercent}% (max 10%)</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="1"
-                        max="10"
-                        step="1"
-                        value={consistencyPercent}
-                        onChange={(e) => setConsistencyPercent(parseInt(e.target.value))}
-                        className="w-full accent-[var(--accent)]"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs py-1">
-                      <span className="font-medium text-[var(--muted)]">Streak Cap Days</span>
-                      <span className="font-mono font-bold text-[var(--text)]">{streakCapDays} days</span>
-                    </div>
-
-                    <div className="p-3 rounded-xl bg-[var(--accent-subtle)] border border-[var(--border)] text-xs space-y-1">
-                      <p className="font-bold text-[var(--accent)]">Deterministic Math Formula</p>
-                      <p className="text-[var(--text)]">
-                        Consistency Pool ({consistencyPercent}%) = {formatMoney(consistencyResult.consistencyPoolMinor)} • Work Pool ({100 - consistencyPercent}%) = {formatMoney(consistencyResult.workPoolMinor)}
-                      </p>
-                    </div>
-
-                  </div>
-                )}
-              </Card>
-            </Reveal>
-
-            {/* Member Percentages - REVAMPED TO PREVENT COLLAPSING */}
-            <Reveal delay={0.2}>
-              <Card padding="lg">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                  <div>
-                    <h2 className="text-lg font-bold" style={{ color: 'var(--text)' }}>
-                      Member Shares
-                    </h2>
-                    <p className="text-xs text-[var(--muted)]">
-                      {selectedRule === 'fixed_percentage' && 'Percentages must sum to exactly 100.0%'}
-                      {selectedRule === 'weighted_points' && 'Points determine the proportional split across the pool'}
-                      {selectedRule === 'tiered' && 'Tier rules adjust each member’s share based on the current revenue band'}
-                      {selectedRule === 'milestone' && 'Base split plus milestone bonus defines the final payout'}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={distributeEvenly}
-                      className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[var(--background)] hover:bg-[var(--text)] text-[var(--accent)] transition-colors flex items-center gap-1"
-                    >
-                      <Sliders size={13} /> Split Evenly
-                    </button>
-                    <button
-                      type="button"
-                      onClick={resetShares}
-                      className="px-2.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-[color-mix(in_srgb,var(--text)_12%,transparent)] text-[var(--muted)] transition-colors"
-                    >
-                      Reset
-                    </button>
-                  </div>
-                </div>
-
-                <div
-                  className="mb-4 p-3 rounded-xl flex items-center justify-between text-sm font-bold tabular-nums"
-                  style={{
-                    background: isValid ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'color-mix(in srgb, var(--accent) 10%, transparent)',
-                    border: `1px solid ${isValid ? 'color-mix(in srgb, var(--accent) 30%, transparent)' : 'color-mix(in srgb, var(--accent) 30%, transparent)'}`,
-                    color: isValid ? 'var(--accent)' : 'var(--text)',
-                  }}
-                >
-                  <span className="flex items-center gap-1.5">
-                    {isValid ? <CheckCircle2 size={16} /> : <Info size={16} />}
-                    Total Allocated
-                  </span>
-                  <span className="text-base font-black font-mono">
-                    {selectedRule === 'milestone'
-                      ? `${totalPct.toFixed(1)}% total`
-                      : `${totalPct.toFixed(1)}% / 100.0%`}
-                  </span>
-                </div>
-
-                <div className="space-y-4">
-                  {memberSplits.map((member, idx) => {
-                    const currentShare = getEffectivePercentage(member);
-                    const tierLabel = `Tier ${member.tier ?? 1}`;
-                    const suffix = selectedRule === 'weighted_points' ? 'pts' : '%';
-
-                    return (
-                      <div
-                        key={member.memberId}
-                        className="p-3.5 rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--text)_6%,transparent)] space-y-2.5"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div
-                              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 text-white"
-                              style={{
-                                background: 'linear-gradient(135deg, var(--primary), var(--accent))',
-                              }}
-                            >
-                              {member.name.charAt(0)}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-bold truncate text-[var(--text)]">
-                                {member.name}
-                              </p>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                {member.streakDays > 0 ? (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-[var(--accent-subtle)] text-[var(--accent)]">
-                                    <Flame size={10} /> {member.streakDays}d streak
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] text-[var(--muted-light)]">
-                                    0d streak
-                                  </span>
-                                )}
-                                {selectedRule === 'tiered' && (
-                                  <span className="text-[10px] font-semibold text-[var(--muted)]">{tierLabel}</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => adjustBy(idx, -5)}
-                              className="w-8 h-8 rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--text)_6%,transparent)] hover:bg-[color-mix(in_srgb,var(--text)_12%,transparent)] flex items-center justify-center text-[var(--text)] hover:text-[var(--text)] transition-colors shadow-sm"
-                              title={selectedRule === 'milestone' ? 'Decrease 5% bonus' : 'Decrease 5%'}
-                            >
-                              <Minus size={14} />
-                            </button>
-
-                            {selectedRule === 'weighted_points' ? (
-                              <div className="flex items-center justify-between gap-2 rounded-full border-[2.5px] border-[color-mix(in_srgb,var(--text)_45%,transparent)] bg-[color-mix(in_srgb,var(--text)_6%,transparent)] px-3 py-2 shadow-[inset_0_1px_2px_rgba(15,23,42,0.04)] min-w-[132px]">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="9999"
-                                  step="1"
-                                  value={member.points ?? member.percentage}
-                                  onChange={(e) => {
-                                    const nextValue = parseFloat(e.target.value);
-                                    updatePoints(idx, nextValue);
-                                  }}
-                                  className="w-[40px] bg-transparent text-right text-base font-black font-mono leading-none tracking-tight text-[var(--text)] focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                />
-                                <span className="text-[0.7rem] font-bold uppercase tracking-[0.18em] text-[var(--muted)]">PTS</span>
-                              </div>
-                            ) : selectedRule === 'tiered' ? (
-                              <div className="relative">
-                                <select
-                                  value={member.tier ?? 1}
-                                  onChange={(e) => {
-                                    const tier = Number(e.target.value) || 1;
-                                    const candidate = [50, 35, 15][Math.min(tier - 1, 2)] ?? 20;
-                                    const updated = [...memberSplits];
-                                    updated[idx] = { ...updated[idx], tier, percentage: candidate };
-                                    setMemberSplits(updated);
-                                  }}
-                                  className="appearance-none rounded-full border-[2.5px] border-[color-mix(in_srgb,var(--text)_45%,transparent)] bg-[color-mix(in_srgb,var(--text)_6%,transparent)] px-4 py-2.5 pr-10 text-base font-bold text-[var(--text)] hover:border-[var(--accent)] transition-colors shadow-[inset_0_1px_2px_rgba(15,23,42,0.04)] focus:outline-none focus:ring-4 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
-                                >
-                                  <option value={1}>Tier 1</option>
-                                  <option value={2}>Tier 2</option>
-                                  <option value={3}>Tier 3</option>
-                                </select>
-                                <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text)]" />
-                              </div>
-                            ) : (
-                              <div className="relative flex items-center">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  step="0.5"
-                                  value={selectedRule === 'milestone' ? (member.bonus ?? 0) : member.percentage}
-                                  onChange={(e) => {
-                                    const nextValue = parseFloat(e.target.value);
-                                    if (selectedRule === 'milestone') {
-                                      updateBonus(idx, nextValue);
-                                    } else {
-                                      updatePercentage(idx, nextValue);
-                                    }
-                                  }}
-                                  className="w-24 px-3 py-1.5 text-right font-black font-mono text-base rounded-lg border-2 border-[color-mix(in_srgb,var(--text)_35%,transparent)] focus:border-[var(--accent)] focus:outline-none bg-[color-mix(in_srgb,var(--text)_6%,transparent)] text-[var(--text)] pr-6 tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                />
-                                <span className="absolute right-2.5 text-xs font-bold text-[var(--text)] pointer-events-none">
-                                  {suffix}
-                                </span>
-                              </div>
-                            )}
-
-                            <button
-                              type="button"
-                              onClick={() => adjustBy(idx, 5)}
-                              className="w-8 h-8 rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--text)_6%,transparent)] hover:bg-[color-mix(in_srgb,var(--text)_12%,transparent)] flex items-center justify-center text-[var(--text)] hover:text-[var(--text)] transition-colors shadow-sm"
-                              title={selectedRule === 'milestone' ? 'Increase 5% bonus' : 'Increase 5%'}
-                            >
-                              <Plus size={14} />
-                            </button>
-                          </div>
-                        </div>
-
-                        {selectedRule === 'milestone' && (
-                          <div className="text-[11px] text-[var(--muted)]">
-                            Base {member.percentage.toFixed(1)}% + bonus {(member.bonus ?? 0).toFixed(1)}% = {currentShare.toFixed(1)}%
-                          </div>
-                        )}
-
-                        {selectedRule === 'weighted_points' && (
-                          <div className="text-[11px] text-[var(--muted)]">
-                            Effective share: {currentShare.toFixed(1)}%
-                          </div>
-                        )}
-
-                        <div className="pt-1">
-                          <input
-                            type="range"
-                            min="0"
-                            max={selectedRule === 'weighted_points' ? '250' : '100'}
-                            step={selectedRule === 'weighted_points' ? '1' : '0.5'}
-                            value={
-                              selectedRule === 'weighted_points'
-                                ? (member.points ?? member.percentage)
-                                : selectedRule === 'milestone'
-                                  ? (member.bonus ?? 0)
-                                  : member.percentage
-                            }
-                            onChange={(e) => {
-                              const nextValue = parseFloat(e.target.value);
-                              if (selectedRule === 'weighted_points') {
-                                updatePoints(idx, nextValue);
-                              } else if (selectedRule === 'milestone') {
-                                updateBonus(idx, Math.min(100, nextValue));
-                              } else {
-                                updatePercentage(idx, nextValue);
-                              }
-                            }}
-                            className="w-full accent-[var(--accent)] h-2 bg-[color-mix(in_srgb,var(--text)_6%,transparent)] rounded-lg cursor-pointer"
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {!isValid && (
-                  <div
-                    className="mt-4 px-4 py-3 rounded-xl flex items-center gap-2 text-xs font-semibold"
-                    style={{ background: 'color-mix(in srgb, var(--accent) 8%, transparent)', color: 'var(--text)' }}
-                  >
-                    <Info size={16} className="flex-shrink-0" />
-                    {selectedRule === 'weighted_points'
-                      ? 'Add points to each member so the distribution totals the full pool.'
-                      : selectedRule === 'milestone'
-                        ? 'Milestone bonuses are added to the base split and update the final payout immediately.'
-                        : 'Percentages must equal exactly 100.0%. Click "Split Evenly" above to auto-balance.'}
-                  </div>
-                )}
-              </Card>
-            </Reveal>
           </div>
 
           {/* Right: Live Preview & Run Action */}
           <div className="lg:col-span-2">
-            <div className="space-y-6">
+            <div className="sticky top-20 max-h-[calc(100vh-5.5rem)] overflow-y-auto pr-0.5 space-y-4">
               <Reveal delay={0.25}>
                 <Card elevated padding="lg">
                   <div className="flex items-center justify-between mb-4">
