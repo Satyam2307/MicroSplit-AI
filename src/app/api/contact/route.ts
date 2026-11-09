@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { sanitizeText, sanitizeEmail } from '@/lib/sanitize';
 
+const TO_EMAIL = 'akshat.singhai701@gmail.com';
+
 export async function POST(req: NextRequest) {
   try {
     // 1. Rate Limiting by client IP
@@ -53,8 +55,52 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Ticket generation & confirmation
+    // 4. Ticket generation
     const ticketId = `MS-${Date.now().toString(36).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+
+    // 5. Send real email via Resend → akshat.singhai701@gmail.com
+    const RESEND_API_KEY = process.env.RESEND_API_KEY;
+
+    if (RESEND_API_KEY) {
+      try {
+        const { Resend } = await import('resend');
+        const resend = new Resend(RESEND_API_KEY);
+
+        await resend.emails.send({
+          from: 'MicroSplit AI <onboarding@resend.dev>',
+          to: TO_EMAIL,
+          replyTo: email,
+          subject: `[MicroSplit] #${ticketId} — ${topic} from ${name}`,
+          html: `
+            <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#0f172a;color:#e2e8f0;border-radius:12px;">
+              <h2 style="color:#2dd4bf;margin:0 0 4px;">🎫 MicroSplit Support Ticket</h2>
+              <p style="color:#94a3b8;font-size:13px;margin:0 0 20px;">Ticket ID: <strong style="color:#2dd4bf;">#${ticketId}</strong></p>
+
+              <table style="width:100%;border-collapse:collapse;font-size:14px;">
+                <tr><td style="padding:8px 0;color:#94a3b8;width:120px;">Name</td><td style="padding:8px 0;font-weight:600;">${name}</td></tr>
+                <tr><td style="padding:8px 0;color:#94a3b8;">Email</td><td style="padding:8px 0;"><a href="mailto:${email}" style="color:#2dd4bf;">${email}</a></td></tr>
+                ${whatsapp ? `<tr><td style="padding:8px 0;color:#94a3b8;">WhatsApp</td><td style="padding:8px 0;">${whatsapp}</td></tr>` : ''}
+                ${squad ? `<tr><td style="padding:8px 0;color:#94a3b8;">Squad</td><td style="padding:8px 0;">${squad}</td></tr>` : ''}
+                <tr><td style="padding:8px 0;color:#94a3b8;">Topic</td><td style="padding:8px 0;">${topic}</td></tr>
+              </table>
+
+              <div style="margin-top:20px;padding:16px;background:#1e293b;border-radius:8px;border-left:3px solid #2dd4bf;">
+                <p style="color:#94a3b8;font-size:12px;margin:0 0 8px;text-transform:uppercase;letter-spacing:0.05em;">Message</p>
+                <p style="margin:0;white-space:pre-wrap;color:#e2e8f0;">${message}</p>
+              </div>
+
+              <p style="margin-top:20px;font-size:12px;color:#475569;">
+                Reply directly to this email to respond to ${name}.<br/>
+                Sent by MicroSplit AI Support Concierge
+              </p>
+            </div>
+          `,
+        });
+      } catch (emailErr) {
+        // Log but don't fail — ticket is still generated
+        console.error('[contact] Resend delivery error:', emailErr);
+      }
+    }
 
     return NextResponse.json(
       {
@@ -67,7 +113,7 @@ export async function POST(req: NextRequest) {
           squad: squad || undefined,
           topic,
           whatsapp: whatsapp || undefined,
-          domainEmail: 'akshat.singhai701@gmail.com',
+          domainEmail: TO_EMAIL,
         },
       },
       { status: 200 }
