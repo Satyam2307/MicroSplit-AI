@@ -494,28 +494,21 @@ export default function MicroSplitConcierge() {
                   </div>
                 )}
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Your Phone Number (optional — for callback)
-                  </label>
-                  <input
-                    type="tel"
-                    placeholder="e.g. 9876543210 or +1..."
-                    value={waPhone}
-                    onChange={(e) => setWaPhone(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                  />
-                  <span className="text-[10px] text-emerald-400 block mt-1">
-                    ✓ Ticket is sent directly to MicroSplit support (+91 82510 48701)
-                  </span>
+                {/* Support number badge */}
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-950/50 border border-emerald-500/30">
+                  <Phone className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-[11px] font-bold text-emerald-300">Connects to: +91 82510 48701</p>
+                    <p className="text-[10px] text-emerald-400/70">MicroSplit Support Line</p>
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Inquiry Details (Optional)
+                    Your Message (Optional)
                   </label>
                   <textarea
-                    rows={3}
+                    rows={4}
                     placeholder="Describe your squad split question or payout status..."
                     value={waMessage}
                     onChange={(e) => setWaMessage(e.target.value)}
@@ -528,7 +521,7 @@ export default function MicroSplitConcierge() {
                   className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
                 >
                   <Phone className="w-3.5 h-3.5" />
-                  <span>Launch Ticket in WhatsApp →</span>
+                  <span>Open WhatsApp Chat →</span>
                 </button>
               </form>
             )}
