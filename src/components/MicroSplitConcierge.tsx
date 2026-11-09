@@ -217,40 +217,33 @@ export default function MicroSplitConcierge() {
     }
   };
 
-  // Email Submission — opens user's email client addressed to akshat.singhai701@gmail.com
-  const handleSendEmail = (e: React.FormEvent) => {
-    e.preventDefault();
-    setEmailError(null);
+  // Compute live Gmail compose URL from form state — opens Gmail in a new tab, works everywhere
+  const emailGmailHref = (() => {
+    const subject = encodeURIComponent(`[MicroSplit Inquiry] ${emailForm.topic} from ${emailForm.name}`);
+    const body = encodeURIComponent(
+      `Hi,\n\nName: ${emailForm.name}\nEmail: ${emailForm.email}\nTopic: ${emailForm.topic}\n\nMessage:\n${emailForm.message}`
+    );
+    return `https://mail.google.com/mail/?view=cm&fs=1&to=akshat.singhai701%40gmail.com&su=${subject}&body=${body}`;
+  })();
 
+  // Validate before opening Gmail compose
+  const handleEmailLinkClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (!emailForm.name || emailForm.name.trim().length < 2) {
-      setEmailError('Please enter a valid full name (minimum 2 characters).');
+      e.preventDefault();
+      setEmailError('Please enter your full name (min 2 characters).');
       return;
     }
     if (!emailForm.email) {
-      setEmailError('Please enter a valid email address.');
+      e.preventDefault();
+      setEmailError('Please enter your email address.');
       return;
     }
     if (!emailForm.message || emailForm.message.trim().length < 10) {
-      setEmailError('Please enter a message with at least 10 characters.');
+      e.preventDefault();
+      setEmailError('Please enter a message (min 10 characters).');
       return;
     }
-
-    const ticketId = `MS-${Date.now().toString(36).toUpperCase()}`;
-    const subject = encodeURIComponent(`[MicroSplit] #${ticketId} — ${emailForm.topic} from ${emailForm.name}`);
-    const body = encodeURIComponent(
-      `Name: ${emailForm.name}\nEmail: ${emailForm.email}\nTopic: ${emailForm.topic}\n\nMessage:\n${emailForm.message}`
-    );
-
-    window.location.href = `mailto:akshat.singhai701@gmail.com?subject=${subject}&body=${body}`;
-
-    setEmailSuccessTicket(ticketId);
-    setEmailForm({
-      name: '',
-      email: '',
-      squad: '',
-      topic: 'Revenue Splits & Math',
-      message: '',
-    });
+    setEmailError(null);
   };
 
   return (
@@ -554,7 +547,7 @@ export default function MicroSplitConcierge() {
                     </button>
                   </div>
                 ) : (
-                  <form onSubmit={handleSendEmail} className="space-y-3">
+                  <form className="space-y-3">
                     <div className="text-xs text-slate-400">
                       Send an official inquiry directly to our fintech desk (SLA: &lt; 2 hrs).
                     </div>
@@ -623,13 +616,16 @@ export default function MicroSplitConcierge() {
                       />
                     </div>
 
-                    <button
-                      type="submit"
-                      className="w-full py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+                    <a
+                      href={emailGmailHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={handleEmailLinkClick}
+                      className="w-full py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer no-underline"
                     >
                       <Send className="w-3.5 h-3.5" />
-                      <span>Open Email to akshat.singhai701@gmail.com →</span>
-                    </button>
+                      <span>Open Gmail → akshat.singhai701@gmail.com</span>
+                    </a>
                   </form>
                 )}
               </div>
