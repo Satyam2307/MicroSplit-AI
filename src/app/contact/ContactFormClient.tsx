@@ -60,13 +60,13 @@ export default function ContactFormClient() {
             Inquiries and enterprise support answered by human fintech engineers.
           </p>
           <a
-            href="mailto:support@microsplit.ai"
+            href="mailto:akshat.singhai701@gmail.com"
             className="inline-block text-sm font-semibold text-[var(--accent)] hover:underline"
           >
-            support@microsplit.ai
+            akshat.singhai701@gmail.com
           </a>
           <div className="mt-2 text-xs text-[var(--text)]">
-            Sales: <a href="mailto:partners@microsplit.ai" className="hover:text-[var(--primary)]">partners@microsplit.ai</a>
+            Sales: <a href="mailto:akshat.singhai701@gmail.com" className="hover:text-[var(--primary)]">akshat.singhai701@gmail.com</a>
           </div>
         </div>
 
@@ -80,7 +80,7 @@ export default function ContactFormClient() {
             Direct priority line for active squad leads and urgent payout verifications.
           </p>
           <a
-            href={`https://wa.me/15550192834?text=${whatsappMessage}`}
+            href={`https://wa.me/918251048701?text=${whatsappMessage}`}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center justify-center w-full gap-2 px-4 py-2.5 rounded-xl bg-[var(--accent)] text-white text-xs font-bold hover:bg-[var(--accent)] transition-colors shadow-sm"
