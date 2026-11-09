@@ -112,8 +112,11 @@ export default function MicroSplitConcierge() {
 
   // WhatsApp States
   const [waPhone, setWaPhone] = useState('');
+  const [waName, setWaName] = useState('');
   const [waMessage, setWaMessage] = useState('');
   const [waError, setWaError] = useState<string | null>(null);
+  const [waSuccess, setWaSuccess] = useState<string | null>(null);
+  const [isSendingWa, setIsSendingWa] = useState(false);
 
   // Email States
   const [emailForm, setEmailForm] = useState({
