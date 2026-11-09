@@ -983,7 +983,7 @@ export default function SplitsNewPage() {
 
           {/* Right: Live Preview & Run Action */}
           <div className="lg:col-span-2">
-            <div className="sticky top-20 max-h-[calc(100vh-5.5rem)] overflow-y-auto pr-0.5 space-y-4">
+            <div className="space-y-4">
               <Reveal delay={0.25}>
                 <Card elevated padding="lg">
                   <div className="flex items-center justify-between mb-4">
@@ -1024,7 +1024,7 @@ export default function SplitsNewPage() {
                   </div>
 
                   {/* Split lines */}
-                  <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
+                  <div className="space-y-3">
                     <AnimatePresence mode="popLayout">
                       {consistencyResult.lines.map((line) => {
                         const member = memberSplits.find(
