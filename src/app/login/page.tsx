@@ -185,9 +185,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-xs text-center mt-6 text-[var(--text)] opacity-60">
-            Secure session stored locally &bull; No third-party tracking
-          </p>
         </div>
       </Reveal>
     </div>
