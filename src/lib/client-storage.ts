@@ -72,6 +72,21 @@ export function setCurrentUser(user: UserSession): void {
   }
 }
 
+export function setActiveAccountEmail(email: string | null): void {
+  if (!email) return;
+  const current = getCurrentUser();
+  if (current && current.email.toLowerCase() === email.toLowerCase()) return;
+  const name = email.split('@')[0] || 'User';
+  const formattedName = name.charAt(0).toUpperCase() + name.slice(1);
+  setCurrentUser({
+    id: `usr_${Date.now()}`,
+    name: formattedName,
+    email,
+    role: 'owner',
+    initials: getInitials(formattedName),
+  });
+}
+
 export function clearCurrentUser(): void {
   if (!isBrowser()) return;
   try {
