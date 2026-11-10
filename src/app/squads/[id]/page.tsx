@@ -49,6 +49,7 @@ import {
   saveStoredRevenue,
   deleteStoredSquad,
   deleteStoredMember,
+  getCurrentUser,
 } from '@/lib/client-storage';
 
 const roleColors: Record<string, { bg: string; color: string }> = {
@@ -107,18 +108,31 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
   });
   const [users, setUsers] = useState<MockUser[]>(() => mockUsers);
   const [members, setMembers] = useState<MockMembership[]>(() => {
-    const demoMems = mockMemberships.filter((m) => m.squadId === id).map((m) => ({
+    const isDemoSquad = id === 'sqd_1' || id === 'sqd_2' || id === 'sqd_3';
+    const currentUser = typeof window !== 'undefined' ? getCurrentUser() : null;
+    const isCurrent = (m: MockMembership) =>
+      (currentUser && m.userId === currentUser.id) ||
+      (currentUser?.email && m.payoutReceiver?.toLowerCase() === currentUser.email.toLowerCase()) ||
+      (!currentUser && m.userId === 'usr_1');
+
+    const demoMems = isDemoSquad
+      ? mockMemberships.filter((m) => m.squadId === id).map((m) => ({
+          ...m,
+          isCurrentUser: isCurrent(m),
+        }))
+      : [];
+    const storedMems = getStoredMembers(id).map((m) => ({
       ...m,
-      isCurrentUser: m.userId === 'usr_1',
+      isCurrentUser: isCurrent(m),
     }));
-    const storedMems = getStoredMembers(id);
     const map = new Map<string, MockMembership>();
     demoMems.forEach((m) => map.set(m.id, m));
     storedMems.forEach((m) => map.set(m.id, m));
     return Array.from(map.values());
   });
   const [revenue, setRevenue] = useState<MockRevenueEvent[]>(() => {
-    const demoRevs = mockRevenueEvents.filter((r) => r.squadId === id);
+    const isDemoSquad = id === 'sqd_1' || id === 'sqd_2' || id === 'sqd_3';
+    const demoRevs = isDemoSquad ? mockRevenueEvents.filter((r) => r.squadId === id) : [];
     const storedRevs = getStoredRevenue(id);
     const map = new Map<string, MockRevenueEvent>();
     demoRevs.forEach((r) => map.set(r.id, r));

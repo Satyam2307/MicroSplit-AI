@@ -150,8 +150,8 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
-  const squads = mockSquads.map((squad) => {
+export async function GET(request: NextRequest) {
+  let squads = mockSquads.map((squad) => {
     const squadOwner = mockUsers.find((u) => u.id === squad.ownerId) || {
       id: squad.ownerId || 'usr_1',
       name: 'Alex Rivera',
@@ -163,9 +163,22 @@ export async function GET() {
       owner: {
         id: squadOwner.id,
         name: squadOwner.name,
+        email: squadOwner.email,
       },
     };
   });
+
+  if (request) {
+    try {
+      const { searchParams } = new URL(request.url);
+      const email = searchParams.get('email')?.toLowerCase();
+      if (email && email !== 'alex@microsplit.demo') {
+        squads = squads.filter((s: any) => s.owner?.email?.toLowerCase() === email);
+      }
+    } catch {
+      // Ignore
+    }
+  }
 
   return NextResponse.json({
     success: true,

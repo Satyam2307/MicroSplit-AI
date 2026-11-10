@@ -21,6 +21,7 @@ import {
 } from '@/components/ui';
 import { formatDateTime } from '@/lib/date-format';
 import { formatMoney } from '@/lib/money';
+import { isDemoUser, getStoredSplitRuns, getStoredSquads } from '@/lib/client-storage';
 
 interface PayoutItemView {
   id: string;
@@ -73,17 +74,51 @@ export default function PayoutsPage() {
     let cancelled = false;
     async function loadPayouts() {
       try {
-        const response = await fetch('/api/payouts');
-        const result = await response.json();
-        if (!response.ok || !result.success) {
-          throw new Error(result.error || 'Unable to load payouts');
-        }
-        const data = Array.isArray(result.data)
-          ? (result.data as PayoutBatchView[])
-          : [];
-        if (!cancelled) {
-          setBatches(data);
-          setSelectedBatchId(data[0]?.id ?? null);
+        if (isDemoUser()) {
+          const response = await fetch('/api/payouts');
+          const result = await response.json();
+          if (!response.ok || !result.success) {
+            throw new Error(result.error || 'Unable to load payouts');
+          }
+          const data = Array.isArray(result.data)
+            ? (result.data as PayoutBatchView[])
+            : [];
+          if (!cancelled) {
+            setBatches(data);
+            setSelectedBatchId(data[0]?.id ?? null);
+          }
+        } else {
+          // Custom user: derive batches from their stored split runs
+          const runs = getStoredSplitRuns();
+          const squads = getStoredSquads();
+          const customBatches: PayoutBatchView[] = runs.map((r: any) => {
+            const sq = squads.find((s) => s.id === r.squadId);
+            return {
+              id: `batch_${r.id}`,
+              runId: r.id,
+              senderBatchId: `SB-${r.id.substring(0, 8)}`,
+              paypalBatchId: `PAYPAL-${r.id.substring(0, 6)}`,
+              status: r.status === 'paid' ? 'success' : 'pending',
+              totalMinor: r.totalPoolMinor || 0,
+              createdAt: r.createdAt || new Date().toISOString(),
+              squadId: r.squadId,
+              squadName: sq?.name || 'Squad Workspace',
+              currency: r.currency || 'USD',
+              items: (r.lines || []).map((l: any, idx: number) => ({
+                id: l.id || `item_${idx}`,
+                lineId: l.id || `line_${idx}`,
+                amountMinor: l.allocatedAmountMinor || 0,
+                status: r.status === 'paid' ? 'success' : 'pending',
+                failureReason: null,
+                recipientName: l.memberName || 'Recipient',
+                recipientEmail: l.payoutReceiver || 'member@example.com',
+              })),
+            };
+          });
+          if (!cancelled) {
+            setBatches(customBatches);
+            setSelectedBatchId(customBatches[0]?.id ?? null);
+          }
         }
       } catch (error) {
         if (!cancelled) {

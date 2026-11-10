@@ -38,6 +38,8 @@ import {
   getStoredMembers,
   getStoredRevenue,
   saveStoredSplitRun,
+  isDemoUser,
+  getCurrentUser,
 } from '@/lib/client-storage';
 
 interface SquadOption {
@@ -459,17 +461,21 @@ export default function SplitsNewPage() {
         const queryParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
         const targetSquadId = queryParams?.get('squadId');
 
+        const currentUser = getCurrentUser();
+        const isDemo = isDemoUser();
         const localSquads = getStoredSquads().map((s) => ({ id: s.id, name: s.name, currency: s.currency }));
 
         let availableSquads: SquadOption[] = [];
-        try {
-          const response = await fetch('/api/squads');
-          const result = await response.json();
-          if (response.ok && result.success && Array.isArray(result.data)) {
-            availableSquads = result.data as SquadOption[];
+        if (isDemo) {
+          try {
+            const response = await fetch('/api/squads');
+            const result = await response.json();
+            if (response.ok && result.success && Array.isArray(result.data)) {
+              availableSquads = result.data as SquadOption[];
+            }
+          } catch {
+            // Ignore network errors and rely on local squads
           }
-        } catch {
-          // Ignore network errors and rely on local squads
         }
 
         if (cancelled) return;
@@ -483,13 +489,10 @@ export default function SplitsNewPage() {
         const combinedSquads = Array.from(map.values());
         setSquads(combinedSquads);
 
-        if (targetSquadId) {
+        if (targetSquadId && combinedSquads.some((s) => s.id === targetSquadId)) {
           setSelectedSquadId(targetSquadId);
         } else {
-          setSelectedSquadId((current) => {
-            if (current && combinedSquads.some((s) => s.id === current)) return current;
-            return combinedSquads[0]?.id || '';
-          });
+          setSelectedSquadId(combinedSquads[0]?.id || '');
         }
       } catch (error) {
         if (!cancelled) {

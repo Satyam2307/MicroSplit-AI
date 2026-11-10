@@ -15,6 +15,12 @@ import {
 } from 'lucide-react';
 import StreakHeatmap from '@/components/StreakHeatmap';
 import FocusSessionWidget from '@/components/FocusSessionWidget';
+import {
+  getCurrentUser,
+  isDemoUser,
+  getStoredSplitRuns,
+  getStoredSquads,
+} from '@/lib/client-storage';
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
@@ -35,30 +41,73 @@ export default function StatementsPage() {
   const [lines, setLines] = useState<StatementLine[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const member = {
+  const [member, setMember] = useState({
     id: 'usr_1',
     name: 'Alex Rivera',
     email: 'alex@microsplit.demo',
-  };
+  });
 
   useEffect(() => {
     let active = true;
-    fetch('/api/statements')
-      .then(async (response) => {
-        const result = await response.json();
-        if (!response.ok || !result.success) {
-          throw new Error(result.error || 'Unable to load your statement');
-        }
-        if (active) setLines(Array.isArray(result.data) ? result.data : []);
-      })
-      .catch((error: unknown) => {
-        if (active) {
-          setLoadError(error instanceof Error ? error.message : 'Unable to load your statement');
-        }
-      })
-      .finally(() => {
-        if (active) setIsLoading(false);
+    const user = getCurrentUser();
+    const isDemo = isDemoUser();
+
+    if (user) {
+      setMember({
+        id: user.id,
+        name: user.name,
+        email: user.email,
       });
+    }
+
+    if (isDemo) {
+      fetch('/api/statements')
+        .then(async (response) => {
+          const result = await response.json();
+          if (!response.ok || !result.success) {
+            throw new Error(result.error || 'Unable to load your statement');
+          }
+          if (active) setLines(Array.isArray(result.data) ? result.data : []);
+        })
+        .catch((error: unknown) => {
+          if (active) {
+            setLoadError(error instanceof Error ? error.message : 'Unable to load your statement');
+          }
+        })
+        .finally(() => {
+          if (active) setIsLoading(false);
+        });
+    } else {
+      // Custom user: load their stored split runs
+      const userRuns = getStoredSplitRuns();
+      const userSquads = getStoredSquads();
+      const generatedLines: StatementLine[] = [];
+      userRuns.forEach((r: any) => {
+        const sq = userSquads.find((s) => s.id === r.squadId);
+        const myLine = r.lines?.find(
+          (l: any) =>
+            (user?.email && l.payoutReceiver?.toLowerCase() === user.email.toLowerCase()) ||
+            l.memberName === user?.name
+        );
+        if (myLine) {
+          generatedLines.push({
+            id: myLine.id || `line_${Date.now()}`,
+            runId: r.id,
+            runStatus: r.status || 'paid',
+            createdAt: r.createdAt || new Date().toISOString(),
+            poolMinor: r.totalPoolMinor || 0,
+            amountMinor: myLine.allocatedAmountMinor || 0,
+            currency: r.currency || 'USD',
+            squadName: sq?.name || 'Squad Workspace',
+            contributionSummary: myLine.contributionSummary || 'Verified squad contribution',
+            payoutStatus: r.status === 'paid' ? 'success' : 'processing',
+          });
+        }
+      });
+      setLines(generatedLines);
+      setIsLoading(false);
+    }
+
     return () => {
       active = false;
     };

@@ -23,6 +23,7 @@ import {
   getContributionWarnings,
   getExtractionDisplayStatus,
 } from '@/lib/evidence-extraction-display';
+import { getStoredSquads, isDemoUser } from '@/lib/client-storage';
 
 type EvidenceRecord = {
   id: string;
@@ -176,15 +177,38 @@ export default function EvidencePage() {
     let cancelled = false;
     async function loadSquads() {
       try {
-        const squadResponse = await fetch('/api/squads');
-        const squadResult = await squadResponse.json();
-        if (!squadResponse.ok || !squadResult.success) {
-          throw new Error(squadResult.error || 'Unable to load squads');
+        const isDemo = isDemoUser();
+        const localSquads = getStoredSquads().map((s) => ({
+          id: s.id,
+          name: s.name,
+          currentRole: 'owner',
+        }));
+
+        let availableSquads: EvidenceSquad[] = [];
+        if (isDemo) {
+          try {
+            const squadResponse = await fetch('/api/squads');
+            const squadResult = await squadResponse.json();
+            if (squadResponse.ok && squadResult.success && Array.isArray(squadResult.data)) {
+              availableSquads = squadResult.data as EvidenceSquad[];
+            }
+          } catch {
+            // Ignore
+          }
         }
+
         if (cancelled) return;
-        const availableSquads = squadResult.data as EvidenceSquad[];
-        setSquads(availableSquads);
-        setSelectedSquadId((current) => current || availableSquads[0]?.id || '');
+        const map = new Map<string, EvidenceSquad>();
+        localSquads.forEach((s) => map.set(s.id, s));
+        availableSquads.forEach((s) => {
+          if (!map.has(s.id)) map.set(s.id, s);
+        });
+        const combined = Array.from(map.values());
+        setSquads(combined);
+        setSelectedSquadId((current) => {
+          if (current && combined.some((s) => s.id === current)) return current;
+          return combined[0]?.id || '';
+        });
       } catch (error) {
         if (!cancelled) {
           setLoadError(error instanceof Error ? error.message : 'Unable to load squads');

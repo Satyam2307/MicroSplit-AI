@@ -30,6 +30,9 @@ import {
   saveStoredMember,
   deleteStoredSquad,
   getCurrentUser,
+  isDemoUser,
+  seedStarterSquadForUser,
+  type UserSession,
 } from '@/lib/client-storage';
 
 interface SquadListItem {
@@ -78,36 +81,16 @@ const initialDemoSquads: SquadListItem[] = [
 
 export default function SquadsPage() {
   const router = useRouter();
-  const [squads, setSquads] = useState<SquadListItem[]>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = getStoredSquads().map((s) => ({
-        id: s.id,
-        name: s.name,
-        ownerId: s.ownerId,
-        currency: s.currency,
-        memberCount: s.memberCount || 1,
-        totalRevenue: s.totalRevenue || 0,
-        currentRole: 'owner',
-        owner: { name: (s as any).owner?.name || 'Owner' },
-      }));
-      if (stored.length > 0) {
-        const map = new Map<string, SquadListItem>();
-        stored.forEach((s) => map.set(s.id, s));
-        initialDemoSquads.forEach((s) => {
-          if (!map.has(s.id)) map.set(s.id, s);
-        });
-        return Array.from(map.values());
-      }
-    }
-    return initialDemoSquads;
-  });
+  const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
+  const [isDemo, setIsDemo] = useState(true);
+  const [squads, setSquads] = useState<SquadListItem[]>([]);
   const [search, setSearch] = useState('');
   const [listError, setListError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newSquadName, setNewSquadName] = useState('');
   const [newSquadCurrency, setNewSquadCurrency] = useState('USD');
-  const [newOwnerName, setNewOwnerName] = useState(() => getCurrentUser()?.name || 'Alex Rivera');
-  const [newOwnerEmail, setNewOwnerEmail] = useState(() => getCurrentUser()?.email || 'alex@microsplit.demo');
+  const [newOwnerName, setNewOwnerName] = useState('');
+  const [newOwnerEmail, setNewOwnerEmail] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -121,13 +104,20 @@ export default function SquadsPage() {
   useEffect(() => {
     let active = true;
 
-    const currentUser = getCurrentUser();
-    if (currentUser) {
-      setNewOwnerName(currentUser.name);
-      setNewOwnerEmail(currentUser.email);
+    const user = getCurrentUser();
+    const demo = isDemoUser();
+    setCurrentUser(user);
+    setIsDemo(demo);
+
+    if (user) {
+      setNewOwnerName(user.name);
+      setNewOwnerEmail(user.email);
+    } else {
+      setNewOwnerName('Alex Rivera');
+      setNewOwnerEmail('alex@microsplit.demo');
     }
 
-    // Load any locally stored custom squads immediately
+    // Load user-scoped stored custom squads
     const stored = getStoredSquads().map((s) => ({
       id: s.id,
       name: s.name,
@@ -136,48 +126,72 @@ export default function SquadsPage() {
       memberCount: s.memberCount || 1,
       totalRevenue: s.totalRevenue || 0,
       currentRole: 'owner',
-      owner: { name: (s as any).owner?.name || 'Owner' },
+      owner: { name: (s as any).owner?.name || user?.name || 'Owner' },
     }));
 
-    if (stored.length > 0) {
-      setSquads((prev) => {
-        const map = new Map<string, SquadListItem>();
-        stored.forEach((s) => map.set(s.id, s));
-        prev.forEach((s) => {
-          if (!map.has(s.id)) map.set(s.id, s);
-        });
-        return Array.from(map.values());
+    if (demo) {
+      const map = new Map<string, SquadListItem>();
+      stored.forEach((s) => map.set(s.id, s));
+      initialDemoSquads.forEach((s) => {
+        if (!map.has(s.id)) map.set(s.id, s);
       });
-    }
+      setSquads(Array.from(map.values()));
 
-    fetch('/api/squads')
-      .then(async (response) => {
-        const result = await response.json();
-        if (!response.ok || !result.success) {
-          throw new Error(result.error || 'Unable to load squads');
-        }
-        if (active) {
-          const apiSquads = (result.data || []) as SquadListItem[];
-          setSquads(() => {
-            const map = new Map<string, SquadListItem>();
-            stored.forEach((s) => map.set(s.id, s));
-            apiSquads.forEach((s) => {
-              if (!map.has(s.id)) map.set(s.id, s);
+      fetch('/api/squads')
+        .then(async (response) => {
+          const result = await response.json();
+          if (!response.ok || !result.success) {
+            throw new Error(result.error || 'Unable to load squads');
+          }
+          if (active) {
+            const apiSquads = (result.data || []) as SquadListItem[];
+            setSquads(() => {
+              const m = new Map<string, SquadListItem>();
+              stored.forEach((s) => m.set(s.id, s));
+              apiSquads.forEach((s) => {
+                if (!m.has(s.id)) m.set(s.id, s);
+              });
+              return Array.from(m.values());
             });
-            return Array.from(map.values());
-          });
-        }
-      })
-      .catch((err: unknown) => {
-        if (active) {
-          setListError(err instanceof Error ? err.message : 'Unable to load squads');
-        }
-      });
+          }
+        })
+        .catch((err: unknown) => {
+          if (active) {
+            setListError(err instanceof Error ? err.message : 'Unable to load squads');
+          }
+        });
+    } else {
+      // For custom user: show strictly their own squads
+      setSquads(stored);
+    }
 
     return () => {
       active = false;
     };
   }, []);
+
+  const handleSeedStarter = () => {
+    const starter = seedStarterSquadForUser();
+    if (starter) {
+      const user = getCurrentUser();
+      const squadItem: SquadListItem = {
+        id: starter.id,
+        name: starter.name,
+        ownerId: starter.ownerId,
+        currency: starter.currency,
+        memberCount: starter.memberCount || 2,
+        totalRevenue: starter.totalRevenue || 300000,
+        currentRole: 'owner',
+        owner: { name: user?.name || 'Owner' },
+      };
+      setSquads((prev) => [squadItem, ...prev]);
+      showToast({
+        type: 'success',
+        title: 'Starter Workspace Ready!',
+        message: `Created "${starter.name}" with 2 members and verified revenue.`,
+      });
+    }
+  };
 
   const handleCreateSquad = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -356,6 +370,58 @@ export default function SquadsPage() {
             <span>Showing {filteredSquads.length} of {squads.length} squads</span>
           </div>
         </div>
+
+        {/* Empty state banner when custom user has no squads */}
+        {squads.length === 0 && (
+          <div
+            className="mb-8 p-8 rounded-3xl border text-center"
+            style={{
+              background: 'var(--background)',
+              borderColor: 'color-mix(in srgb, var(--accent) 30%, var(--border))',
+              boxShadow: '0 4px 20px color-mix(in srgb, var(--accent) 8%, transparent)',
+            }}
+          >
+            <div
+              className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center mb-4 text-white font-bold"
+              style={{
+                background: 'linear-gradient(135deg, var(--primary), var(--accent))',
+                boxShadow: '0 4px 14px color-mix(in srgb, var(--accent) 30%, transparent)',
+              }}
+            >
+              <Users size={28} />
+            </div>
+            <h3 className="text-xl font-bold mb-2 font-['Playfair_Display',serif]" style={{ color: 'var(--primary)' }}>
+              Welcome to your personal workspace{currentUser?.name ? `, ${currentUser.name}` : ''}!
+            </h3>
+            <p className="text-sm max-w-lg mx-auto mb-6 leading-relaxed" style={{ color: 'var(--text)', opacity: 0.85 }}>
+              You are signed in as <strong>{currentUser?.email || 'your account'}</strong>. You don't have any squads yet. Create your first squad workspace to add members, record revenue, and run automated integer-cent splits.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 cursor-pointer shadow-md"
+                style={{ background: 'var(--accent)' }}
+              >
+                <Plus size={16} />
+                Create First Squad
+              </button>
+              <button
+                type="button"
+                onClick={handleSeedStarter}
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-all hover:bg-slate-100 cursor-pointer border"
+                style={{
+                  background: 'var(--background)',
+                  color: 'var(--primary)',
+                  borderColor: 'var(--border)',
+                }}
+              >
+                <Sparkles size={16} style={{ color: 'var(--accent)' }} />
+                Explore with Sample Squad
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Squad Cards Grid */}
         {listError && (

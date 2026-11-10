@@ -14,17 +14,29 @@ import {
   Mail,
 } from 'lucide-react';
 import { Reveal, Card } from '@/components/ui';
-import { saveStoredSquad, saveStoredMember } from '@/lib/client-storage';
+import { saveStoredSquad, saveStoredMember, getCurrentUser } from '@/lib/client-storage';
+import { useEffect } from 'react';
 
 export default function NewSquadPage() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [currency, setCurrency] = useState('USD');
   const [ownerTimezone, setOwnerTimezone] = useState('Asia/Kolkata');
-  const [ownerName, setOwnerName] = useState('Alex Rivera');
-  const [ownerEmail, setOwnerEmail] = useState('alex@microsplit.demo');
+  const [ownerName, setOwnerName] = useState('');
+  const [ownerEmail, setOwnerEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const user = getCurrentUser();
+    if (user) {
+      setOwnerName(user.name);
+      setOwnerEmail(user.email);
+    } else {
+      setOwnerName('Alex Rivera');
+      setOwnerEmail('alex@microsplit.demo');
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,7 +149,7 @@ export default function NewSquadPage() {
                       <input
                         type="text"
                         required
-                        placeholder="e.g. Alex Rivera or Satyam Chaurasia"
+                        placeholder="e.g. Your name or team lead"
                         value={ownerName}
                         onChange={(e) => setOwnerName(e.target.value)}
                         className="input-field text-base w-full pl-10 font-medium"
@@ -157,7 +169,7 @@ export default function NewSquadPage() {
                       <input
                         type="email"
                         required
-                        placeholder="e.g. alex@microsplit.demo"
+                        placeholder="you@company.com"
                         value={ownerEmail}
                         onChange={(e) => setOwnerEmail(e.target.value)}
                         className="input-field text-base w-full pl-10 font-medium"
