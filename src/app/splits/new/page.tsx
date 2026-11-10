@@ -759,6 +759,75 @@ export default function SplitsNewPage() {
     });
   };
 
+  const applyLeadIncentive = () => {
+    if (memberSplits.length === 0) return;
+    if (memberSplits.length === 1) {
+      distributeEvenly();
+      return;
+    }
+    const leadShare = 40;
+    const remaining = 60;
+    const otherShares = evenShares(memberSplits.length - 1).map((s) => round1((s * remaining) / 100));
+    const sumOthers = otherShares.reduce((a, b) => a + b, 0);
+    const diff = round1(100 - leadShare - sumOthers);
+    if (otherShares.length > 0) otherShares[0] = round1(otherShares[0] + diff);
+
+    if (selectedRule === 'fixed_percentage') {
+      setMemberSplits(
+        memberSplits.map((m, i) => ({
+          ...m,
+          percentage: i === 0 ? leadShare : otherShares[i - 1],
+        }))
+      );
+    } else if (selectedRule === 'weighted_points') {
+      setMemberSplits(
+        memberSplits.map((m, i) => ({
+          ...m,
+          points: i === 0 ? 40 : Math.round(60 / (memberSplits.length - 1)),
+        }))
+      );
+    } else {
+      distributeEvenly();
+    }
+    showToast({
+      type: 'info',
+      title: 'Lead Incentive Applied',
+      message: 'Lead allocated 40%, remainder split evenly among squad.',
+    });
+  };
+
+  const applyStreakWeighted = () => {
+    if (memberSplits.length === 0) return;
+    const totalStreaks = memberSplits.reduce((s, m) => s + Math.max(1, m.streakDays), 0);
+    if (selectedRule === 'fixed_percentage') {
+      let allocated = 0;
+      const newSplits = memberSplits.map((m, i) => {
+        if (i === memberSplits.length - 1) {
+          return { ...m, percentage: round1(100 - allocated) };
+        }
+        const pct = round1((Math.max(1, m.streakDays) / totalStreaks) * 100);
+        allocated += pct;
+        return { ...m, percentage: pct };
+      });
+      setMemberSplits(newSplits);
+    } else if (selectedRule === 'weighted_points') {
+      setMemberSplits(
+        memberSplits.map((m) => ({
+          ...m,
+          points: Math.max(10, m.streakDays * 5),
+        }))
+      );
+    } else {
+      setEnableConsistency(true);
+      setConsistencyPercent(10);
+    }
+    showToast({
+      type: 'info',
+      title: 'Streak Weighted Applied',
+      message: 'Allocated proportionally according to verified contribution streaks.',
+    });
+  };
+
   const resetShares = () => {
     if (selectedRule === 'fixed_percentage') {
       setMemberSplits(memberSplits.map((m) => ({ ...m, percentage: 0 })));
@@ -913,199 +982,234 @@ export default function SplitsNewPage() {
           </div>
         </Reveal>
 
-        {/* Top Configuration: Squad & Revenue + Split Methodology Side-by-Side */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Squad & Pool */}
-          <Reveal delay={0.1}>
-            <Card padding="lg" className="h-full">
-              <div className="mb-5 flex items-center gap-3">
-                <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[var(--accent-subtle)] text-[var(--accent)]">
-                  <Users size={18} />
-                </span>
-                <div>
-                  <h2 className="text-base font-bold leading-tight text-[var(--text)]">
-                    Squad &amp; revenue
-                  </h2>
-                  <p className="text-xs text-[var(--muted)]">
-                    Choose who is being paid and which revenue is split.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                {/* Squad Workspace */}
-                <div>
-                  <label
-                    htmlFor="squad-workspace"
-                    className="mb-2 flex items-baseline justify-between text-sm font-bold text-[var(--text)]"
-                  >
-                    Squad Workspace
-                    <span className="text-xs font-medium text-[var(--muted)]">Required</span>
-                  </label>
-                  <div className="group relative">
-                    <Building2
-                      size={18}
-                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]"
-                    />
-                    <select
-                      id="squad-workspace"
-                      suppressHydrationWarning
-                      value={selectedSquadId}
-                      onChange={(e) => setSelectedSquadId(e.target.value)}
-                      disabled={squads.length === 0}
-                      className="h-[52px] w-full appearance-none rounded-xl border-[1.5px] border-[var(--border)] bg-[var(--background)] pl-11 pr-11 text-[15px] font-medium text-[var(--text)] transition hover:border-[var(--accent)] focus:border-[var(--accent)] focus:bg-[var(--background)] focus:outline-none focus:ring-4 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)] disabled:cursor-not-allowed disabled:border-dashed disabled:opacity-70"
-                    >
-                      {squads.length === 0 && <option value="">No squads yet</option>}
-                      {squads.map((squad) => (
-                        <option key={squad.id} value={squad.id}>
-                          {squad.name} ({squad.currency})
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={18}
-                      className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)] transition-transform group-focus-within:rotate-180 group-focus-within:text-[var(--accent)]"
-                    />
+        {/* Top Configuration Row: Squad & Revenue (Left) + Split Methodology (Right) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch mb-8">
+          {/* Top Left: Squad & Revenue */}
+          <Reveal delay={0.1} className="h-full">
+            <Card padding="lg" className="h-full flex flex-col justify-between">
+              <div>
+                <div className="mb-5 flex items-center gap-3">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[var(--accent-subtle)] text-[var(--accent)]">
+                    <Users size={18} />
+                  </span>
+                  <div>
+                    <h2 className="text-base font-bold leading-tight text-[var(--text)]">
+                      Squad &amp; revenue
+                    </h2>
+                    <p className="text-xs text-[var(--muted)]">
+                      Choose who is being paid and which revenue is split.
+                    </p>
                   </div>
-
-                  {loadError && <p className="text-xs text-red-600 mt-2">{loadError}</p>}
-
-                  {!loadError && squads.length === 0 && (
-                    <div
-                      role="status"
-                      className="mt-2.5 flex items-start gap-2 rounded-xl border border-[color-mix(in_srgb,#f59e0b_40%,transparent)] bg-[color-mix(in_srgb,#f59e0b_12%,transparent)] px-3 py-2.5 text-[13px] text-[var(--text)]"
-                    >
-                      <Info size={16} className="mt-0.5 shrink-0 text-amber-500" />
-                      <span>
-                        Create a squad and add members before configuring a split.
-                        <br />
-                        <Link href="/squads/new" className="font-semibold text-amber-600 underline underline-offset-2">
-                          + Create squad
-                        </Link>
-                      </span>
-                    </div>
-                  )}
-
-                  {selectedSquad.id && (
-                    <div className="mt-2.5 flex flex-wrap gap-2">
-                      <span className="inline-flex items-center rounded-full bg-[var(--accent-subtle)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)]">
-                        {memberSplits.length} {memberSplits.length === 1 ? 'member' : 'members'}
-                      </span>
-                      <span className="inline-flex items-center rounded-full bg-[var(--accent-subtle)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)]">
-                        {selectedSquad.currency}
-                      </span>
-                    </div>
-                  )}
                 </div>
 
-                {/* Revenue Event */}
-                <div>
-                  <label
-                    htmlFor="revenue-event"
-                    className="mb-2 flex items-baseline justify-between text-sm font-bold text-[var(--text)]"
-                  >
-                    Revenue Event ({selectedSquad.currency})
-                    <span className="text-xs font-medium text-[var(--muted)]">Required</span>
-                  </label>
-                  <div className="group relative">
-                    <CircleDollarSign
-                      size={18}
-                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]"
-                    />
-                    <select
-                      id="revenue-event"
-                      value={selectedRevenueEventId}
-                      onChange={(event) => setSelectedRevenueEventId(event.target.value)}
-                      disabled={revenueEvents.length === 0}
-                      className="h-[52px] w-full appearance-none rounded-xl border-[1.5px] border-[var(--border)] bg-[var(--background)] pl-11 pr-11 text-[15px] font-medium text-[var(--text)] transition hover:border-[var(--accent)] focus:border-[var(--accent)] focus:bg-[var(--background)] focus:outline-none focus:ring-4 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)] disabled:cursor-not-allowed disabled:border-dashed disabled:opacity-70"
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  {/* Squad Workspace */}
+                  <div>
+                    <label
+                      htmlFor="squad-workspace"
+                      className="mb-2 flex items-baseline justify-between text-sm font-bold text-[var(--text)]"
                     >
-                      {revenueEvents.length === 0 && (
-                        <option value="">
-                          {selectedSquadId ? 'No active revenue events' : 'Select a squad first'}
-                        </option>
-                      )}
-                      {revenueEvents.map((event) => (
-                        <option key={event.id} value={event.id}>
-                          {event.description || 'Revenue event'} — {getCurrencySymbol(event.currency)}
-                          {(event.amountMinor / 100).toFixed(2)}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={18}
-                      className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)] transition-transform group-focus-within:rotate-180 group-focus-within:text-[var(--accent)]"
-                    />
+                      Squad Workspace
+                      <span className="text-xs font-medium text-[var(--muted)]">Required</span>
+                    </label>
+                    <div className="group relative">
+                      <Building2
+                        size={18}
+                        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+                      />
+                      <select
+                        id="squad-workspace"
+                        suppressHydrationWarning
+                        value={selectedSquadId}
+                        onChange={(e) => setSelectedSquadId(e.target.value)}
+                        disabled={squads.length === 0}
+                        className="h-[52px] w-full appearance-none rounded-xl border-[1.5px] border-[var(--border)] bg-[var(--background)] pl-11 pr-11 text-[15px] font-medium text-[var(--text)] transition hover:border-[var(--accent)] focus:border-[var(--accent)] focus:bg-[var(--background)] focus:outline-none focus:ring-4 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)] disabled:cursor-not-allowed disabled:border-dashed disabled:opacity-70"
+                      >
+                        {squads.length === 0 && <option value="">No squads yet</option>}
+                        {squads.map((squad) => (
+                          <option key={squad.id} value={squad.id}>
+                            {squad.name} ({squad.currency})
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        size={18}
+                        className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)] transition-transform group-focus-within:rotate-180 group-focus-within:text-[var(--accent)]"
+                      />
+                    </div>
+
+                    {loadError && <p className="text-xs text-red-600 mt-2">{loadError}</p>}
+
+                    {!loadError && squads.length === 0 && (
+                      <div
+                        role="status"
+                        className="mt-2.5 flex items-start gap-2 rounded-xl border border-[color-mix(in_srgb,#f59e0b_40%,transparent)] bg-[color-mix(in_srgb,#f59e0b_12%,transparent)] px-3 py-2.5 text-[13px] text-[var(--text)]"
+                      >
+                        <Info size={16} className="mt-0.5 shrink-0 text-amber-500" />
+                        <span>
+                          Create a squad and add members before configuring a split.
+                          <br />
+                          <Link href="/squads/new" className="font-semibold text-amber-600 underline underline-offset-2">
+                            + Create squad
+                          </Link>
+                        </span>
+                      </div>
+                    )}
+
+                    {selectedSquad.id && (
+                      <div className="mt-2.5 flex flex-wrap gap-2">
+                        <span className="inline-flex items-center rounded-full bg-[var(--accent-subtle)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)]">
+                          {memberSplits.length} {memberSplits.length === 1 ? 'member' : 'members'}
+                        </span>
+                        <span className="inline-flex items-center rounded-full bg-[var(--accent-subtle)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)]">
+                          {selectedSquad.currency}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
-                  {selectedRevenueEvent ? (
-                    <div className="mt-2.5 flex flex-wrap gap-2">
-                      <span className="inline-flex items-center rounded-full bg-[var(--accent-subtle)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)]">
-                        {getCurrencySymbol(selectedRevenueEvent.currency)}
-                        {(poolAmount / 100).toFixed(2)} to split
-                      </span>
-                      <span className="inline-flex items-center rounded-full bg-[var(--accent-subtle)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)]">
-                        Active
-                      </span>
-                    </div>
-                  ) : (
-                    <div
-                      role="status"
-                      className="mt-2.5 flex items-start gap-2 rounded-xl border border-[color-mix(in_srgb,#f59e0b_40%,transparent)] bg-[color-mix(in_srgb,#f59e0b_12%,transparent)] px-3 py-2.5 text-[13px] text-[var(--text)]"
+                  {/* Revenue Event */}
+                  <div>
+                    <label
+                      htmlFor="revenue-event"
+                      className="mb-2 flex items-baseline justify-between text-sm font-bold text-[var(--text)]"
                     >
-                      <Info size={16} className="mt-0.5 shrink-0 text-amber-500" />
-                      <span>
-                        {selectedSquadId
-                          ? 'Record an active revenue event for this squad before running a split.'
-                          : 'Create a squad first, then record a revenue event for it.'}
-                        <br />
-                        <Link
-                          href={selectedSquadId ? `/squads/${selectedSquadId}` : '/squads/new'}
-                          className="font-semibold text-amber-600 underline underline-offset-2"
-                        >
-                          {selectedSquadId ? '+ Record revenue event' : '+ Create squad'}
-                        </Link>
-                      </span>
+                      Revenue Event ({selectedSquad.currency})
+                      <span className="text-xs font-medium text-[var(--muted)]">Required</span>
+                    </label>
+                    <div className="group relative">
+                      <CircleDollarSign
+                        size={18}
+                        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+                      />
+                      <select
+                        id="revenue-event"
+                        value={selectedRevenueEventId}
+                        onChange={(event) => setSelectedRevenueEventId(event.target.value)}
+                        disabled={revenueEvents.length === 0}
+                        className="h-[52px] w-full appearance-none rounded-xl border-[1.5px] border-[var(--border)] bg-[var(--background)] pl-11 pr-11 text-[15px] font-medium text-[var(--text)] transition hover:border-[var(--accent)] focus:border-[var(--accent)] focus:bg-[var(--background)] focus:outline-none focus:ring-4 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)] disabled:cursor-not-allowed disabled:border-dashed disabled:opacity-70"
+                      >
+                        {revenueEvents.length === 0 && (
+                          <option value="">
+                            {selectedSquadId ? 'No active revenue events' : 'Select a squad first'}
+                          </option>
+                        )}
+                        {revenueEvents.map((event) => (
+                          <option key={event.id} value={event.id}>
+                            {event.description || 'Revenue event'} — {getCurrencySymbol(event.currency)}
+                            {(event.amountMinor / 100).toFixed(2)}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        size={18}
+                        className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)] transition-transform group-focus-within:rotate-180 group-focus-within:text-[var(--accent)]"
+                      />
                     </div>
-                  )}
+
+                    {selectedRevenueEvent ? (
+                      <div className="mt-2.5 flex flex-wrap gap-2">
+                        <span className="inline-flex items-center rounded-full bg-[var(--accent-subtle)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)]">
+                          {getCurrencySymbol(selectedRevenueEvent.currency)}
+                          {(poolAmount / 100).toFixed(2)} to split
+                        </span>
+                        <span className="inline-flex items-center rounded-full bg-[var(--accent-subtle)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)]">
+                          Active
+                        </span>
+                      </div>
+                    ) : (
+                      <div
+                        role="status"
+                        className="mt-2.5 flex items-start gap-2 rounded-xl border border-[color-mix(in_srgb,#f59e0b_40%,transparent)] bg-[color-mix(in_srgb,#f59e0b_12%,transparent)] px-3 py-2.5 text-[13px] text-[var(--text)]"
+                      >
+                        <Info size={16} className="mt-0.5 shrink-0 text-amber-500" />
+                        <span>
+                          {selectedSquadId
+                            ? 'Record an active revenue event for this squad before running a split.'
+                            : 'Create a squad first, then record a revenue event for it.'}
+                          <br />
+                          <Link
+                            href={selectedSquadId ? `/squads/${selectedSquadId}` : '/squads/new'}
+                            className="font-semibold text-amber-600 underline underline-offset-2"
+                          >
+                            {selectedSquadId ? '+ Record revenue event' : '+ Create squad'}
+                          </Link>
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </Card>
           </Reveal>
 
-          {/* 1. Split Methodology (choose the method FIRST) */}
-          <Reveal delay={0.15}>
-            <Card padding="lg" className="h-full">
-              <h2 className="text-base font-bold mb-3" style={{ color: 'var(--text)' }}>
-                Split Methodology
-              </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {ruleOptions.map((opt) => (
-                  <button
-                    key={opt.type}
-                    type="button"
-                    aria-pressed={selectedRule === opt.type}
-                    className="p-3.5 rounded-xl text-center transition-all duration-200"
-                    style={{
-                      background: selectedRule === opt.type ? 'var(--background)' : 'color-mix(in srgb, var(--accent) 4%, transparent)',
-                      border: `2px solid ${selectedRule === opt.type ? 'var(--accent)' : 'transparent'}`,
-                      color: selectedRule === opt.type ? 'var(--accent)' : 'var(--muted)',
-                    }}
-                    onClick={() => setSelectedRule(opt.type)}
-                  >
-                    <div className="flex justify-center mb-1.5">{opt.icon}</div>
-                    <p className="text-sm font-bold">{opt.label}</p>
-                    <p className="hidden sm:block text-[11px] mt-0.5 font-medium opacity-80">{opt.desc}</p>
-                  </button>
-                ))}
+          {/* Top Right: Split Methodology (Matching Height) */}
+          <Reveal delay={0.15} className="h-full">
+            <Card padding="lg" className="h-full flex flex-col justify-between">
+              <div>
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-base font-bold leading-tight" style={{ color: 'var(--text)' }}>
+                      Split Methodology
+                    </h2>
+                    <p className="text-xs text-[var(--muted)] mt-0.5">
+                      Choose how the revenue pool is divided among contributors.
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[var(--accent-subtle)] text-[var(--accent)] uppercase tracking-wider">
+                    Rule Engine
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {ruleOptions.map((opt) => (
+                    <button
+                      key={opt.type}
+                      type="button"
+                      aria-pressed={selectedRule === opt.type}
+                      className="p-3.5 rounded-xl text-center transition-all duration-200"
+                      style={{
+                        background:
+                          selectedRule === opt.type
+                            ? 'var(--background)'
+                            : 'color-mix(in srgb, var(--accent) 4%, transparent)',
+                        border: `2px solid ${selectedRule === opt.type ? 'var(--accent)' : 'transparent'}`,
+                        color: selectedRule === opt.type ? 'var(--accent)' : 'var(--muted)',
+                      }}
+                      onClick={() => setSelectedRule(opt.type)}
+                    >
+                      <div className="flex justify-center mb-1.5">{opt.icon}</div>
+                      <p className="text-sm font-bold">{opt.label}</p>
+                      <p className="hidden sm:block text-[11px] mt-0.5 font-medium opacity-80">{opt.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Active rule description badge that balances height with Squad Workspace */}
+              <div
+                className="mt-4 px-3.5 py-2.5 rounded-xl border border-[var(--border)] text-xs font-medium flex items-center justify-between"
+                style={{ background: 'color-mix(in srgb, var(--accent) 5%, transparent)' }}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <span className="font-bold text-[var(--accent)]">
+                    {ruleOptions.find((r) => r.type === selectedRule)?.label}:
+                  </span>
+                  <span className="text-[var(--text)] truncate">
+                    {ruleOptions.find((r) => r.type === selectedRule)?.desc}
+                  </span>
+                </div>
+                <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded bg-[var(--accent-subtle)] text-[var(--accent)] uppercase tracking-wider ml-2">
+                  Active
+                </span>
               </div>
             </Card>
           </Reveal>
         </div>
 
-        {/* Parallel Workspace: Member Shares (Left) & Live Preview + Run Split (Right) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Left: Member Shares Allocation Panel */}
-          <div className="lg:col-span-7">
+        {/* Bottom Workspace Row: Member Shares (Left) + Live Preview & Guidance (Right) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+          {/* Bottom Left: Member Shares Allocation Panel + Quick Presets */}
+          <div className="space-y-6">
             <Reveal delay={0.2}>
               <Card padding="lg">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -1482,13 +1586,110 @@ export default function SplitsNewPage() {
                 )}
               </Card>
             </Reveal>
+
+            {/* Quick Strategy Presets & Pre-Flight Verification (Natural space-filler) */}
+            <Reveal delay={0.25}>
+              <Card padding="lg" elevated className="border-[var(--border)]">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-[var(--accent-subtle)] text-[var(--accent)]">
+                      <Sparkles size={18} />
+                    </span>
+                    <div>
+                      <h3 className="text-base font-bold leading-tight text-[var(--text)]">
+                        Quick Distribution Strategies
+                      </h3>
+                      <p className="text-xs text-[var(--muted)]">
+                        Apply proven team allocation formulas with a single click.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--accent-subtle)] text-[var(--accent)] uppercase tracking-wider">
+                    Presets
+                  </span>
+                </div>
+
+                {/* Preset Cards Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                  <button
+                    type="button"
+                    onClick={distributeEvenly}
+                    className="p-3.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--background)] hover:border-[var(--accent)] text-left transition-all duration-150 group flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-[var(--text)] group-hover:text-[var(--accent)]">Equal Split</span>
+                        <Sliders size={14} className="text-[var(--muted)] group-hover:text-[var(--accent)]" />
+                      </div>
+                      <p className="text-[11px] text-[var(--muted)] leading-tight">
+                        Balances 100% equally among all {memberSplits.length} members.
+                      </p>
+                    </div>
+                    <span className="mt-2 text-[10px] font-semibold text-[var(--accent)]">Apply Equal</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={applyLeadIncentive}
+                    className="p-3.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--background)] hover:border-[var(--accent)] text-left transition-all duration-150 group flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-[var(--text)] group-hover:text-[var(--accent)]">Lead Incentive</span>
+                        <Trophy size={14} className="text-[var(--muted)] group-hover:text-[var(--accent)]" />
+                      </div>
+                      <p className="text-[11px] text-[var(--muted)] leading-tight">
+                        40% to lead, remaining 60% split evenly among contributors.
+                      </p>
+                    </div>
+                    <span className="mt-2 text-[10px] font-semibold text-[var(--accent)]">Apply 40 / 60</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={applyStreakWeighted}
+                    className="p-3.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--background)] hover:border-[var(--accent)] text-left transition-all duration-150 group flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-[var(--text)] group-hover:text-[var(--accent)]">Streak Boost</span>
+                        <Flame size={14} className="text-[var(--muted)] group-hover:text-[var(--accent)]" />
+                      </div>
+                      <p className="text-[11px] text-[var(--muted)] leading-tight">
+                        Boosts shares proportionally by verified streak days.
+                      </p>
+                    </div>
+                    <span className="mt-2 text-[10px] font-semibold text-[var(--accent)]">Apply Streak</span>
+                  </button>
+                </div>
+
+                {/* Pre-Flight Security & Audit Banner */}
+                <div className="p-3.5 rounded-xl border border-[var(--border)] bg-[var(--background)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <CheckCircle2 size={16} className="text-[var(--accent)] shrink-0" />
+                    <div>
+                      <span className="text-xs font-bold text-[var(--text)] block leading-tight">
+                        Zero-Cent Loss Invariant Guaranteed
+                      </span>
+                      <span className="text-[11px] text-[var(--muted)] block">
+                        Largest-remainder algorithm ensures {formatMoney(poolAmount)} resolves to the exact cent.
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)]">
+                      SHA-256 Snapshot
+                    </span>
+                  </div>
+                </div>
+              </Card>
+            </Reveal>
           </div>
 
-          {/* Right: Live Preview & Run Action (Parallel & Sticky) */}
-          <div className="lg:col-span-5 lg:sticky lg:top-20">
-            <div className="space-y-4">
-              <Reveal delay={0.25}>
-                <Card elevated padding="lg">
+          {/* Bottom Right: Live Preview & Guidance */}
+          <div className="space-y-6">
+            <Reveal delay={0.25}>
+              <Card elevated padding="lg">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <Zap size={18} className="text-[var(--accent)]" />
@@ -1645,7 +1846,6 @@ export default function SplitsNewPage() {
                 sharesValid={isValid}
                 consistencyOn={enableConsistency}
               />
-            </div>
           </div>
         </div>
       </div>
