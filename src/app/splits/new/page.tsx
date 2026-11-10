@@ -324,7 +324,7 @@ function MemberRow({
   onChange,
 }: MemberRowProps) {
   return (
-    <div className="p-3.5 sm:p-4 rounded-xl border border-[var(--border)] bg-white/70 space-y-2.5 shadow-sm transition-all hover:border-[var(--accent)]">
+    <div className="p-3.5 sm:p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] space-y-2.5 shadow-sm transition-all hover:border-[var(--accent)]">
       <div className="flex items-center justify-between gap-3">
         {/* Member Identity & Streak */}
         <div className="flex items-center gap-2.5 min-w-0">
@@ -335,7 +335,7 @@ function MemberRow({
             {member.name.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-bold truncate text-[var(--primary)]">{member.name}</p>
+            <p className="text-sm font-bold truncate text-[var(--text)]">{member.name}</p>
             <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
               {member.streakDays > 0 ? (
                 <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-[var(--accent-subtle)] text-[var(--accent)]">
@@ -345,7 +345,7 @@ function MemberRow({
                 <span className="text-[10px] text-[var(--muted-light)]">0d streak</span>
               )}
               {showStreak && streakAmount > 0 && (
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 bg-emerald-500/15 px-1.5 py-0.5 rounded">
                   +{formatMoney(streakAmount)} streak
                 </span>
               )}
@@ -369,7 +369,7 @@ function MemberRow({
             <button
               type="button"
               onClick={() => onChange(value - stepBy)}
-              className="w-8 h-8 rounded-lg border border-[var(--border)] bg-white hover:bg-slate-50 flex items-center justify-center text-[var(--text)] hover:text-[var(--primary)] transition-colors shadow-xs"
+              className="w-8 h-8 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--background)] flex items-center justify-center text-[var(--text)] hover:text-[var(--accent)] transition-colors shadow-xs"
               title={`Decrease ${stepBy}${unit === '%' ? '%' : ' points'}`}
             >
               <Minus size={14} />
@@ -383,9 +383,9 @@ function MemberRow({
                 step={step}
                 value={value}
                 onChange={(e) => onChange(safeNum(parseFloat(e.target.value)))}
-                className="w-20 sm:w-24 px-2.5 py-1.5 text-right font-black font-mono text-sm sm:text-base rounded-lg border-2 border-[var(--text)] focus:border-[var(--accent)] focus:outline-none bg-white text-[var(--primary)] pr-9 tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className="w-20 sm:w-24 px-2.5 py-1.5 text-right font-black font-mono text-sm sm:text-base rounded-lg border-2 border-[var(--border-strong)] focus:border-[var(--accent)] focus:outline-none bg-[var(--surface)] text-[var(--text)] pr-9 tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
-              <span className="absolute right-2 text-[10px] font-bold text-[var(--text)] pointer-events-none">
+              <span className="absolute right-2 text-[10px] font-bold text-[var(--muted)] pointer-events-none">
                 {unit}
               </span>
             </div>
@@ -393,7 +393,7 @@ function MemberRow({
             <button
               type="button"
               onClick={() => onChange(value + stepBy)}
-              className="w-8 h-8 rounded-lg border border-[var(--border)] bg-white hover:bg-slate-50 flex items-center justify-center text-[var(--text)] hover:text-[var(--primary)] transition-colors shadow-xs"
+              className="w-8 h-8 rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--background)] flex items-center justify-center text-[var(--text)] hover:text-[var(--accent)] transition-colors shadow-xs"
               title={`Increase ${stepBy}${unit === '%' ? '%' : ' points'}`}
             >
               <Plus size={14} />
@@ -890,7 +890,7 @@ export default function SplitsNewPage() {
   const sym = getCurrencySymbol(selectedSquad.currency || 'USD');
 
   const smallInput =
-    'w-full px-2.5 py-1.5 text-sm font-semibold rounded-lg border-[1.5px] border-[var(--border)] bg-white text-[var(--primary)] focus:border-[var(--accent)] focus:outline-none';
+    'w-full px-2.5 py-1.5 text-sm font-semibold rounded-lg border-[1.5px] border-[var(--border)] bg-[var(--surface)] text-[var(--text)] focus:border-[var(--accent)] focus:outline-none';
 
   return (
     <div className="min-h-screen pb-16" style={{ background: 'var(--background)' }}>
@@ -1252,11 +1252,11 @@ export default function SplitsNewPage() {
                           return (
                             <div
                               key={band.id}
-                              className="p-4 rounded-xl border border-[var(--border)] bg-white/70 shadow-sm space-y-3"
+                              className="p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-sm space-y-3"
                             >
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className="text-sm font-black text-[var(--primary)]">Band {bi + 1}</span>
+                                  <span className="text-sm font-black text-[var(--text)]">Band {bi + 1}</span>
                                   {isLast ? (
                                     <span className="text-xs font-semibold text-[var(--muted)]">
                                       Everything above
@@ -1274,7 +1274,7 @@ export default function SplitsNewPage() {
                                           step="100"
                                           value={band.sizeMajor}
                                           onChange={(e) => setBandSize(band.id, parseFloat(e.target.value))}
-                                          className="w-28 pl-6 pr-2 py-1 text-sm font-bold rounded-lg border-[1.5px] border-[var(--border)] bg-white text-[var(--primary)] focus:border-[var(--accent)] focus:outline-none tabular-nums"
+                                          className="w-28 pl-6 pr-2 py-1 text-sm font-bold rounded-lg border-[1.5px] border-[var(--border)] bg-[var(--surface)] text-[var(--text)] focus:border-[var(--accent)] focus:outline-none tabular-nums"
                                         />
                                       </span>
                                     </label>
@@ -1395,7 +1395,7 @@ export default function SplitsNewPage() {
                             {milestones.map((ms) => (
                               <div
                                 key={ms.id}
-                                className="p-3 rounded-xl border border-[var(--border)] bg-white/70 shadow-sm grid grid-cols-2 sm:grid-cols-[1.4fr_90px_1.2fr_auto_auto] gap-2.5 items-center"
+                                className="p-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-sm grid grid-cols-2 sm:grid-cols-[1.4fr_90px_1.2fr_auto_auto] gap-2.5 items-center"
                               >
                                 <input
                                   type="text"

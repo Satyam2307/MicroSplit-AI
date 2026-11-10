@@ -119,9 +119,9 @@ export default function Navbar() {
       <header
         className="sticky top-0 z-50 w-full"
         style={{
-          background: 'var(--primary)',
+          background: 'var(--primary-navy, #0B1F3A)',
           borderBottom: '1px solid color-mix(in srgb, var(--background) 8%, transparent)',
-          boxShadow: '0 4px 20px color-mix(in srgb, var(--primary) 40%, transparent)',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
         }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -294,26 +294,25 @@ export default function Navbar() {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 8, scale: 0.96 }}
                       transition={{ duration: 0.15 }}
-                      className="absolute right-0 mt-2 w-80 rounded-2xl overflow-hidden z-50 shadow-2xl"
-                      style={{ background: '#FFFFFF', border: '1px solid #E2E8F0' }}
+                      className="absolute right-0 mt-2 w-80 rounded-2xl overflow-hidden z-50 shadow-2xl bg-[var(--surface)] border border-[var(--border)]"
                     >
-                      <div className="px-4 py-3 flex items-center justify-between bg-slate-50 border-b border-slate-100">
-                        <span className="text-xs font-bold text-[#0B1F3A]">Notifications</span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">1 pending</span>
+                      <div className="px-4 py-3 flex items-center justify-between bg-[var(--background)] border-b border-[var(--border)]">
+                        <span className="text-xs font-bold text-[var(--text)]">Notifications</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">1 pending</span>
                       </div>
                       <div>
                         <Link
                           href="/evidence"
-                          className="p-3.5 block transition-colors hover:bg-slate-50 border-b border-slate-100"
+                          className="p-3.5 block transition-colors hover:bg-[var(--background)] border-b border-[var(--border)]"
                           onClick={() => setNotifOpen(false)}
                         >
-                          <p className="text-xs font-bold text-[#0B1F3A]">Approver Review Flagged</p>
-                          <p className="text-[11px] mt-0.5 text-slate-500">Sam Patel logged an 18.5h focus session exceeding daily threshold.</p>
-                          <span className="text-[10px] font-semibold mt-1 inline-block text-[#0F9D8A]">Review Evidence →</span>
+                          <p className="text-xs font-bold text-[var(--text)]">Approver Review Flagged</p>
+                          <p className="text-[11px] mt-0.5 text-[var(--muted)]">Sam Patel logged an 18.5h focus session exceeding daily threshold.</p>
+                          <span className="text-[10px] font-semibold mt-1 inline-block text-[var(--accent)]">Review Evidence →</span>
                         </Link>
                       </div>
-                      <div className="p-2.5 bg-slate-50 text-center">
-                        <Link href="/evidence" className="text-xs font-bold text-[#0F9D8A] hover:underline" onClick={() => setNotifOpen(false)}>
+                      <div className="p-2.5 bg-[var(--background)] text-center">
+                        <Link href="/evidence" className="text-xs font-bold text-[var(--accent)] hover:underline" onClick={() => setNotifOpen(false)}>
                           View All Audit Items
                         </Link>
                       </div>
@@ -359,19 +358,19 @@ export default function Navbar() {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 8, scale: 0.96 }}
                         transition={{ duration: 0.15 }}
-                        className="absolute right-0 mt-2 w-64 rounded-2xl overflow-hidden z-50 shadow-2xl bg-white border border-slate-200"
+                        className="absolute right-0 mt-2 w-64 rounded-2xl overflow-hidden z-50 shadow-2xl bg-[var(--surface)] border border-[var(--border)]"
                       >
-                        <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                        <div className="px-4 py-3 bg-[var(--background)] border-b border-[var(--border)]">
                           <div className="flex items-center gap-2">
                             <div className="w-8 h-8 rounded-full bg-[#0B1F3A] text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
                               {profileInitials}
                             </div>
                             <div className="overflow-hidden text-left">
-                              <p className="text-xs font-bold text-[#0B1F3A] truncate">{profileName}</p>
-                              <p className="text-[11px] text-slate-500 truncate">{profileEmail}</p>
+                              <p className="text-xs font-bold text-[var(--text)] truncate">{profileName}</p>
+                              <p className="text-[11px] text-[var(--muted)] truncate">{profileEmail}</p>
                             </div>
                           </div>
-                          <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200 capitalize">
+                          <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/15 text-teal-400 border border-teal-500/30 capitalize">
                             <span className="w-1.5 h-1.5 rounded-full bg-[#0F9D8A]" />
                             Role: {profileRole}
                           </div>
@@ -379,38 +378,38 @@ export default function Navbar() {
                         <div className="py-1 text-xs">
                           <Link
                             href="/squads"
-                            className="px-4 py-2 text-slate-700 hover:bg-slate-50 hover:text-[#0B1F3A] flex items-center justify-between font-medium"
+                            className="px-4 py-2 text-[var(--text)] hover:bg-[var(--background)] flex items-center justify-between font-medium"
                             onClick={() => setUserMenuOpen(false)}
                           >
                             <span>Manage Squads</span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-bold">demo</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--background)] text-[var(--muted)] font-bold">demo</span>
                           </Link>
                           <Link
                             href="/splits/new"
-                            className="px-4 py-2 text-slate-700 hover:bg-slate-50 hover:text-[#0B1F3A] block font-medium"
+                            className="px-4 py-2 text-[var(--text)] hover:bg-[var(--background)] block font-medium"
                             onClick={() => setUserMenuOpen(false)}
                           >
                             Run Revenue Split
                           </Link>
                           <Link
                             href="/statements"
-                            className="px-4 py-2 text-slate-700 hover:bg-slate-50 hover:text-[#0B1F3A] block font-medium"
+                            className="px-4 py-2 text-[var(--text)] hover:bg-[var(--background)] block font-medium"
                             onClick={() => setUserMenuOpen(false)}
                           >
                             Member Statements
                           </Link>
                         </div>
-                        <div className="pt-1 pb-1 border-t border-slate-100 bg-slate-50 flex flex-col">
+                        <div className="pt-1 pb-1 border-t border-[var(--border)] bg-[var(--background)] flex flex-col">
                           <Link
                             href="/login"
-                            className="px-4 py-2 text-[11px] font-semibold text-slate-600 hover:text-[#0B1F3A] hover:bg-slate-100 block w-full text-left"
+                            className="px-4 py-2 text-[11px] font-semibold text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface)] block w-full text-left"
                             onClick={() => setUserMenuOpen(false)}
                           >
                             Switch Account / Role
                           </Link>
                           <button
                             type="button"
-                            className="px-4 py-2 text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 flex items-center gap-2 w-full text-left cursor-pointer transition-colors"
+                            className="px-4 py-2 text-[11px] font-semibold text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 flex items-center gap-2 w-full text-left cursor-pointer transition-colors"
                             onClick={() => {
                               clearCurrentUser();
                               setUserMenuOpen(false);

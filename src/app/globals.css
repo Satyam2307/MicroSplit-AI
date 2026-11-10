@@ -131,6 +131,18 @@
   --primary-subtle: #F0FBF9;
 }
 
+/* ─── Global Dark Mode Contrast Safeguards ───────────────── */
+[data-theme="dark"] .text-\[var\(--primary\)\],
+[data-theme="dark"] [style*="color: var(--primary)"] {
+  color: var(--text) !important;
+}
+
+[data-theme="dark"] select option {
+  background-color: var(--surface) !important;
+  color: var(--text) !important;
+}
+
+
 @theme inline {
   --color-primary: var(--primary);
   --color-background: var(--background);

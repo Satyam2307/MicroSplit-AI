@@ -1135,7 +1135,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-[var(--text)] overflow-hidden"
+              className="w-full max-w-md bg-[var(--surface)] rounded-2xl shadow-2xl border border-[var(--border)] overflow-hidden"
             >
               <div className="px-6 py-4 bg-[var(--background)] border-b border-[var(--text)] flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -1268,7 +1268,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-[var(--text)] overflow-hidden"
+              className="w-full max-w-md bg-[var(--surface)] rounded-2xl shadow-2xl border border-[var(--border)] overflow-hidden"
             >
               <div className="px-6 py-4 bg-[var(--background)] border-b border-[var(--text)] flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -1379,7 +1379,7 @@ function SquadDetailContent({ params }: { params: Promise<{ id: string }> }) {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-[var(--background)] overflow-hidden"
+              className="w-full max-w-md bg-[var(--surface)] rounded-2xl shadow-2xl border border-[var(--border)] overflow-hidden"
             >
               <div className="p-6">
                 <div className="w-12 h-12 rounded-xl bg-[var(--background)] text-[var(--primary)] flex items-center justify-center mb-4">
