@@ -277,7 +277,7 @@ export default function SquadsPage() {
   return (
     <div className="min-h-screen pb-20" style={{ background: 'var(--background)' }}>
       {/* Top Breadcrumb */}
-      <div className="bg-white border-b border-[var(--border)]">
+      <div className="bg-[var(--surface)] border-b border-[var(--border)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: 'var(--text)' }}>
             <Link href="/" className="hover:text-[var(--accent)] transition-colors">MicroSplit</Link>
@@ -568,7 +568,7 @@ export default function SquadsPage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-[var(--border)] overflow-hidden"
+              className="w-full max-w-md bg-[var(--surface)] rounded-2xl shadow-2xl border border-[var(--border)] overflow-hidden"
             >
               <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between" style={{ background: 'var(--background)' }}>
                 <div className="flex items-center gap-2">

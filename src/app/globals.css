@@ -84,13 +84,51 @@
   --border-strong: #334155;
   --border-teal-accent: #0F9D8A;
 
-  --primary: #0B1F3A;
+  /* In dark mode, --primary is the primary heading/text color (high contrast) */
+  --primary: #F8FAFC;
+  --primary-navy: #0B1F3A;
   --background: #030914;
   --accent: #0F9D8A;
   --text: #F8FAFC;
   --surface: #091a30;
   --border: #1E293B;
   --foreground: #F8FAFC;
+
+  --on-primary: #FFFFFF;
+  --muted: #94A3B8;
+  --muted-light: #64748B;
+  --accent-subtle: rgba(15, 157, 138, 0.16);
+  --primary-subtle: #0d2847;
+
+  --status-success: #10B981;
+  --status-success-bg: rgba(16, 185, 129, 0.16);
+  --status-warning: #F59E0B;
+  --status-warning-bg: rgba(245, 158, 11, 0.16);
+  --status-error: #EF4444;
+  --status-error-bg: rgba(239, 68, 68, 0.16);
+  --status-info: #3B82F6;
+  --status-info-bg: rgba(59, 130, 246, 0.16);
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+  --shadow-xl: 0 20px 48px rgba(0, 0, 0, 0.7);
+}
+
+[data-theme="light"] {
+  --primary: #0B1F3A;
+  --background: #F8FAFC;
+  --accent: #0F9D8A;
+  --text: #0B1F3A;
+  --surface: #FFFFFF;
+  --border: #E2E8F0;
+  --border-strong: #CBD5E1;
+  --foreground: #0B1F3A;
+  --muted: #52657D;
+  --muted-light: #7A8BA0;
+  --accent-subtle: #DDF7F3;
+  --primary-subtle: #F0FBF9;
 }
 
 @theme inline {
@@ -201,25 +239,32 @@ body {
 /* ─── Secondary Button (Section 6) ────────────────────────── */
 .btn-secondary {
   background: var(--surface);
-  color: var(--primary);
+  color: var(--text);
   border: 1.5px solid var(--border-strong);
   border-radius: 12px;
-  padding: 11px 22px;
+  padding: 10px 20px;
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   text-decoration: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .btn-secondary:hover {
   background: var(--accent-subtle);
-  border-color: var(--border-strong);
+  border-color: var(--accent);
   color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.btn-secondary:active {
+  transform: translateY(0);
 }
 
 /* ─── Ghost / Text Button (Section 6) ─────────────────────── */

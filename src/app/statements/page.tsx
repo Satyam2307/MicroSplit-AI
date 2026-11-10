@@ -21,6 +21,7 @@ import {
   getStoredSplitRuns,
   getStoredSquads,
 } from '@/lib/client-storage';
+import { showToast } from '@/components/Toast';
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
@@ -125,9 +126,18 @@ export default function StatementsPage() {
         const q = gsap.utils.selector(rootRef);
 
         // 1. Header: title, subtitle and button rise in one after another
-        gsap.from(q('.st-head > *'), {
-          y: 28, opacity: 0, duration: 0.7, ease: 'power3.out', stagger: 0.12,
-        });
+        gsap.fromTo(
+          q('.st-head > *'),
+          { y: 28, opacity: 0 },
+          {
+            y: 0,
+            opacity: 1,
+            duration: 0.7,
+            ease: 'power3.out',
+            stagger: 0.12,
+            clearProps: 'all',
+          }
+        );
 
         // 2. Avatar springs in; identity text slides after it
         gsap.from(q('.st-avatar'), {
@@ -195,6 +205,48 @@ export default function StatementsPage() {
     { scope: rootRef, dependencies: [isLoading, totalEarned, lines.length] }
   );
 
+  const handleExportCSV = () => {
+    if (lines.length === 0) {
+      showToast({
+        type: 'info',
+        title: 'No Statement Data',
+        message: 'There are no statement lines in your account to export.',
+      });
+      return;
+    }
+
+    const headers = ['Line ID', 'Run ID', 'Squad', 'Summary', 'Pool Minor', 'Amount Minor', 'Formatted Amount', 'Currency', 'Payout Status', 'Date'];
+    const rows = lines.map((l) => [
+      `"${l.id}"`,
+      `"${l.runId}"`,
+      `"${(l.squadName || '').replace(/"/g, '""')}"`,
+      `"${(l.contributionSummary || '').replace(/"/g, '""')}"`,
+      l.poolMinor,
+      l.amountMinor,
+      `"${formatMoney(l.amountMinor, l.currency)}"`,
+      `"${l.currency}"`,
+      `"${l.payoutStatus}"`,
+      `"${l.createdAt}"`,
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${member.name.replace(/\s+/g, '_')}_statement_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    showToast({
+      type: 'success',
+      title: 'Statement Exported',
+      message: `Downloaded CSV with ${lines.length} statement records.`,
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--background)' }}>
@@ -216,9 +268,13 @@ export default function StatementsPage() {
                 Earnings summary for {member.name}
               </p>
             </div>
-            <button className="btn-secondary text-sm">
-              <Download size={14} />
-              Export CSV
+            <button
+              type="button"
+              onClick={handleExportCSV}
+              className="btn-secondary text-sm font-semibold flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-xs transition-all hover:scale-102 active:scale-98 cursor-pointer"
+            >
+              <Download size={15} className="text-[var(--accent)]" />
+              <span>Export CSV</span>
             </button>
           </div>
         </Reveal>
