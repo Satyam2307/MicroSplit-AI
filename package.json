@@ -1,6 +1,7 @@
 {
   "name": "microsplit-ai",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "dev": "prisma generate && next dev --webpack",
