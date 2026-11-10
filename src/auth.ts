@@ -15,7 +15,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         name: { label: "Name", type: "text" },
       },
       async authorize(credentials) {
-        const prisma = getPrisma();
         const rawEmail =
           typeof credentials?.email === "string"
             ? credentials.email.trim().toLowerCase()
@@ -37,23 +36,38 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             ? credentials.role.trim()
             : "owner";
 
-        let user = await prisma.user.findUnique({ where: { email } });
-        if (!user) {
-          user = await prisma.user.create({
-            data: {
-              email,
-              name,
-              githubUsername: email.split("@")[0].toLowerCase(),
-              role,
-            },
-          });
-        }
+        try {
+          const prisma = getPrisma();
+          let user = await prisma.user.findUnique({ where: { email } });
+          if (!user) {
+            user = await prisma.user.create({
+              data: {
+                email,
+                name,
+                githubUsername: email.split("@")[0].toLowerCase(),
+                role,
+              },
+            });
+          }
 
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-        };
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+          };
+        } catch (error) {
+          // Demo mode: if the database is unreachable or not set up, still let
+          // the person sign in instead of crashing with CallbackRouteError.
+          console.error(
+            "[mock-github] database unavailable, signing in as a demo user:",
+            error
+          );
+          return {
+            id: `demo-${email}`,
+            name,
+            email,
+          };
+        }
       },
     }),
   ],

@@ -18,8 +18,10 @@ import {
   ArrowRight,
   Sun,
   Moon,
+  LogOut,
 } from 'lucide-react';
 import { showToast } from '@/components/Toast';
+import { signOutFromApp } from '@/app/actions/auth';
 import { useTheme } from './ThemeProvider';
 
 const navLinks = [
@@ -380,6 +382,15 @@ export default function Navbar() {
                         >
                           Switch Demo Role
                         </Link>
+                        <form action={signOutFromApp}>
+                          <button
+                            type="submit"
+                            className="px-4 py-2 text-[11px] font-semibold text-red-600 hover:bg-red-50 flex items-center gap-1.5 w-full text-left cursor-pointer"
+                          >
+                            <LogOut size={13} />
+                            Sign out
+                          </button>
+                        </form>
                       </div>
                     </motion.div>
                   )}
